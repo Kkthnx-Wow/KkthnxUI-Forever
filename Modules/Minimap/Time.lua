@@ -31,6 +31,9 @@ local C_DateAndTime = _G.C_DateAndTime
 
 local Minimap = _G.Minimap
 
+local RAID_INFO_INTERVAL = 60
+local lastRaidInfo = -RAID_INFO_INTERVAL
+
 -- Current time string plus whether calendar invites are pending. Honours the
 -- military-time and local-time CVars like the Blizzard clock does.
 local function TimeText()
@@ -57,7 +60,11 @@ end
 
 -- Hover tooltip: date, both clocks, and this character's saved instance lockouts.
 function Module:TimeTooltip(anchor)
-	if RequestRaidInfo then
+	-- Every call is a server request, and the tooltip rebuilds on each hover, so
+	-- ask at most once per RAID_INFO_INTERVAL. The lockouts barely change.
+	local now = _G.GetTime()
+	if RequestRaidInfo and now - lastRaidInfo >= RAID_INFO_INTERVAL then
+		lastRaidInfo = now
 		RequestRaidInfo()
 	end
 	GameTooltip:SetOwner(anchor, "ANCHOR_LEFT")

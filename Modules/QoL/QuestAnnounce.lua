@@ -8,8 +8,12 @@
 
 		Accepting is told from the accept event. Finishing is told when a quest in
 		the log turns complete, found by checking the log when it changes and
-		remembering which quests have already been announced. The first look after
-		logging in only records, so quests that were already done are not repeated.
+		remembering which quests have already been announced. Anything seen while
+		the log is still loading after login only records, so quests that were
+		already done are not repeated.
+
+		Messages go out through a short queue, one per SAY_GAP seconds. Chat is a
+		server packet, and a burst of them gets a client disconnected.
 -----------------------------------------------------------------------------]]
 
 local K, L = KkthnxUI[1], KkthnxUI[3]
@@ -22,7 +26,16 @@ local C_QuestLog = C_QuestLog
 local SendChatMessage = C_ChatInfo.SendChatMessage
 
 local done = {} -- quest id -> true once announced as complete
-local primed
+
+-- The quest log fills in over several updates after login, so completion states
+-- seen inside this window are recorded but never announced.
+local SETTLE_TIME = 15
+local startTime = GetTime()
+
+-- Seconds between messages, and how many may wait. Past the cap, newest are dropped.
+local SAY_GAP = 1.5
+local MAX_QUEUED = 4
+local outbox, draining = {}, false
 
 local function Channel()
 	if IsInRaid() then
@@ -32,10 +45,27 @@ local function Channel()
 	end
 end
 
-local function Say(text)
+local function Drain()
+	local text = table.remove(outbox, 1)
 	local channel = Channel()
-	if channel then
+	if text and channel then
 		SendChatMessage(text, channel)
+	end
+	if #outbox > 0 then
+		C_Timer.After(SAY_GAP, Drain)
+	else
+		draining = false
+	end
+end
+
+local function Say(text)
+	if not Channel() or #outbox >= MAX_QUEUED then
+		return
+	end
+	outbox[#outbox + 1] = text
+	if not draining then
+		draining = true
+		C_Timer.After(0, Drain)
 	end
 end
 
@@ -59,12 +89,11 @@ local function Scan()
 		local questID = info and not info.isHeader and info.questID
 		if questID and not done[questID] and C_QuestLog.IsComplete(questID) and not C_QuestLog.IsWorldQuest(questID) then
 			done[questID] = true
-			if primed then
+			if GetTime() - startTime > SETTLE_TIME then
 				Say(format(L["Completed: %s"], Title(questID)))
 			end
 		end
 	end
-	primed = true
 end
 
 -- The log event comes in bursts, so one look a moment after it settles is enough.
