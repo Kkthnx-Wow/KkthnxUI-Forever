@@ -1,8 +1,8 @@
 ## Interface: 16001
-## Title: |cff5C8BCFKkthnxUI|r |cffffffffForever|r
+## Title: |cff5C8BCFKkthnxUI|r |cffbea272Forever|r
 ## Notes: A clean, minimalist interface replacement. Rebuilt from the ground up for WoW Forever.
 ## Author: Josh "Kkthnx" Russell
-## Version: 11.1.1
+## Version: 1.0.0-beta2
 ## IconTexture: Interface\AddOns\KkthnxUI\Media\KkthnxUI_Spell_Icon
 ## SavedVariables: KkthnxUIDB
 ## Category-enUS: Kkthnx's AddOns
