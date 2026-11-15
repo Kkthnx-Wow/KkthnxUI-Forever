@@ -1,0 +1,25 @@
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+._*
+
+# Local game files that can sit beside the addon
+/WTF
+/Logs
+/Errors
+/Cache
+/Screenshots
+
+# Packaging output and local scratch
+*.zip
+*.bak
+*.orig
+
+# Editor settings
+.vscode/

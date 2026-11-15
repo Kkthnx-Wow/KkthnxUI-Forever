@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="Core.lua" />
+	<Script file="Hyperlink.lua" />
+	<Script file="Chatbar.lua" />
+	<Script file="Buttons.lua" />
+	<Script file="Filter.lua" />
+	<Script file="Keywords.lua" />
+	<Script file="History.lua" />
+	<Script file="Bubbles.lua" />
+	<Script file="Debug.lua" />
+</Ui>

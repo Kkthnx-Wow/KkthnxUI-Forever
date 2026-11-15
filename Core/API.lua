@@ -1,0 +1,460 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Core/API.lua
+	Purpose:
+		Engine level helpers used everywhere: player info, pixel perfect
+		scaling, colors, fonts, printing, and small utility creators.
+		Kept dependency free so it can load right after the engine.
+-----------------------------------------------------------------------------]]
+
+local K, C = KkthnxUI[1], KkthnxUI[2]
+
+-- ---------------------------------------------------------------------------
+-- Local caching
+-- ---------------------------------------------------------------------------
+
+local _G = _G
+local select = select
+local type = type
+local tostring = tostring
+local floor = math.floor
+local ceil = math.ceil
+local abs = math.abs
+local max = math.max
+local min = math.min
+local format = string.format
+local strfind = string.find
+local tremove = table.remove
+
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local GetPhysicalScreenSize = GetPhysicalScreenSize
+local InCombatLockdown = InCombatLockdown
+
+-- ---------------------------------------------------------------------------
+-- Player info
+-- ---------------------------------------------------------------------------
+
+local name, realm = UnitName("player"), GetRealmName()
+local _, class = UnitClass("player")
+local _, race = UnitRace("player")
+local faction = UnitFactionGroup("player")
+
+K.Name = name
+K.Realm = realm
+K.Class = class
+K.Race = race
+K.Faction = faction
+K.Level = UnitLevel("player")
+K.Locale = GetLocale()
+K.GUID = UnitGUID("player")
+
+K.ClassColor = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class] or { r = 1, g = 1, b = 1 }
+
+K.MediaFolder = "Interface\\AddOns\\KkthnxUI\\Media\\"
+
+-- ---------------------------------------------------------------------------
+-- Printing
+-- ---------------------------------------------------------------------------
+
+local titleTag = "|cff5C8BCFKkthnxUI|r: "
+
+-- Chat output goes through the default chat frame and not the global print. The
+-- global one is handled on the C side and taints the chat frame, and a tainted
+-- chat frame is how a whisper window ends up opening from tainted code. Output is
+-- also dropped where addon chat is restricted, in raid combat, an active Mythic+
+-- run and combat in a battleground or arena, since adding a line there is itself
+-- the taint. Nothing printed from this addon is worth that.
+local function ChatAllowed()
+	local _, instanceType = IsInInstance()
+	if instanceType == "raid" and InCombatLockdown() then
+		return false
+	end
+	if instanceType == "party" and C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive() then
+		return false
+	end
+	if (instanceType == "pvp" or instanceType == "arena") and InCombatLockdown() then
+		return false
+	end
+	return true
+end
+
+function K.PrintRaw(text)
+	local frame = DEFAULT_CHAT_FRAME
+	if frame and ChatAllowed() then
+		frame:AddMessage(text)
+	end
+end
+
+function K.Print(...)
+	-- A single argument is a finished message, only several are a format string.
+	if select("#", ...) > 1 then
+		K.PrintRaw(titleTag .. format(...))
+	else
+		K.PrintRaw(titleTag .. tostring((...)))
+	end
+end
+
+-- Shared no-op, handy for neutering Blizzard globals.
+function K.Noop() end
+
+-- Midnight-safe aura read. C_UnitAuras.GetAuraDataByIndex throws ("Auras cannot
+-- be accessed when secret while tainted") for a secret aura while our code is on
+-- the stack (enemies, and some hidden player auras). Wrap it so callers get nil
+-- instead of an error. The full display for secret-aura units needs the
+-- CustomAuraContainer intrinsic system, which is a larger rework.
+local GetAuraDataByIndex = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
+function K.GetAuraData(unit, index, filter)
+	if not GetAuraDataByIndex then
+		return nil
+	end
+	local ok, data = pcall(GetAuraDataByIndex, unit, index, filter)
+	if ok then
+		return data
+	end
+	return nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Combat queue
+-- ---------------------------------------------------------------------------
+-- The one way to put work off until combat ends. Anything a lockdown blocks
+-- (secure frames, bindings, reparenting, attributes) goes through here rather
+-- than through its own PLAYER_REGEN_ENABLED registration.
+--
+--   K.DeferCombat(key, fn)   run fn once, after the next combat ends
+--   K.CancelCombat(key)      drop a pending key
+--
+-- A key is one pending job. Deferring it again keeps its place in the line and
+-- swaps in the new function, so a burst of requests runs once. The line drains
+-- in the order keys first arrived, each function isolated so one error cannot
+-- stop the rest. The event is only registered while something is waiting.
+--
+-- A call made out of combat still waits for the next combat to end, so a caller
+-- checks InCombatLockdown() itself and runs the work directly when it can. A
+-- function should read live state when it runs, not what was true when it was
+-- queued, and may defer itself again for the drain after that.
+local combatFrame = CreateFrame("Frame")
+local combatKeys, combatJobs = {}, {}
+
+local function DrainCombatQueue()
+	combatFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+	-- Swap the line out first, so a job that defers again lands in a fresh one.
+	local keys, jobs = combatKeys, combatJobs
+	combatKeys, combatJobs = {}, {}
+	for index = 1, #keys do
+		K.SafeCall(jobs[keys[index]])
+	end
+end
+
+combatFrame:SetScript("OnEvent", DrainCombatQueue)
+
+function K.DeferCombat(key, fn)
+	if key == nil or type(fn) ~= "function" then
+		return
+	end
+	if combatJobs[key] == nil then
+		local count = #combatKeys
+		combatKeys[count + 1] = key
+		if count == 0 then
+			combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+		end
+	end
+	combatJobs[key] = fn
+end
+
+function K.CancelCombat(key)
+	if combatJobs[key] == nil then
+		return
+	end
+	combatJobs[key] = nil
+	for index = 1, #combatKeys do
+		if combatKeys[index] == key then
+			tremove(combatKeys, index)
+			break
+		end
+	end
+	if #combatKeys == 0 then
+		combatFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Math helpers
+-- ---------------------------------------------------------------------------
+
+function K.Round(number, decimals)
+	decimals = decimals or 0
+	local mult = 10 ^ decimals
+	return floor(number * mult + 0.5) / mult
+end
+
+function K.Clamp(value, low, high)
+	return max(low, min(high, value))
+end
+
+-- Short numeric formatting (12.3k, 4.5m, ...)
+function K.ShortValue(value)
+	local absValue = value < 0 and -value or value
+	if absValue >= 1e9 then
+		return format("%.1fb", value / 1e9)
+	elseif absValue >= 1e6 then
+		return format("%.1fm", value / 1e6)
+	elseif absValue >= 1e3 then
+		return format("%.1fk", value / 1e3)
+	end
+	return tostring(value)
+end
+
+-- ---------------------------------------------------------------------------
+-- Colors
+-- ---------------------------------------------------------------------------
+
+function K.RGBToHex(r, g, b)
+	if type(r) == "table" then
+		r, g, b = r.r or r[1], r.g or r[2], r.b or r[3]
+	end
+	return format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+end
+
+-- ---------------------------------------------------------------------------
+-- Pixel perfect scaling (K.Pixel)
+-- ---------------------------------------------------------------------------
+-- 768 is WoW's reference height, so perfect = 768 / physicalHeight is the size
+-- of one physical pixel at scale 1.0. mult is that pixel size at the current
+-- UIParent scale. When the UIParent scale equals perfect, mult == 1 and every
+-- integer is already pixel aligned. Pixel.Scale snaps any value onto that grid.
+
+local Pixel = {}
+K.Pixel = Pixel
+
+Pixel.physicalWidth, Pixel.physicalHeight = GetPhysicalScreenSize()
+Pixel.perfect = 768 / Pixel.physicalHeight
+Pixel.mult = Pixel.perfect / (UIParent and UIParent:GetScale() or 1)
+
+-- Mirror onto the engine for older call sites and the border system.
+K.ScreenWidth, K.ScreenHeight = Pixel.physicalWidth, Pixel.physicalHeight
+K.Resolution = format("%dx%d", K.ScreenWidth, K.ScreenHeight)
+K.Mult = Pixel.mult
+
+-- Ideal pixel perfect scale, clamped to WoW's valid range.
+function Pixel.BestScale()
+	return K.Clamp(Pixel.perfect, 0.4, 1.15)
+end
+K.GetPerfectScale = Pixel.BestScale
+
+-- Recalculate mult after a scale or resolution change.
+function Pixel.UpdateMult()
+	Pixel.physicalWidth, Pixel.physicalHeight = GetPhysicalScreenSize()
+	Pixel.perfect = 768 / Pixel.physicalHeight
+	local uiScale = (C.General and C.General.UIScale) or Pixel.BestScale()
+	Pixel.mult = Pixel.perfect / (uiScale ~= 0 and uiScale or 1)
+
+	K.ScreenWidth, K.ScreenHeight = Pixel.physicalWidth, Pixel.physicalHeight
+	K.Resolution = format("%dx%d", K.ScreenWidth, K.ScreenHeight)
+	K.Mult = Pixel.mult
+end
+K.UpdatePixelMult = Pixel.UpdateMult
+
+-- Snap a value onto the physical pixel grid, rounding magnitude toward zero
+-- so opposite edges stay symmetric.
+function Pixel.Scale(value)
+	if value == 0 then
+		return 0
+	end
+	local m = Pixel.mult
+	if m == 1 then
+		return value
+	end
+	local pixels = value / m
+	pixels = value > 0 and floor(pixels) or ceil(pixels)
+	local snapped = pixels * m
+	return snapped == 0 and (value > 0 and m or -m) or snapped
+end
+K.Scale = Pixel.Scale
+
+-- Nearest whole pixel snap for save paths without a frame reference.
+function Pixel.Snap(value)
+	if value == 0 then
+		return 0
+	end
+	local result = floor(value / Pixel.mult + 0.5) * Pixel.mult
+	local rounded = floor(result + 0.5)
+	if abs(result - rounded) < 0.001 then
+		result = rounded
+	end
+	return result
+end
+
+-- Apply the configured (or auto) UIParent scale. Deferred in combat.
+function K:SetupUIScale(init)
+	local general = C.General or {}
+	if general.AutoScale then
+		general.UIScale = Pixel.BestScale()
+	end
+	local scale = general.UIScale or Pixel.BestScale()
+
+	if init then
+		Pixel.UpdateMult()
+		return
+	end
+
+	if InCombatLockdown() then
+		K.DeferCombat("UIScale", function()
+			K:SetupUIScale()
+		end)
+		return
+	end
+
+	UIParent:SetScale(scale)
+	Pixel.UpdateMult()
+end
+
+-- Some retail values are "secret" (protected) and cannot be read in combat.
+K.IsSecret = _G.issecretvalue or function()
+	return false
+end
+
+-- Coordinates as text, in the precision the player asked for. "Game" follows the
+-- game's own coordinates setting (the same one its map panel and minimap readout
+-- use, a CVar from 12.1.5), so every readout on screen agrees. Tenths or whole
+-- numbers can also be forced from the options.
+function K.FormatCoords(x, y)
+	local general = C.General
+	local mode = general and general.CoordPrecision
+	local tenths
+	if mode == "Tenths" then
+		tenths = true
+	elseif mode == "Whole" then
+		tenths = false
+	else
+		tenths = GetCVarBool("coordsByTenths")
+	end
+	if tenths then
+		return format("%.1f, %.1f", x, y)
+	end
+	return format("%d, %d", floor(x + 0.5), floor(y + 0.5))
+end
+
+-- Threat colouring shared by nameplates and unit frames, so both read the same
+-- way. The colour flips by role: a tank wants aggro (green while holding it), while
+-- everyone else wants none (red the moment they pull it). A nil result means the
+-- safe case, so the caller keeps the normal reaction colour.
+do
+	local THREAT_HOLD = { 0.2, 0.8, 0.2 }
+	local THREAT_WARN = { 0.9, 0.7, 0.2 }
+	local THREAT_AGGRO = { 0.9, 0.2, 0.2 }
+
+	-- Are we tanking right now? Assigned group role first, then the spec's role so
+	-- it still reads correctly while solo.
+	function K.PlayerIsTank()
+		local role = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
+		if role == "TANK" then
+			return true
+		end
+		local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
+		if spec and _G.GetSpecializationRole then
+			return _G.GetSpecializationRole(spec) == "TANK"
+		end
+		return false
+	end
+
+	function K.ThreatFillColor(status, isTank)
+		if isTank then
+			if status == 3 then
+				return THREAT_HOLD
+			elseif status == 2 or status == 1 then
+				return THREAT_WARN
+			end
+			return THREAT_AGGRO -- someone else is tanking
+		else
+			if status == 3 then
+				return THREAT_AGGRO -- you pulled aggro
+			elseif status == 2 or status == 1 then
+				return THREAT_WARN
+			end
+		end
+	end
+end
+
+-- Disable pixel snapping on a texture or line so our own snap wins.
+function K.DisablePixelSnap(object)
+	if object.SetSnapToPixelGrid then
+		object:SetSnapToPixelGrid(false)
+		object:SetTexelSnappingBias(0)
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Fonts
+-- ---------------------------------------------------------------------------
+
+-- An outlined glyph already has a hard edge, so a drop shadow on top of it just
+-- reads as mud. Only offset the shadow when the font is not outlined.
+local function ShadowOffset(style)
+	if style and strfind(style, "OUTLINE") then
+		return 0, 0
+	end
+	return 1, -1
+end
+
+function K.SetFontString(parent, font, size, style, ...)
+	local fs = parent:CreateFontString(nil, "OVERLAY")
+	fs:SetFont(font, size, style or "")
+	fs:SetJustifyH("LEFT")
+	fs:SetShadowColor(0, 0, 0, 1)
+	fs:SetShadowOffset(ShadowOffset(style))
+	if select("#", ...) > 0 then
+		fs:SetPoint(...)
+	end
+	return fs
+end
+
+-- Return the outline flag string based on the user preference.
+function K.FontOutlineStyle()
+	return (C.General and C.General.FontOutline) and "OUTLINE" or ""
+end
+
+-- Convenience: apply the addon font at a size to an existing FontString.
+function K.SetFont(fontString, size, style)
+	fontString:SetFont(K.GetFont(C.General and C.General.Font), size or 12, style or "")
+	fontString:SetShadowColor(0, 0, 0, 1)
+	fontString:SetShadowOffset(ShadowOffset(style))
+	return fontString
+end
+
+-- ---------------------------------------------------------------------------
+-- Small creators
+-- ---------------------------------------------------------------------------
+
+-- Create a plain textured backdrop layer on a frame. Border comes separately.
+function K.CreateBackground(frame, r, g, b, a)
+	local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+	bg:SetAllPoints()
+	bg:SetColorTexture(r or 0.06, g or 0.06, b or 0.06, a or 0.9)
+	K.DisablePixelSnap(bg)
+	frame.KKUI_Background = bg
+	return bg
+end
+
+-- ---------------------------------------------------------------------------
+-- GUI icons
+-- ---------------------------------------------------------------------------
+-- Config and bag toolbar icons come straight from the game's own icon library, so
+-- there is no art of ours to keep in step with the client. SetGUIIcon points a
+-- texture at an icon path and trims the baked border the same way an item button
+-- does, which is what makes the art sit flush inside our frames.
+
+local GUI_ICON_PATH = "Interface\\ICONS\\"
+
+function K.SetGUIIcon(texture, icon)
+	if not texture or type(icon) ~= "string" then
+		return
+	end
+	-- Accept a bare icon name or a full path, so a caller can pass either.
+	if not icon:find("\\") then
+		icon = GUI_ICON_PATH .. icon
+	end
+	texture:SetTexture(icon)
+	texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+end

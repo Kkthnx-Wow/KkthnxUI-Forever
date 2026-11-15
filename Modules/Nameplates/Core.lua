@@ -1,0 +1,104 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Modules/Nameplates/Core.lua
+	Purpose:
+		Nameplates built on oUF's own nameplate driver: a bordered health bar,
+		threat colouring, target highlight, a small castbar, and personal
+		debuffs. Kept lean and combat safe.
+
+		The console variables are set once at login, out of combat, to size and
+		space the plates. The look lives in Style.lua.
+-----------------------------------------------------------------------------]]
+
+local K, C = KkthnxUI[1], KkthnxUI[2]
+
+local Module = K:NewModule("Nameplates")
+
+local oUF = K.oUF
+
+local SetCVar = SetCVar
+local InCombatLockdown = InCombatLockdown
+
+-- Console variables that shape the plates. Kept conservative and only applied
+-- when out of combat, since some of these are protected during combat.
+function Module:SetupCVars()
+	if InCombatLockdown() then
+		return
+	end
+	local db = C.Nameplate
+
+	SetCVar("nameplateShowAll", 1)
+	SetCVar("nameplateShowSelf", 0)
+	SetCVar("nameplateShowEnemies", 1)
+	SetCVar("nameplateShowEnemyMinions", 1)
+	SetCVar("nameplateMinScale", 1)
+	SetCVar("nameplateMaxScale", 1)
+	SetCVar("nameplateSelectedScale", 1.1)
+	-- Hold the plates at a flat alpha so they do not dim with distance or fade
+	-- everything but the target, which keeps every bar readable at a glance.
+	SetCVar("nameplateMinAlpha", 1)
+	SetCVar("nameplateMaxAlpha", 1)
+	SetCVar("nameplateSelectedAlpha", 1)
+	SetCVar("nameplateNotSelectedAlpha", 1)
+	SetCVar("nameplateOccludedAlphaMult", 0.4)
+	-- Stacking mode so plates slide apart instead of piling on top of each other.
+	SetCVar("nameplateMotion", 1)
+	-- The client's own stacking setting is the nameplateStackingTypes bitfield, which
+	-- the Blizzard options write the same way. Only the enemy bit is ours.
+	if C_CVar and C_CVar.SetCVarBitfield and Enum.NamePlateStackType and C_CVar.GetCVar("nameplateStackingTypes") then
+		C_CVar.SetCVarBitfield("nameplateStackingTypes", Enum.NamePlateStackType.Enemy, true)
+	end
+	SetCVar("nameplateMaxDistance", db.MaxDistance)
+	SetCVar("nameplateOverlapH", 0.8)
+	SetCVar("nameplateOverlapV", 1.1)
+	SetCVar("clampTargetNameplateToScreen", 1)
+	SetCVar("ShowClassColorInNameplate", 1)
+end
+
+function Module:OnEnable()
+	if not C.Nameplate.Enable then
+		return
+	end
+	if not self.Style then
+		return
+	end
+
+	if K.BuildNameplateColors then
+		K.BuildNameplateColors()
+	end
+
+	oUF:RegisterStyle("KkthnxUI_NamePlate", self.Style)
+	oUF:SetActiveStyle("KkthnxUI_NamePlate")
+
+	-- Spawn the plates, then size the clickable footprint on the driver.
+	local driver = oUF:SpawnNamePlates("KKUI_NamePlate")
+	self.driver = driver
+
+	local function ApplyPlateSize()
+		if not (driver and driver.SetSize) then
+			return
+		end
+		-- The size call is blocked in combat, so it waits for the fight to end.
+		if InCombatLockdown() then
+			K.DeferCombat("NameplateSize", ApplyPlateSize)
+			return
+		end
+		driver:SetSize(C.Nameplate.Width, C.Nameplate.Height + 24)
+	end
+	ApplyPlateSize()
+
+	-- Blizzard's own nameplate options pass sets its size straight back on a display
+	-- size change, a UI scale change and a relevant console variable change
+	-- (NamePlateDriverMixin:UpdateNamePlateOptions), which throws the click area
+	-- and the stacking bounds off until a reload. Put ours back after each pass.
+	if _G.NamePlateDriverFrame and _G.NamePlateDriverFrame.UpdateNamePlateOptions then
+		hooksecurefunc(_G.NamePlateDriverFrame, "UpdateNamePlateOptions", ApplyPlateSize)
+	end
+
+	self:SetupCVars()
+	self:RegisterEvent("PLAYER_ENTERING_WORLD", "SetupCVars")
+
+	if self.SetupTargetPower then
+		self:SetupTargetPower()
+	end
+end

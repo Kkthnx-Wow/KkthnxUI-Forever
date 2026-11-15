@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="Core.lua" />
+	<Script file="Location.lua" />
+	<Script file="Time.lua" />
+	<Script file="Coords.lua" />
+	<Script file="Performance.lua" />
+	<Script file="Tracking.lua" />
+	<Script file="Buttons.lua" />
+</Ui>

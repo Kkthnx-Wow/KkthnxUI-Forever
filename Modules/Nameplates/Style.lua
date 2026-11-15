@@ -1,0 +1,1004 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Modules/Nameplates/Style.lua
+	Purpose:
+		The nameplate look: a bordered health bar, a name/level line above it, a
+		slim castbar below, personal debuffs, and a border that lights up on the
+		current target. Health is coloured by reaction/class with a threat
+		override. Kept secret-safe for Midnight by guarding boolean reads.
+-----------------------------------------------------------------------------]]
+
+local K, C = KkthnxUI[1], KkthnxUI[2]
+
+local Module = K:GetModule("Nameplates")
+
+local oUF = K.oUF
+local CreateFrame = CreateFrame
+local UnitIsUnit = UnitIsUnit
+local UnitHealth = UnitHealth
+local UnitHealthMax = UnitHealthMax
+local UnitLevel = UnitLevel
+local UnitReaction = UnitReaction
+local UnitPowerType = UnitPowerType
+local UnitCanAttack = UnitCanAttack
+local UnitHealthPercent = UnitHealthPercent
+local UnitThreatSituation = UnitThreatSituation
+local GetThreatStatusColor = GetThreatStatusColor
+local UnitIsPlayer = UnitIsPlayer
+local UnitClass = UnitClass
+local UnitClassification = UnitClassification
+local C_TooltipInfo = C_TooltipInfo
+local UnitGUID = UnitGUID
+local strsplit = strsplit
+local tonumber = tonumber
+local wipe = wipe
+local select = select
+local floor = math.floor
+local strmatch = string.match
+local AbbreviateNumbers = AbbreviateNumbers
+local IsInInstance = IsInInstance
+local IsSecret = K.IsSecret
+
+-- Health readout for plates. Enemy health is a secret number in Midnight, which
+-- cannot be divided or compared, so those plates fall back to an abbreviated
+-- current-health count (AbbreviateNumbers accepts secrets). Readable values show
+-- a percent, blanked at full health to keep the bar clean.
+oUF.Tags.Methods["kkui:nphealth"] = function(unit)
+	local cur = UnitHealth(unit)
+	local max = UnitHealthMax(unit)
+	if IsSecret(cur) or IsSecret(max) then
+		return AbbreviateNumbers(cur)
+	end
+	if max == 0 or cur == max then
+		return ""
+	end
+	return floor(cur / max * 100) .. "%"
+end
+oUF.Tags.Events["kkui:nphealth"] = "UNIT_HEALTH UNIT_MAXHEALTH"
+
+-- Name colour for plates: class colour for players, reaction colour otherwise.
+-- Always coloured (unlike the unit-frame tag, which defers to a class-coloured
+-- health bar) because a name-only plate has no bar to carry the colour.
+oUF.Tags.Methods["kkui:npnamecolor"] = function(unit)
+	-- Every discriminator here can be a secret value for an enemy player, and a
+	-- secret can neither drive an `if` nor index a table while tainted.
+	local isPlayer = UnitIsPlayer(unit)
+	if IsSecret(isPlayer) then
+		return ""
+	end
+	if isPlayer then
+		local _, class = UnitClass(unit)
+		-- A secret class token cannot key our colour table, but the client's own
+		-- class colour lookup accepts it, so enemy players still get their colour.
+		if IsSecret(class) then
+			local color = C_ClassColor.GetClassColor(class)
+			if color then
+				return color:GenerateHexColorMarkup()
+			end
+		elseif class then
+			local color = oUF.colors.class[class]
+			if color then
+				return color:GenerateHexColorMarkup()
+			end
+		end
+	else
+		local reaction = UnitReaction(unit, "player")
+		local color = reaction and not IsSecret(reaction) and oUF.colors.reaction[reaction]
+		if color then
+			return color:GenerateHexColorMarkup()
+		end
+	end
+	return ""
+end
+oUF.Tags.Events["kkui:npnamecolor"] = "UNIT_NAME_UPDATE UNIT_FACTION"
+
+-- Unit level for the plate name, difficulty-coloured. Blank when secret.
+oUF.Tags.Methods["kkui:nplevel"] = function(unit)
+	local level = UnitLevel(unit)
+	if IsSecret(level) or not level then
+		return ""
+	end
+	if level <= 0 then
+		return "|cffff4040??|r "
+	end
+	return level .. " "
+end
+oUF.Tags.Events["kkui:nplevel"] = "UNIT_LEVEL PLAYER_LEVEL_UP"
+
+-- Guild name in angle brackets for players, blank for everyone else.
+oUF.Tags.Methods["kkui:npguild"] = function(unit)
+	local guild = GetGuildInfo(unit)
+	if guild and not IsSecret(guild) then
+		return "<" .. guild .. ">"
+	end
+	return ""
+end
+oUF.Tags.Events["kkui:npguild"] = "UNIT_NAME_UPDATE"
+
+local GAP = 6
+local CAST_COLOR = { 0.85, 0.65, 0.13 } -- normal cast (gold / yellow)
+-- Bright accent that marks the current target's border (never black).
+local TARGET_ACCENT = { 1, 0.9, 0.2 }
+
+-- Recolour the current target's border to the accent, and put every other
+-- plate's border back to the configured colour. Guarded so a secret UnitIsUnit
+-- result never errors in Midnight.
+-- The shadow carries three cues, in priority order: the accent when this plate
+-- is your target, a threat colour when you hold or are pulling aggro, and plain
+-- black otherwise. Replaces the old border recolour.
+local function UpdateTargetHighlight(self)
+	local unit = self.unit
+	local isTarget = unit and UnitIsUnit(unit, "target")
+
+	-- Name-only plates carry no shadow to tint, so the name-select glow is the
+	-- target cue there.
+	if self.__nameOnly then
+		if self.NameSelect then
+			self.NameSelect:SetShown(C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget and true or false)
+		end
+		return
+	end
+
+	-- A plate with a bar carries its target cue on the shadow, never on the name
+	-- glow, so make sure the glow is down. This runs on target change too, which
+	-- does not go through UpdateNameOnly.
+	if self.NameSelect then
+		self.NameSelect:Hide()
+	end
+
+	local shadow = self.KKUI_Shadow
+	if not shadow then
+		return
+	end
+
+	if C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget then
+		shadow:SetBackdropBorderColor(TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3], 1)
+		return
+	end
+
+	if C.Nameplate.ThreatColor and unit then
+		local status = UnitThreatSituation("player", unit)
+		if status and not IsSecret(status) and status >= 2 then
+			local r, g, b = GetThreatStatusColor(status)
+			shadow:SetBackdropBorderColor(r, g, b, 1)
+			return
+		end
+	end
+
+	shadow:SetBackdropBorderColor(0, 0, 0, 1)
+end
+
+-- Elite / rare / boss classification icon.
+local function UpdateClassification(self)
+	local icon = self.Classification
+	if not icon then
+		return
+	end
+	local class = self.unit and UnitClassification(self.unit)
+	local kind = false
+	if not IsSecret(class) then
+		if class == "worldboss" or class == "elite" then
+			kind = "gold"
+		elseif class == "rareelite" or class == "rare" then
+			kind = "silver"
+		end
+	end
+	-- This runs on every health event of every plate, and most events leave the
+	-- kind as it was, so the icon is only touched when it changes.
+	if icon.__kind == kind then
+		return
+	end
+	icon.__kind = kind
+	if kind then
+		icon:SetAtlas(kind == "gold" and "nameplates-icon-elite-gold" or "nameplates-icon-elite-silver")
+		icon:Show()
+	else
+		icon:Hide()
+	end
+end
+
+-- Format an incomplete objective's text per the config: the completed count
+-- ("3/7", "40%") or what remains ("4", "60%").
+local function FormatProgress(text)
+	local remaining = C.Nameplate.QuestProgressFormat == "Remaining"
+	local current, goal = strmatch(text, "(%d+)/(%d+)")
+	if current and goal then
+		current, goal = tonumber(current), tonumber(goal)
+		if current < goal then
+			return remaining and tostring(goal - current) or (current .. "/" .. goal)
+		end
+		return nil
+	end
+	local percent = tonumber(strmatch(text, "(%d+)%%"))
+	if percent and percent < 100 then
+		return remaining and (100 - percent) .. "%" or percent .. "%"
+	end
+	return nil
+end
+
+-- Quest objective marker. Outside instances we read
+-- the structured unit tooltip and return the first INCOMPLETE objective. Inside
+-- instances the tooltip is unreliable, so we fall back to the cheap relation
+-- check and show the icon with no text. Returns (progress, fromParty): progress
+-- is a string ("" means icon only) or nil for no quest, fromParty flags an
+-- objective that belongs to a group member. Secret fields are checked first.
+local function QuestProgress(unit)
+	if not C.Nameplate.ShowQuestIcon then
+		return nil
+	end
+
+	if IsInInstance() then
+		if C_QuestLog and C_QuestLog.UnitIsRelatedToActiveQuest and C_QuestLog.UnitIsRelatedToActiveQuest(unit) then
+			return "", false
+		end
+		return nil
+	end
+
+	if not (C_TooltipInfo and C_TooltipInfo.GetUnit and Enum and Enum.TooltipDataLineType) then
+		return nil
+	end
+
+	local data = C_TooltipInfo.GetUnit(unit)
+	if not data or not data.lines then
+		return nil
+	end
+
+	local LT = Enum.TooltipDataLineType
+	local ownerIsPlayer = true
+	for _, line in ipairs(data.lines) do
+		local t = line.type
+		if t == LT.QuestPlayer then
+			-- A "<name>'s quest" divider, everything after belongs to that player.
+			if not IsSecret(line.leftText) then
+				ownerIsPlayer = line.leftText == K.Name
+			end
+		elseif t == LT.QuestObjective then
+			local text = line.leftText
+			if text and not IsSecret(text) and (ownerIsPlayer or C.Nameplate.QuestShowParty) then
+				local progress = FormatProgress(text)
+				if progress then
+					return progress, not ownerIsPlayer
+				end
+			end
+		end
+	end
+	return nil
+end
+
+-- QuestProgress builds the unit's tooltip, and UpdateQuest runs from the health
+-- element, which means on every health event of every plate. The answer only moves
+-- when quest progress does, so it is kept per GUID and re-read when the epoch
+-- changes. The epoch is bumped by the quest events, which also covers a unit that
+-- was off screen while its objective was completed elsewhere. Units whose GUID is
+-- secret are never cached.
+local questCache = {}
+local questCacheSize = 0
+local questEpoch = 0
+local MAX_QUEST_CACHE = 300
+
+local function BumpQuestEpoch()
+	questEpoch = questEpoch + 1
+end
+
+-- Quest events come in bursts, and each plate used to rebuild its unit tooltip on
+-- every one of them. One shared watcher now bumps the epoch and, a moment after the
+-- burst settles, refreshes the plates once.
+local questWatcher
+local RefreshQuestPlates
+local questRefreshQueued
+local QUEST_REFRESH_DELAY = 0.3
+
+local function EnsureQuestWatcher()
+	if questWatcher then
+		return
+	end
+	questWatcher = CreateFrame("Frame")
+	questWatcher:RegisterEvent("QUEST_LOG_UPDATE")
+	-- A party member's objective moving does not raise QUEST_LOG_UPDATE for you.
+	questWatcher:RegisterEvent("UNIT_QUEST_LOG_CHANGED")
+	-- The instance check inside QuestProgress changes with the zone.
+	questWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	questWatcher:SetScript("OnEvent", function(_, event)
+		BumpQuestEpoch()
+		if event ~= "PLAYER_ENTERING_WORLD" and not questRefreshQueued then
+			questRefreshQueued = true
+			C_Timer.After(QUEST_REFRESH_DELAY, RefreshQuestPlates)
+		end
+	end)
+end
+
+local function CachedQuestProgress(unit, force)
+	local guid = UnitGUID(unit)
+	if not guid or IsSecret(guid) then
+		return QuestProgress(unit)
+	end
+
+	local entry = questCache[guid]
+	if entry and entry.epoch == questEpoch and not force then
+		return entry.progress or nil, entry.fromParty
+	end
+
+	local progress, fromParty = QuestProgress(unit)
+	if not entry then
+		if questCacheSize >= MAX_QUEST_CACHE then
+			wipe(questCache)
+			questCacheSize = 0
+		end
+		entry = {}
+		questCache[guid] = entry
+		questCacheSize = questCacheSize + 1
+	end
+	entry.epoch = questEpoch
+	entry.progress = progress or false
+	entry.fromParty = fromParty
+	return progress, fromParty
+end
+
+local function UpdateQuest(self, force)
+	local icon = self.QuestIcon
+	if not icon then
+		return
+	end
+	local unit = self.unit
+	local progress, fromParty
+	if unit then
+		progress, fromParty = CachedQuestProgress(unit, force)
+	end
+	if not progress then
+		if self.QuestCount then
+			self.QuestCount:SetText("")
+		end
+		icon:Hide()
+		return
+	end
+
+	-- Grey a party member's quest, full colour for your own.
+	if fromParty then
+		icon:SetDesaturated(true)
+		icon:SetVertexColor(0.7, 0.7, 0.7)
+	else
+		icon:SetDesaturated(false)
+		icon:SetVertexColor(1, 1, 1)
+	end
+	icon:Show()
+
+	-- Progress text: always, or only while this plate is your target.
+	if self.QuestCount then
+		local show = progress ~= ""
+		if show and C.Nameplate.QuestProgressOnTarget then
+			local isTarget = UnitIsUnit(unit, "target")
+			show = not IsSecret(isTarget) and isTarget
+		end
+		self.QuestCount:SetText(show and progress or "")
+	end
+end
+
+-- Friendly units in name-only mode drop the bars and show just the name over a
+-- soft shadow. Always sets an explicit state for every piece so a recycled plate
+-- (friendly -> hostile) never keeps a leftover shadow or hidden bar.
+local function UpdateNameOnly(self)
+	local friendly = false
+	if C.Nameplate.FriendlyNameOnly then
+		local reaction = self.unit and UnitReaction(self.unit, "player")
+		friendly = reaction and not IsSecret(reaction) and reaction >= 5 or false
+	end
+	self.__nameOnly = friendly
+
+	-- Everything below is a pure function of friendly, so a plate already in this
+	-- state has nothing to do. This runs on every health event of every plate.
+	if self.__nameApplied == friendly then
+		return
+	end
+	self.__nameApplied = friendly
+
+	self.Health:SetShown(not friendly)
+	if self.KKUI_Shadow then
+		self.KKUI_Shadow:SetShown(not friendly)
+	end
+	-- Only force the castbar off for friendly name-only plates. For everyone else we
+	-- must not force it on: the oUF castbar element hides itself when idle and shows
+	-- on cast start, so forcing SetShown(true) here left an empty bar sitting on
+	-- every enemy plate that was not casting.
+	if self.Castbar and friendly then
+		self.Castbar:Hide()
+	end
+	if self.HealthText then
+		self.HealthText:SetShown(not friendly)
+	end
+	if self.NameShadow then
+		self.NameShadow:SetShown(friendly)
+	end
+	-- Guild line only makes sense in name-only mode, on a bar it would overlap.
+	if self.GuildName then
+		self.GuildName:SetShown(friendly)
+	end
+
+	-- The two name-only glows have to be cleared explicitly. Both live on every
+	-- plate but are only ever shown by the name-only paths, so a pooled plate that
+	-- was a hovered or targeted friendly kept its glow once the frame came back
+	-- round for a hostile unit with a health bar. Drop the hover watcher with them,
+	-- since it only ever runs for a name-only plate.
+	if not friendly then
+		if self.NameHover then
+			self.NameHover:Hide()
+		end
+		if self.NameSelect then
+			self.NameSelect:Hide()
+		end
+		self:SetScript("OnUpdate", nil)
+	end
+
+	-- Re-anchor the name to the plate centre when the bar is gone. This runs on every
+	-- health event, and the anchor is a pure function of the state, so it is only
+	-- rewritten when the state actually changed.
+	if self.__nameAnchored ~= friendly then
+		self.__nameAnchored = friendly
+		self.Name:ClearAllPoints()
+		if friendly then
+			self.Name:SetPoint("CENTER", self, "CENTER", 0, 0)
+		else
+			self.Name:SetPoint("BOTTOM", self.Health, "TOP", 0, 4)
+		end
+	end
+end
+
+-- Execute range: a tint over the filled part of an enemy's health bar once its
+-- health drops under the chosen percent. Enemy health is a hidden number in
+-- instances, so nothing is compared. The health fraction goes through a curve
+-- that gives an alpha, and the alpha is handed straight to the texture.
+local executeCurve
+local EXECUTE_ALPHA = 0.55
+local function GetExecuteCurve()
+	if executeCurve == nil then
+		executeCurve = false
+		local range = C.Nameplate.ExecuteRange or 0
+		if range > 0 and C_CurveUtil and C_CurveUtil.CreateCurve and Enum.LuaCurveType then
+			local ratio = range / 100
+			local curve = C_CurveUtil.CreateCurve()
+			curve:SetType(Enum.LuaCurveType.Linear)
+			curve:AddPoint(0, EXECUTE_ALPHA)
+			curve:AddPoint(ratio, EXECUTE_ALPHA)
+			-- A short ramp past the threshold rather than a hard edge.
+			curve:AddPoint(math.min(ratio + 0.004, 1), 0)
+			curve:AddPoint(1, 0)
+			executeCurve = curve
+		end
+	end
+	return executeCurve or nil
+end
+
+local function UpdateExecute(self, unit)
+	local tint = self.ExecuteTint
+	if not tint then
+		return
+	end
+	local curve = GetExecuteCurve()
+	if curve and UnitCanAttack("player", unit) then
+		tint:SetAlpha(UnitHealthPercent(unit, true, curve))
+	else
+		tint:SetAlpha(0)
+	end
+end
+
+local function PostUpdateHealth(health, unit)
+	local self = health.__owner
+	if not self then
+		return
+	end
+	UpdateExecute(self, unit)
+	-- Name-only first: the target highlight reads self.__nameOnly.
+	UpdateNameOnly(self)
+	UpdateTargetHighlight(self)
+	UpdateClassification(self)
+	UpdateQuest(self)
+end
+
+-- Unitless oUF events, fired on every plate. The target highlight has to react
+-- to target changes on its own, otherwise the old plate keeps the accent and the
+-- new one never gets it until its health happens to tick (the "stuck" border).
+local function OnTargetChanged(self)
+	UpdateTargetHighlight(self)
+	-- Progress text can be target-only, so refresh it when the target changes.
+	UpdateQuest(self)
+end
+
+-- Name-only hover glow: lit while the cursor is over this plate's unit.
+--
+-- UPDATE_MOUSEOVER_UNIT fires when the cursor gains a unit but not reliably
+-- when it moves off to empty space, so the event alone would leave the glow
+-- stuck on. While the glow is lit we poll on a throttle and drop it the moment
+-- the cursor is no longer over this unit. The watcher unhooks itself so an idle
+-- plate costs nothing.
+local HOVER_THROTTLE = 0.1
+
+local function IsHovered(self)
+	local unit = self.unit
+	local hovered = self.__nameOnly and unit and UnitIsUnit(unit, "mouseover")
+	return not IsSecret(hovered) and hovered and true or false
+end
+
+local function HoverWatch(self, elapsed)
+	self.__hoverElapsed = (self.__hoverElapsed or 0) + elapsed
+	if self.__hoverElapsed < HOVER_THROTTLE then
+		return
+	end
+	self.__hoverElapsed = 0
+	if not IsHovered(self) then
+		self.NameHover:Hide()
+		self:SetScript("OnUpdate", nil)
+	end
+end
+
+local function OnMouseover(self)
+	-- Only a name-only plate has a hover glow. Every other plate had it cleared when
+	-- it left that mode, and this event fires on every plate each time the pointer
+	-- crosses a unit.
+	if not self.NameHover or not self.__nameOnly then
+		return
+	end
+	if IsHovered(self) then
+		self.NameHover:Show()
+		self.__hoverElapsed = 0
+		self:SetScript("OnUpdate", HoverWatch)
+	else
+		self.NameHover:Hide()
+		self:SetScript("OnUpdate", nil)
+	end
+end
+
+function RefreshQuestPlates()
+	questRefreshQueued = nil
+	for _, frame in next, oUF.objects do
+		if frame.isNamePlate and frame.QuestIcon and frame.unit and frame:IsShown() then
+			UpdateQuest(frame, true)
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Custom unit colours (kill-first / focus lists)
+-- ---------------------------------------------------------------------------
+
+-- npcID -> { r, g, b }, rebuilt from config so a change applies without a reload.
+K.NameplateCustomColors = {}
+
+function K.BuildNameplateColors()
+	wipe(K.NameplateCustomColors)
+	local list = C.Nameplate and C.Nameplate.CustomColors
+	if list then
+		for npcID, color in pairs(list) do
+			K.NameplateCustomColors[npcID] = color
+		end
+	end
+end
+
+-- The npcID sits in the 6th field of the GUID. It can be a secret value in
+-- Midnight, in which case we simply skip the custom colour.
+local function GetNPCID(unit)
+	local guid = unit and UnitGUID(unit)
+	if not guid or IsSecret(guid) then
+		return
+	end
+	return tonumber((select(6, strsplit("-", guid))))
+end
+
+-- Health colour override, run after oUF's own colouring:
+--   1. an npcID on the custom list always wins,
+--   2. players keep the class / reaction colour oUF gave them,
+--   3. enemies get a threat colour when that option is on, otherwise their
+--      reaction colour, and a solid hostile colour when the reaction is secret,
+--      so a mob we are fighting never falls back to the plain green health fill.
+-- A hostile unit is treated as a caster when it runs on mana, the one signal the
+-- API gives for a nameplate unit. Read live each colour update so a recycled plate
+-- never keeps a stale role, and guarded for a secret power type.
+local function PlateIsCaster(unit)
+	local power = UnitPowerType and UnitPowerType(unit)
+	return power ~= nil and not IsSecret(power) and power == 0
+end
+
+local function CustomHealthColor(health, unit)
+	local npcID = GetNPCID(unit)
+	local custom = npcID and K.NameplateCustomColors[npcID]
+	if custom then
+		health:SetStatusBarColor(custom[1], custom[2], custom[3])
+		return
+	end
+
+	local isPlayer = UnitIsPlayer(unit)
+	if IsSecret(isPlayer) or isPlayer then
+		return
+	end
+
+	-- Role colours: hostile plates read as caster or melee so casters stand out.
+	-- Sits above reaction colour so the split is visible, below the custom and threat
+	-- colours which the player set on purpose. When threat colouring is on we let a
+	-- live threat situation win, but the threat read can be a secret for an enemy in
+	-- Midnight, so guard it the same way the threat fill below does.
+	local threatWins = false
+	if C.Nameplate.RoleColors and C.Nameplate.ThreatHealthColor then
+		local status = UnitThreatSituation("player", unit)
+		threatWins = status and not IsSecret(status) and true or false
+	end
+	if C.Nameplate.RoleColors and not threatWins then
+		local reaction = UnitReaction(unit, "player")
+		if reaction and not IsSecret(reaction) and reaction <= 4 then
+			local c = PlateIsCaster(unit) and C.Nameplate.CasterColor or C.Nameplate.MeleeColor
+			if c then
+				health:SetStatusBarColor(c[1], c[2], c[3])
+				return
+			end
+		end
+	end
+
+	if C.Nameplate.ThreatHealthColor then
+		local status = UnitThreatSituation("player", unit)
+		if status and not IsSecret(status) then
+			local color = K.ThreatFillColor(status, K.PlayerIsTank())
+			if color then
+				health:SetStatusBarColor(color[1], color[2], color[3])
+				return
+			end
+		end
+	end
+
+	local reaction = UnitReaction(unit, "player")
+	if reaction and not IsSecret(reaction) then
+		local c = oUF.colors.reaction[reaction]
+		if c then
+			health:SetStatusBarColor(c:GetRGB())
+			return
+		end
+	end
+
+	-- Reaction unknown (secret): fall back to the hostile colour, not stock green.
+	local hostile = oUF.colors and oUF.colors.reaction and oUF.colors.reaction[2]
+	if hostile then
+		health:SetStatusBarColor(hostile:GetRGB())
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Element builders
+-- ---------------------------------------------------------------------------
+
+local function BuildHealth(self)
+	local db = C.Nameplate
+	local health = CreateFrame("StatusBar", nil, self)
+	health:SetStatusBarTexture(K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI"))
+	-- oUF points `self` at the whole nameplate base, so size the health bar
+	-- explicitly and centre it rather than filling the oversized parent.
+	health:SetSize(db.Width, db.Height)
+	health:SetPoint("CENTER", self, "CENTER", 0, 0)
+	health.colorReaction = true
+	health.colorClass = db.ClassColor
+	-- oUF's threat colouring greys the bar at threat status 0 (group DPS with no
+	-- aggro), which read as "everything turns grey". We colour threat on the
+	-- shadow instead, so the fill keeps its reaction / class colour.
+	health.colorThreat = false
+	health.colorTapping = true
+	health.colorDisconnected = true
+	health.PostUpdate = PostUpdateHealth
+	health.PostUpdateColor = CustomHealthColor
+
+	local bg = health:CreateTexture(nil, "BACKGROUND")
+	bg:SetAllPoints()
+	bg:SetColorTexture(0.12, 0.12, 0.12, 0.9)
+	health.bg = bg
+	self.Health = health
+
+	if (db.ExecuteRange or 0) > 0 then
+		local color = db.ExecuteColor or { 0.9, 0.2, 0.2 }
+		local tint = health:CreateTexture(nil, "OVERLAY", nil, 1)
+		tint:SetAllPoints(health:GetStatusBarTexture())
+		tint:SetColorTexture(color[1], color[2], color[3], 1)
+		tint:SetAlpha(0)
+		self.ExecuteTint = tint
+	end
+	-- Soft shadow instead of the hard border. Its colour doubles as the
+	-- target highlight and threat cue (see UpdateTargetHighlight).
+	K.CreateShadow(health)
+	self.KKUI_Shadow = health.KKUI_Shadow
+
+	-- Health percent, right aligned on the bar.
+	if db.ShowHealthText then
+		local hp = health:CreateFontString(nil, "OVERLAY")
+		K.SetFont(hp, db.NameSize - 1, K.FontOutlineStyle())
+		hp:SetPoint("RIGHT", health, "RIGHT", -2, 0)
+		self:Tag(hp, "[kkui:nphealth]")
+		self.HealthText = hp
+	end
+end
+
+local function BuildName(self)
+	local name = self:CreateFontString(nil, "OVERLAY")
+	K.SetFont(name, C.Nameplate.NameSize, K.FontOutlineStyle())
+	name:SetPoint("BOTTOM", self.Health, "TOP", 0, 4)
+	name:SetJustifyH("CENTER")
+	-- Colour through the tag system so it updates on name/faction events, not
+	-- only when the health bar happens to recolour (which needed a target/click).
+	self:Tag(name, "[kkui:nplevel][kkui:npnamecolor][kkui:name]")
+	self.Name = name
+
+	-- Name-only highlights: a hover shade and a target shade framing the name text
+	-- (they only show in name-only mode, driven from the update handlers). These
+	-- were Blizzard search atlases, whose violet was baked into the art and matched
+	-- nothing else we draw. They are our own gradients now, so the colour and the
+	-- alpha come from the shared palette like everything else.
+	local hover = K.CreateTextShade(self, "ARTWORK", 1)
+	hover:SetRegion(name, 10, 4)
+	hover:SetColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3], K.GradientAlpha.lineSoft)
+	self.NameHover = hover
+
+	local selectShade = K.CreateTextShade(self, "ARTWORK", 2)
+	selectShade:SetRegion(name, 10, 4)
+	selectShade:SetColor(TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3], K.GradientAlpha.lineSoft)
+	self.NameSelect = selectShade
+
+	-- Guild line under the name (players only, empty tag hides itself).
+	if C.Nameplate.ShowGuildName then
+		local guild = self:CreateFontString(nil, "OVERLAY")
+		K.SetFont(guild, C.Nameplate.NameSize - 2, K.FontOutlineStyle())
+		guild:SetPoint("TOP", name, "BOTTOM", 0, -2)
+		guild:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+		self:Tag(guild, "[kkui:npguild]")
+		self.GuildName = guild
+	end
+end
+
+-- Cast colour while interruptible, red while not (matching the unit frame
+-- castbars). notInterruptible is a Midnight
+-- secret boolean, so colour through SetVertexColorFromBoolean rather than an if.
+local CAST_CLR = CreateColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+local NOINTERRUPT_CLR = CreateColor(0.6, 0.6, 0.65) -- cannot interrupt (silver)
+
+-- notInterruptible arrives as a PostCastStart argument in the current oUF. It can
+-- be a Midnight secret boolean (enemy casts), a plain boolean, or nil. Only the
+-- secret path may use SetVertexColorFromBoolean, and a plain value would error
+-- there, so branch on it.
+-- Cast in progress: gold while interruptible, silver while not. Shared by the
+-- start callback and the mid-cast interruptibility change so a spell that flips (a
+-- kick immunity dropping, say) recolours instead of staying its start colour. A
+-- failed or interrupted cast goes red.
+local FAIL_COLOR = { 0.85, 0.25, 0.25 }
+
+local function CastRecolor(cast, notInterruptible)
+	local tex = cast:GetStatusBarTexture()
+	if IsSecret(notInterruptible) then
+		if tex and tex.SetVertexColorFromBoolean then
+			tex:SetVertexColorFromBoolean(notInterruptible, NOINTERRUPT_CLR, CAST_CLR)
+		end
+	elseif notInterruptible then
+		cast:SetStatusBarColor(NOINTERRUPT_CLR:GetRGB())
+	else
+		cast:SetStatusBarColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+	end
+end
+
+local function OnCastStart(cast, _, _, notInterruptible)
+	-- A friendly name-only plate has no bar to hang a cast on, and the health event
+	-- that used to hide it again no longer runs on every update.
+	local owner = cast.__owner
+	if owner and owner.__nameOnly then
+		cast:Hide()
+		return
+	end
+	-- An interrupt turns the duration binding off so the old cast stops counting
+	-- down, so bring it back for the new one.
+	cast.__failed = nil
+	if cast.Time and cast.Time.binding then
+		cast.Time.binding:SetEnabled(true)
+	end
+	CastRecolor(cast, notInterruptible)
+end
+
+local function OnCastInterruptible(cast, _, _, notInterruptible)
+	-- A bar held on screen after an interrupt keeps its red.
+	if cast.__failed then
+		return
+	end
+	CastRecolor(cast, notInterruptible)
+end
+
+-- A failed or interrupted cast goes red and fills, and its timer stops. The timer
+-- text belongs to a client side duration binding that keeps counting the original
+-- cast down over anything we write, so it has to be switched off, the same as on
+-- the unit frame castbars.
+local function OnCastFail(cast)
+	cast:SetStatusBarColor(FAIL_COLOR[1], FAIL_COLOR[2], FAIL_COLOR[3])
+	cast.__failed = true
+	if cast.Time then
+		if cast.Time.binding then
+			cast.Time.binding:SetEnabled(false)
+		end
+		cast.Time:SetText("")
+	end
+	cast:SetMinMaxValues(0, 1)
+	cast:SetValue(1)
+end
+
+local function BuildCastbar(self)
+	if not C.Nameplate.ShowCastbar then
+		return
+	end
+	local height = C.Nameplate.CastbarHeight
+	local cast = CreateFrame("StatusBar", nil, self)
+	cast:SetStatusBarTexture(K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI"))
+	cast:SetStatusBarColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+	cast:SetHeight(height)
+	cast:SetPoint("TOPLEFT", self.Health, "BOTTOMLEFT", 0, -GAP)
+	cast:SetPoint("TOPRIGHT", self.Health, "BOTTOMRIGHT", 0, -GAP)
+	K.CreateBackground(cast, 0.08, 0.08, 0.08, 0.9)
+	K.CreateShadow(cast)
+	cast.PostCastStart = OnCastStart
+	cast.PostCastInterruptible = OnCastInterruptible
+	cast.PostCastFail = OnCastFail
+	cast.PostCastInterrupted = OnCastFail
+
+	-- Square icon box to the left, matched to the castbar height.
+	local iconHolder = CreateFrame("Frame", nil, cast)
+	iconHolder:SetSize(height, height)
+	iconHolder:SetPoint("RIGHT", cast, "LEFT", -GAP, 0)
+	K.CreateBackground(iconHolder, 0.05, 0.05, 0.05, 0.9)
+	K.CreateShadow(iconHolder)
+	local icon = iconHolder:CreateTexture(nil, "ARTWORK")
+	icon:SetPoint("TOPLEFT", 1, -1)
+	icon:SetPoint("BOTTOMRIGHT", -1, 1)
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	cast.Icon = icon
+
+	-- Padlock over the bar while the cast cannot be interrupted, oUF drives its
+	-- alpha from notInterruptible.
+	local shield = cast:CreateTexture(nil, "OVERLAY")
+	shield:SetAtlas("UI-CharacterCreate-PadLock", false)
+	shield:SetSize(height * 0.9 * (63 / 76), height * 0.9)
+	shield:SetPoint("CENTER", cast, "CENTER", 0, 0)
+	shield:SetAlpha(0)
+	cast.Shield = shield
+
+	-- Spell name (left) and remaining time (right).
+	local name = self:CreateFontString(nil, "OVERLAY")
+	K.SetFont(name, C.Nameplate.NameSize - 1, K.FontOutlineStyle())
+	name:SetParent(cast)
+	name:SetPoint("LEFT", cast, "LEFT", 3, 0)
+	name:SetJustifyH("LEFT")
+	cast.Text = name
+
+	local time = self:CreateFontString(nil, "OVERLAY")
+	K.SetFont(time, C.Nameplate.NameSize - 1, K.FontOutlineStyle())
+	time:SetParent(cast)
+	time:SetPoint("RIGHT", cast, "RIGHT", -3, 0)
+	time:SetJustifyH("RIGHT")
+	cast.Time = time
+	name:SetPoint("RIGHT", time, "LEFT", -4, 0)
+
+	self.Castbar = cast
+end
+
+local function BuildDebuffs(self)
+	if not C.Nameplate.ShowDebuffs then
+		return
+	end
+	local db = C.Nameplate
+	local filter = db.OnlyMyDebuffs and "HARMFUL|PLAYER" or "HARMFUL"
+	-- Built on the CustomAuraContainer intrinsic (12.1 blocks reading enemy auras
+	-- from tainted code). Sits clear above the name and class-resource bar.
+	local container = K.CreateAuraContainer(self, {
+		point = { "BOTTOMLEFT", self.Health, "TOPLEFT", 0, db.NameSize + 32 },
+		size = db.AuraSize,
+		spacing = db.AuraSpacing,
+		perRow = db.MaxAuras,
+		anchorPoint = "BOTTOMLEFT",
+		growthH = "Right",
+		growthV = "Up",
+		dispelBorder = true,
+		shadow = true,
+		slots = { { key = "npdebuffs", filter = filter, max = db.MaxAuras } },
+	})
+	self.KKUI_Debuffs = container
+	if container then
+		K.TrackAuraContainer(self, container)
+	end
+end
+
+-- Private auras: boss and encounter auras Blizzard only reveals to the affected
+-- player. The oUF element hands the anchor frames to the client, which draws and
+-- times them, so this only sizes and positions the row. Sits above the debuffs
+-- (or the health bar when debuffs are off) and grows right from a centred row.
+local function BuildPrivateAuras(self)
+	if not C.Nameplate.PrivateAuras then
+		return
+	end
+	if not (C_UnitAuras and C_UnitAuras.AddPrivateAuraAnchor) then
+		return
+	end
+	local db = C.Nameplate
+	local size = db.PrivateAuraSize or db.AuraSize
+	local num = 3
+
+	local base = db.NameSize + 32
+	if db.ShowDebuffs then
+		base = base + db.AuraSize + db.AuraSpacing
+	end
+
+	local frame = CreateFrame("Frame", nil, self)
+	frame:SetSize(num * size + (num - 1) * db.AuraSpacing, size)
+	frame:SetPoint("BOTTOM", self.Health, "TOP", 0, base)
+	frame.size = size
+	frame.num = num
+	frame.spacing = db.AuraSpacing
+	frame.growthX = "RIGHT"
+	frame.growthY = "UP"
+	frame.initialAnchor = "BOTTOMLEFT"
+	frame.maxCols = num
+	frame.showDispelIcon = true
+	self.PrivateAuras = frame
+end
+
+-- Target highlight overlay, classification, and quest markers. Their visibility
+-- is driven from PostUpdateHealth, here we only create them.
+local function BuildIndicators(self)
+	local db = C.Nameplate
+
+	if db.ShowClassification then
+		local icon = self.Health:CreateTexture(nil, "OVERLAY")
+		icon:SetSize(db.NameSize + 6, db.NameSize + 6)
+		icon:SetPoint("RIGHT", self.Name, "LEFT", -2, 0)
+		icon:Hide()
+		self.Classification = icon
+	end
+
+	if db.ShowQuestIcon then
+		local quest = self.Health:CreateTexture(nil, "OVERLAY")
+		quest:SetSize(db.NameSize + 8, db.NameSize + 8)
+		quest:SetPoint("LEFT", self.Name, "RIGHT", 2, 0)
+		quest:SetAtlas("adventureguide-microbutton-alert")
+		quest:Hide()
+		self.QuestIcon = quest
+
+		-- Remaining objective count beside the marker.
+		local count = self.Health:CreateFontString(nil, "OVERLAY")
+		K.SetFont(count, db.NameSize - 1, K.FontOutlineStyle())
+		count:SetPoint("LEFT", quest, "RIGHT", 1, 0)
+		count:SetTextColor(K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+		self.QuestCount = count
+	end
+
+	-- Soft shade behind the name in name-only mode, so the bare name still reads
+	-- over the world. Our own dark wash rather than the Rewards-Shadow atlas, which
+	-- carried its own tint and a fixed size that did not track the name length.
+	if db.FriendlyNameOnly then
+		local shade = K.CreateTextShade(self, "BACKGROUND", -1)
+		shade:SetRegion(self.Name, 12, 3)
+		shade:SetColor(0, 0, 0, K.GradientAlpha.wash)
+		self.NameShadow = shade
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Shared style
+-- ---------------------------------------------------------------------------
+
+function Module.Style(self, unit)
+	-- Do not size `self`: oUF anchors it to the whole nameplate. The health bar
+	-- carries the visible size, and everything else hangs off it.
+	BuildHealth(self)
+	BuildName(self)
+	BuildCastbar(self)
+	BuildDebuffs(self)
+	BuildPrivateAuras(self)
+	BuildIndicators(self)
+
+	-- Raid target marker above the health bar.
+	local raid = self.Health:CreateTexture(nil, "OVERLAY")
+	raid:SetSize(20, 20)
+	raid:SetPoint("BOTTOM", self.Name, "TOP", 0, 2)
+	self.RaidTargetIndicator = raid
+
+	-- Unitless events, fired on every plate by oUF, keep the target accent and
+	-- the quest marker current without waiting on a health tick.
+	self:RegisterEvent("PLAYER_TARGET_CHANGED", OnTargetChanged, true)
+	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", OnMouseover, true)
+	if self.QuestIcon then
+		EnsureQuestWatcher()
+	end
+end

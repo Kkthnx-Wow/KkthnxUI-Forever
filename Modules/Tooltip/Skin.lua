@@ -1,0 +1,224 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Modules/Tooltip/Skin.lua
+	Purpose:
+		Apply the KkthnxUI border and dark background to the game tooltips, keep
+		Blizzard from re-adding its own backdrop, and restyle the pooled bars
+		(reputation, quest, item level) Blizzard injects into them.
+-----------------------------------------------------------------------------]]
+
+local K, C = KkthnxUI[1], KkthnxUI[2]
+
+local Module = K:GetModule("Tooltip")
+
+local _G = _G
+local ipairs = ipairs
+local pairs = pairs
+
+-- Apply our border and background to a tooltip once, hiding the stock frame.
+-- Which tooltips and bars are already skinned, kept here and not as keys on the
+-- Blizzard frames themselves.
+local skinned = setmetatable({}, { __mode = "k" })
+
+local function SkinTooltip(tt)
+	if not tt or skinned[tt] then
+		return
+	end
+	skinned[tt] = true
+
+	if tt.NineSlice then
+		tt.NineSlice:SetAlpha(0)
+	end
+	if tt.SetBackdrop then
+		tt:SetBackdrop(nil)
+	end
+
+	-- The navy gradient panel, matching the bags and options window instead of a
+	-- flat black fill.
+	K.CreateGradientBackground(tt, 0.92, true)
+	K.CreateBorder(tt, nil, nil, true)
+end
+Module.SkinTooltip = SkinTooltip
+
+local function BarTexture()
+	return K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI")
+end
+
+-- Skin the pooled bars Blizzard drops into tooltips (reputation, quest, item
+-- level requirements). We strip their border/divider art and give them our own
+-- texture and backdrop so they match the rest of the tooltip.
+local function SkinInsetStatusBar(bar)
+	if not bar or skinned[bar] then
+		return
+	end
+	skinned[bar] = true
+	local fill = bar:GetStatusBarTexture()
+	for _, region in ipairs({ bar:GetRegions() }) do
+		if region ~= fill and region.GetObjectType and region:GetObjectType() == "Texture" then
+			region:SetTexture(nil)
+		end
+	end
+	bar:SetStatusBarTexture(BarTexture())
+	K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.9)
+	K.CreateBorder(bar)
+end
+
+local function SkinInsetProgressBar(progressBar)
+	local bar = progressBar and progressBar.Bar
+	if not bar or skinned[bar] then
+		return
+	end
+	skinned[bar] = true
+	for _, key in ipairs({ "BorderLeft", "BorderRight", "BorderMid", "LeftDivider", "RightDivider" }) do
+		if bar[key] then
+			bar[key]:SetTexture(nil)
+		end
+	end
+	bar:SetStatusBarTexture(BarTexture())
+	K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.9)
+	K.CreateBorder(bar)
+end
+
+local SKIN_LIST = {
+	"GameTooltip",
+	"ItemRefTooltip",
+	"ItemRefShoppingTooltip1",
+	"ItemRefShoppingTooltip2",
+	"ShoppingTooltip1",
+	"ShoppingTooltip2",
+	"FriendsTooltip",
+	"EmbeddedItemTooltip",
+	"WorldMapTooltip",
+	"GameTooltipTooltip",
+	"NamePlateTooltip",
+	"BattlePetTooltip",
+	"PetBattlePrimaryUnitTooltip",
+	"PetBattlePrimaryAbilityTooltip",
+	"ReputationParagonTooltip",
+	"QuickKeybindTooltip",
+	"GameSmallHeaderTooltip",
+}
+
+-- Tooltips that only exist once a load-on-demand addon has come in, keyed by the
+-- addon that brings them. FrameStackTooltip is the /fstack readout and lives in
+-- Blizzard_DebugTools, which is LoadOnDemand, so it is simply not there at login
+-- and never got picked up by the list above.
+local LOD_TOOLTIPS = {
+	Blizzard_DebugTools = { "FrameStackTooltip" },
+	Blizzard_EventTrace = { "EventTraceTooltip" },
+}
+
+local function SkinLoadOnDemand(addon)
+	local names = LOD_TOOLTIPS[addon]
+	if not names then
+		return
+	end
+	for _, name in ipairs(names) do
+		SkinTooltip(_G[name])
+	end
+end
+
+-- Tooltips that live as fields on another frame rather than as globals.
+local function SkinNestedTooltips()
+	if _G.QuestScrollFrame then
+		SkinTooltip(_G.QuestScrollFrame.StoryTooltip)
+		SkinTooltip(_G.QuestScrollFrame.CampaignTooltip)
+	end
+end
+
+function Module:SetupSkins()
+	for _, name in ipairs(SKIN_LIST) do
+		SkinTooltip(_G[name])
+	end
+	SkinNestedTooltips()
+
+	-- Catch the load-on-demand tooltips, both the ones already in and any that
+	-- arrive later. SkinTooltip is idempotent, so a second pass costs nothing.
+	for addon in pairs(LOD_TOOLTIPS) do
+		if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(addon) then
+			SkinLoadOnDemand(addon)
+		end
+	end
+	self:RegisterEvent("ADDON_LOADED", function(_, _, addon)
+		SkinLoadOnDemand(addon)
+	end)
+
+	-- Keep Blizzard from re-adding its backdrop on shared tooltips.
+	if _G.SharedTooltip_SetBackdropStyle then
+		hooksecurefunc("SharedTooltip_SetBackdropStyle", function(tt)
+			-- Widget tooltips (EmbeddedItemTooltip) can be forbidden objects that we
+			-- may not touch from tainted code, so skip them.
+			if not tt or (tt.IsForbidden and tt:IsForbidden()) then
+				return
+			end
+			if tt.NineSlice then
+				tt.NineSlice:SetAlpha(0)
+			end
+		end)
+	end
+
+	-- Skin the pooled reputation / quest / requirement bars as they are acquired.
+	if _G.GameTooltip_ShowStatusBar then
+		hooksecurefunc("GameTooltip_ShowStatusBar", function(tt)
+			if tt.statusBarPool then
+				SkinInsetStatusBar(tt.statusBarPool:GetNextActive())
+			end
+		end)
+	end
+	if _G.GameTooltip_ShowProgressBar then
+		hooksecurefunc("GameTooltip_ShowProgressBar", function(tt)
+			if tt.progressBarPool then
+				SkinInsetProgressBar(tt.progressBarPool:GetNextActive())
+			end
+		end)
+	end
+
+	-- GameTooltip is already skinned above through SKIN_LIST, and its backdrop stays
+	-- suppressed by the SharedTooltip_SetBackdropStyle hook. We deliberately do not
+	-- hook its OnShow: an insecure script hook runs inside the same execution that
+	-- built the tooltip, so on a map POI (which then adds a widget set doing secret
+	-- arithmetic) it would taint that path and error. GitHub #138 and #134.
+
+	-- The client's TooltipComparisonManager:AnchorShoppingTooltips lays the compare
+	-- tooltips flush against the main tooltip and each other. Our border sits a few
+	-- pixels outside the frame, so add a small gap by post-hooking that function
+	-- and nudging only the point that joins the stack to the main tooltip. We keep
+	-- Blizzard's own ST1<->ST2 relationship untouched, so there is no anchor cycle.
+	local mgr = _G.TooltipComparisonManager
+	if mgr and mgr.AnchorShoppingTooltips then
+		local GAP = 6
+		-- Find the side point that joins this tooltip to the main tooltip (its
+		-- relative frame is neither shopping tooltip) and push it out by the gap.
+		local function NudgeJoin(tt, st1, st2)
+			if not tt then
+				return
+			end
+			for i = 1, tt:GetNumPoints() do
+				local point, relTo, relPoint, x, y = tt:GetPoint(i)
+				-- GetPoint is documented to return secrets when the region's anchoring
+				-- is secret, and the offset is added to below. All five values are
+				-- secret together, so checking the first covers the rest.
+				if K.IsSecret(point) then
+					return
+				end
+				if relTo ~= st1 and relTo ~= st2 then
+					if point == "LEFT" and relPoint == "RIGHT" then
+						tt:SetPoint("LEFT", relTo, "RIGHT", (x or 0) + GAP, y or 0)
+						return
+					elseif point == "RIGHT" and relPoint == "LEFT" then
+						tt:SetPoint("RIGHT", relTo, "LEFT", (x or 0) - GAP, y or 0)
+						return
+					end
+				end
+			end
+		end
+		hooksecurefunc(mgr, "AnchorShoppingTooltips", function(self)
+			local tips = self.tooltip and self.tooltip.shoppingTooltips
+			if not tips then
+				return
+			end
+			NudgeJoin(tips[1], tips[1], tips[2])
+			NudgeJoin(tips[2], tips[1], tips[2])
+		end)
+	end
+end

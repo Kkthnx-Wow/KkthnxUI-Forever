@@ -1,0 +1,16 @@
+package-as: KkthnxUI
+
+# Everything is bundled in Libraries, so there is no separate no-lib build.
+enable-nolib-creation: no
+
+# Repository furniture that has no business inside the addon folder.
+ignore:
+    - .gitignore
+    - .gitattributes
+    - .github
+    - .luacheckrc
+    - .vscode
+    - stylua.toml
+    - README.md
+
+license-output: LICENSE.txt

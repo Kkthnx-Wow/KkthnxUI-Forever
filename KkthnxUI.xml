@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Libraries -->
+	<Include file="Libraries\Load_Libraries.xml" />
+
+	<!-- Engine and core services -->
+	<Script file="Core\Engine.lua" />
+	<Script file="Core\Locales.lua" />
+	<Include file="Locales\Load_Locales.xml" />
+	<Script file="Core\API.lua" />
+	<Script file="Config\Defaults.lua" />
+	<Script file="Core\Config.lua" />
+	<Script file="Core\Media.lua" />
+	<Script file="Core\Border.lua" />
+	<Script file="Core\AuraContainer.lua" />
+	<Script file="Core\Skins.lua" />
+	<Script file="Core\Dialog.lua" />
+	<Script file="Core\Debug.lua" />
+	<Script file="Core\TaintScan.lua" />
+	<Script file="Core\TrackerWatch.lua" />
+	<Script file="Core\Movers.lua" />
+	<Script file="Core\Core.lua" />
+
+	<!-- Config GUI -->
+	<Include file="Config\GUI\Load_GUI.xml" />
+
+	<!-- Modules -->
+	<Include file="Modules\Load_Modules.xml" />
+</Ui>

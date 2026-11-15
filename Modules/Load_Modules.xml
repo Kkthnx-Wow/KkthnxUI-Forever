@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- One include per module folder. Each folder owns its own load order. -->
+	<Include file="ActionBars\Load_ActionBars.xml" />
+	<Include file="Auras\Load_Auras.xml" />
+	<Include file="Chat\Load_Chat.xml" />
+	<Include file="Cooldown\Load_Cooldown.xml" />
+	<Include file="Minimap\Load_Minimap.xml" />
+	<Include file="WorldMap\Load_WorldMap.xml" />
+	<Include file="UnitFrames\Load_UnitFrames.xml" />
+	<Include file="Nameplates\Load_Nameplates.xml" />
+	<Include file="Tooltip\Load_Tooltip.xml" />
+	<Include file="Skins\Load_Skins.xml" />
+	<Include file="Misc\Load_Misc.xml" />
+	<Include file="Bags\Load_Bags.xml" />
+	<Include file="Automation\Load_Automation.xml" />
+	<Include file="QoL\Load_QoL.xml" />
+	<Include file="Installer\Load_Installer.xml" />
+</Ui>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Not ported to WoW Forever yet: the character and inspect frame skin and the gear overlay. -->
+	<!-- <Script file="CharacterFrames.lua" /> -->
+	<!-- <Script file="GearInfo.lua" /> -->
+	<Script file="SocialColors.lua" />
+	<Script file="Battlenet.lua" />
+	<Script file="GameMenu.lua" />
+	<Script file="ObjectiveTracker.lua" />
+	<Script file="Details.lua" />
+</Ui>

@@ -1,0 +1,68 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Modules/Tooltip/Anchor.lua
+	Purpose:
+		A movable anchor for the default tooltip position, set in the Move UI
+		screen like every other frame, plus the cursor-anchor and hide-in-combat
+		options.
+-----------------------------------------------------------------------------]]
+
+local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
+
+local Module = K:GetModule("Tooltip")
+
+function Module:SetupAnchor()
+	-- Blizzard re-anchors GameTooltip on each show, so we re-point it to the
+	-- anchor in the SetDefaultAnchor hook rather than attaching it once.
+	local anchor = CreateFrame("Frame", "KKUI_TooltipAnchor", UIParent)
+	anchor:SetSize(130, 34)
+	self.anchor = anchor
+
+	-- Pin the mover 6px left of the bag bar, whose bottom already sits 6px above
+	-- the micro menu, falling back to the corner when the bag bar is off.
+	--
+	-- The bag bar module is enabled after this one, so KKUI_BagBar does not exist
+	-- yet. PLAYER_ENTERING_WORLD fires after every module has been enabled, which
+	-- is the point where the frame is known to be there.
+	self:RegisterEventOnce("PLAYER_ENTERING_WORLD", function()
+		local bagbar = _G.KKUI_BagBar
+		local point = bagbar and { "BOTTOMRIGHT", bagbar, "BOTTOMLEFT", -6, 0 } or { "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -220, 240 }
+		K.CreateMover(anchor, "GameTooltip", L["Tooltip"], point, 130, 34)
+	end)
+
+	-- Reset the border on every tooltip show so a previous item's quality colour
+	-- cannot stick to the next tooltip. The reference UIs reset on OnTooltipCleared
+	-- through a secure script hook, but a raw HookScript there taints the map POI
+	-- widget build (GitHub #138). SetOwner is a plain function, so hooksecurefunc on
+	-- it is taint free, and it runs at the start of every show before any widget or
+	-- item data is added, so the item and unit colouring that follows still wins.
+	if _G.GameTooltip and _G.GameTooltip.SetOwner then
+		hooksecurefunc(_G.GameTooltip, "SetOwner", function(tt)
+			local border = K.GetBorder(tt)
+			if C.Tooltip.BorderColor and border then
+				K.ResetBorderColor(border)
+			end
+		end)
+	end
+
+	hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tt, parent)
+		if C.Tooltip.HideInCombat and InCombatLockdown() then
+			tt:Hide()
+			return
+		end
+		if C.Tooltip.CursorAnchor then
+			tt:SetOwner(parent, "ANCHOR_CURSOR")
+		else
+			tt:SetOwner(parent, "ANCHOR_NONE")
+			tt:ClearAllPoints()
+			tt:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+		end
+		-- Fresh border for each default-anchored tooltip so a previous unit or item
+		-- colour does not carry over. Safe from here (a hooksecurefunc, not an insecure
+		-- script hook), and map POIs do not use this anchor, so nothing taints them.
+		local border = K.GetBorder(tt)
+		if C.Tooltip.BorderColor and border then
+			K.ResetBorderColor(border)
+		end
+	end)
+end
