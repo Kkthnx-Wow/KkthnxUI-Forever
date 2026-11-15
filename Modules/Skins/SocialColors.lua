@@ -52,7 +52,7 @@ end
 -- Colour helpers
 -- ---------------------------------------------------------------------------
 
--- Localised class name -> class token (e.g. "Death Knight" -> "DEATHKNIGHT"),
+-- Localised class name -> class token (e.g. "Warlock" -> "WARLOCK"),
 -- built once so the per-row scroll hooks stay a single table lookup.
 local classToken = {}
 do

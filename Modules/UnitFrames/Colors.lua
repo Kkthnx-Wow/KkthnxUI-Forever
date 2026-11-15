@@ -22,13 +22,9 @@ local Enum = Enum
 -- Custom class colours, harmonised for the dark slate theme (mage locked to the
 -- #5C8BCF accent). Applied over the oUF class table and exposed as K.ClassColors.
 local CLASS = {
-	DEATHKNIGHT = { 0.77, 0.12, 0.23 },
-	DEMONHUNTER = { 0.64, 0.19, 0.79 },
 	DRUID = { 1.00, 0.49, 0.04 },
-	EVOKER = { 0.20, 0.58, 0.50 },
 	HUNTER = { 0.67, 0.83, 0.45 },
 	MAGE = { 0.36, 0.55, 0.81 },
-	MONK = { 0.00, 1.00, 0.60 },
 	PALADIN = { 0.96, 0.55, 0.73 },
 	PRIEST = { 0.90, 0.92, 0.96 },
 	ROGUE = { 0.96, 0.85, 0.41 },

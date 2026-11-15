@@ -4,7 +4,7 @@
 	Purpose:
 		Enrich the unit tooltip: class / reaction coloured name with faction crest,
 		raid and role icons, a condensed identity block, guild rank, target line,
-		mount, Mythic+ rating, and "targeted by". Also colours the border by unit or
+		mount, and "targeted by". Also colours the border by unit or
 		item quality. All data hooks go through the modern TooltipDataProcessor and
 		stay secret-value safe for Midnight.
 -----------------------------------------------------------------------------]]
@@ -38,7 +38,6 @@ local GetGuildInfo = GetGuildInfo
 local GetCreatureDifficultyColor = _G.GetCreatureDifficultyColor
 local C_Item = C_Item
 local C_MountJournal = C_MountJournal
-local C_PlayerInfo = C_PlayerInfo
 local IsSecret = K.IsSecret
 
 local classColors = CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS
@@ -284,9 +283,9 @@ function Module:OnUnitTooltip(tt)
 		end
 	end
 
-	-- A thin separator sets the stat block (mount / rating / item level) apart
-	-- from the character identity above it.
-	if isPlayer and (db.ShowMount or db.ShowMythicScore or db.ShowItemLevel) then
+	-- A thin separator sets the stat block (mount / item level) apart from the
+	-- character identity above it.
+	if isPlayer and (db.ShowMount or db.ShowItemLevel) then
 		tt:AddLine(" ")
 	end
 
@@ -302,15 +301,6 @@ function Module:OnUnitTooltip(tt)
 				tt:AddDoubleLine(_G.MOUNT or "Mount", data.name, nil, nil, nil, 1, 1, 1)
 				break
 			end
-		end
-	end
-
-	-- Mythic+ rating for players who have one this season.
-	if db.ShowMythicScore and isPlayer and C_PlayerInfo and C_PlayerInfo.GetPlayerMythicPlusRatingSummary then
-		local info = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
-		local score = info and info.currentSeasonScore
-		if score and not IsSecret(score) and score > 0 then
-			tt:AddDoubleLine(_G.DUNGEON_SCORE or "Mythic+ Rating", score, nil, nil, nil, 1, 1, 1)
 		end
 	end
 

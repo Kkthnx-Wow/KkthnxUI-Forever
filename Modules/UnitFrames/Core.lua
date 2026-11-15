@@ -97,7 +97,7 @@ end
 
 -- Standard mouse wiring for a unit frame or a header child. `style` also lands
 -- on the frame as `mystyle`, which some oUF elements read to decide whether to
--- stand down the Blizzard equivalent (the monk stagger bar, for one).
+-- stand down the Blizzard equivalent.
 -- Blizzard's UnitFrame_OnEnter feeds self.unit straight into GameTooltip:SetUnit,
 -- which errors when the unit is nil (an unassigned group slot, a frame mid-setup).
 -- Guard it so hovering such a frame never throws.
@@ -365,7 +365,7 @@ function Module:SpawnRaid()
 	local GROUP_ATTR = { GROUP = "GROUP", CLASS = "CLASS", ROLE = "ASSIGNEDROLE" }
 	local GROUPING_ORDER = {
 		GROUP = "1,2,3,4,5,6,7,8",
-		CLASS = "WARRIOR,DEATHKNIGHT,DEMONHUNTER,PALADIN,MONK,ROGUE,DRUID,HUNTER,MAGE,WARLOCK,PRIEST,SHAMAN,EVOKER",
+		CLASS = "WARRIOR,PALADIN,ROGUE,DRUID,HUNTER,MAGE,WARLOCK,PRIEST,SHAMAN",
 		ROLE = "TANK,HEALER,DAMAGER",
 	}
 	local groupByCfg = cfg.GroupBy or "GROUP"

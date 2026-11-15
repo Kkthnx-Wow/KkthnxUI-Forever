@@ -27,9 +27,8 @@ local C_Spell = C_Spell
 local ICON_SIZE = 40
 
 -- The lockout debuffs: Exhaustion (Heroism), Sated (Bloodlust), Temporal
--- Displacement (Time Warp), Insanity (Primal Rage), the two Fatigued, and the
--- Evoker Exhaustion.
-local DEBUFFS = { 57723, 57724, 80354, 95809, 160455, 264689, 390435 }
+-- Displacement (Time Warp), Insanity (Primal Rage), and the two Fatigued.
+local DEBUFFS = { 57723, 57724, 80354, 95809, 160455, 264689 }
 
 local frame
 local expiry -- last readable end time of the lockout, kept for combat

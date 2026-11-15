@@ -3,14 +3,13 @@
 	File: Modules/Misc/AlreadyKnown.lua
 	Purpose:
 		Tint items you already know a soft green so you can skip re-buying them.
-		Covers recipes, pets, toys, mounts, cosmetic appearances, and Midnight
-		housing decor across:
+		Covers recipes, pets, toys, mounts, and cosmetic appearances across:
 		  * the Merchant frame (and its Buyback tab)
 		  * the Auction House browse results
 		  * the Guild Bank
 
 		"Known" is resolved from the collection APIs where they exist (pets,
-		transmog appearances, housing catalog) and falls back to a structured
+		transmog appearances) and falls back to a structured
 		tooltip scan for the COLLECTED / already-known lines. Uncached items are
 		re-checked once their data loads.
 -----------------------------------------------------------------------------]]
@@ -22,14 +21,12 @@ local Module = K:NewModule("AlreadyKnown")
 local _G = _G
 local select = select
 local tonumber = tonumber
-local pcall = pcall
 local strmatch = string.match
 local strfind = string.find
 local format = string.format
 local ceil = math.ceil
 
 local C_AddOns = C_AddOns
-local C_Timer = C_Timer
 local Item = Item
 local SetItemButtonTextureVertexColor = SetItemButtonTextureVertexColor
 local GetMerchantNumItems, GetMerchantItemLink = GetMerchantNumItems, GetMerchantItemLink
@@ -40,15 +37,10 @@ local C_Item_GetItemInfo = C_Item.GetItemInfo
 local C_Item_IsCosmeticItem = C_Item.IsCosmeticItem
 local C_TooltipInfo_GetHyperlink = C_TooltipInfo.GetHyperlink
 local C_TooltipInfo_GetGuildBankItem = C_TooltipInfo.GetGuildBankItem
-local C_PetJournal_GetNumCollectedInfo = C_PetJournal.GetNumCollectedInfo
+-- Not in the Forever API docs, so it is nil there and pets fall back to the tooltip scan.
+local C_PetJournal_GetNumCollectedInfo = C_PetJournal and C_PetJournal.GetNumCollectedInfo
 local C_TransmogCollection_GetItemInfo = C_TransmogCollection and C_TransmogCollection.GetItemInfo
 local C_TransmogCollection_PlayerHasTransmogItemModifiedAppearance = C_TransmogCollection and C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance
-local C_HousingCatalog = _G.C_HousingCatalog
-local C_HousingCatalog_GetCatalogEntryInfoByItem = C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem
-local C_HousingCatalog_GetCatalogEntryInfo = C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfo
-local C_HousingCatalog_RequestHousingMarketInfoRefresh = C_HousingCatalog and C_HousingCatalog.RequestHousingMarketInfoRefresh
-local C_HousingCatalog_SearchCatalogCategories = C_HousingCatalog and C_HousingCatalog.SearchCatalogCategories
-local C_HousingCatalog_SearchCatalogSubcategories = C_HousingCatalog and C_HousingCatalog.SearchCatalogSubcategories
 
 local MERCHANT_ITEMS_PER_PAGE = _G.MERCHANT_ITEMS_PER_PAGE or 10
 local BUYBACK_ITEMS_PER_PAGE = _G.BUYBACK_ITEMS_PER_PAGE or 12
@@ -60,18 +52,6 @@ local ITEM_SPELL_KNOWN = _G.ITEM_SPELL_KNOWN
 -- Known items take the UI's success green so the vendor tint flows with the
 -- rest of the addon rather than a flat lime.
 local TINT = { r = K.Colors.jade[1], g = K.Colors.jade[2], b = K.Colors.jade[3] }
-local HOUSING_WARMUP = { withOwnedEntriesOnly = true, includeFeaturedCategory = false }
-
--- Housing catalog "owned stack" subtypes (a record you actually own).
-local OWNED_MODIFIED_STACK, OWNED_UNMODIFIED_STACK
-do
-	local sub = Enum and Enum.HousingCatalogEntrySubtype
-	if sub then
-		OWNED_MODIFIED_STACK = sub.OwnedModifiedStack
-		OWNED_UNMODIFIED_STACK = sub.OwnedUnmodifiedStack
-	end
-end
-
 -- Item classes whose "known" state is worth a tooltip scan.
 local knowables = {
 	[Enum.ItemClass.Consumable] = true,
@@ -115,6 +95,9 @@ local function IsPetCollected(speciesID)
 	if not speciesID or speciesID == 0 then
 		return
 	end
+	if not C_PetJournal_GetNumCollectedInfo then
+		return
+	end
 	local numOwned = C_PetJournal_GetNumCollectedInfo(speciesID)
 	return numOwned and numOwned > 0
 end
@@ -131,70 +114,6 @@ local function IsCosmeticCollected(link)
 	if sourceID and sourceID ~= 0 then
 		return C_TransmogCollection_PlayerHasTransmogItemModifiedAppearance(sourceID) and true or false
 	end
-end
-
--- A housing catalog entry the player owns: stored, placed, unredeemed, or an
--- owned-stack subtype. Falls back to the deprecated quantity fields.
-local function OwnedCount(info, primaryField, legacyField)
-	local v = info[primaryField]
-	if v == nil then
-		v = info[legacyField]
-	end
-	return v and v > 0
-end
-
-local function EntryInfoOwned(info)
-	if not info then
-		return false
-	end
-	if OwnedCount(info, "totalNumStored", "quantity") or OwnedCount(info, "totalNumPlaced", "numPlaced") or (info.remainingRedeemable and info.remainingRedeemable > 0) then
-		return true
-	end
-	local entryID = info.entryID
-	if entryID and (entryID.entrySubtype == OWNED_MODIFIED_STACK or entryID.entrySubtype == OWNED_UNMODIFIED_STACK) then
-		return true
-	end
-	return false
-end
-
--- Reused so the owned-stack re-query does not allocate per item/subtype.
-local entryQuery = {}
-local function QueryOwnedEntryInfo(entryType, recordID, subtype)
-	if not subtype then
-		return false
-	end
-	entryQuery.entryType = entryType
-	entryQuery.entrySubtype = subtype
-	entryQuery.recordID = recordID
-	entryQuery.subtypeIdentifier = 0
-	return EntryInfoOwned(C_HousingCatalog_GetCatalogEntryInfo(entryQuery))
-end
-
--- Housing decor has a collection state of its own. The by-item lookup often
--- returns the Unowned entry (zero counts) even for decor you own, so re-query
--- the owned stacks to confirm. Returns true/false when resolved, or nil when
--- the item is not a housing catalog item.
-local function IsDecorCollected(link)
-	if not C_HousingCatalog_GetCatalogEntryInfoByItem then
-		return
-	end
-	local info = C_HousingCatalog_GetCatalogEntryInfoByItem(link)
-	if not info then
-		return
-	end
-	if EntryInfoOwned(info) then
-		return true
-	end
-	local entryID = info.entryID
-	if entryID and C_HousingCatalog_GetCatalogEntryInfo then
-		local entryType, recordID = entryID.entryType, entryID.recordID
-		if entryType and recordID then
-			if QueryOwnedEntryInfo(entryType, recordID, OWNED_UNMODIFIED_STACK) or QueryOwnedEntryInfo(entryType, recordID, OWNED_MODIFIED_STACK) then
-				return true
-			end
-		end
-	end
-	return false
 end
 
 local function IsAlreadyKnown(link, index)
@@ -216,14 +135,6 @@ local function IsAlreadyKnown(link, index)
 
 		if knowns[link] then
 			return true
-		end
-
-		local decorCollected = IsDecorCollected(link)
-		if decorCollected ~= nil then
-			if decorCollected then
-				knowns[link] = true
-			end
-			return decorCollected
 		end
 
 		-- Caged battle pets in the guild bank carry their species in tooltip data.
@@ -395,43 +306,6 @@ function RefreshVisibleItems()
 end
 
 -- ---------------------------------------------------------------------------
--- Housing data warmup / refresh
--- ---------------------------------------------------------------------------
-function Module:WarmHousingData()
-	if self.housingWarmed or not C_HousingCatalog_GetCatalogEntryInfoByItem then
-		return
-	end
-	self.housingWarmed = true
-
-	-- Blizzard lazy-loads owned decor counts, so nudge the catalog to populate.
-	if C_AddOns and C_AddOns.LoadAddOn then
-		pcall(C_AddOns.LoadAddOn, "Blizzard_HousingEventHandler")
-	end
-	if C_HousingCatalog_RequestHousingMarketInfoRefresh then
-		pcall(C_HousingCatalog_RequestHousingMarketInfoRefresh)
-	end
-	if C_HousingCatalog_SearchCatalogCategories then
-		pcall(C_HousingCatalog_SearchCatalogCategories, HOUSING_WARMUP)
-	end
-	if C_HousingCatalog_SearchCatalogSubcategories then
-		pcall(C_HousingCatalog_SearchCatalogSubcategories, HOUSING_WARMUP)
-	end
-end
-
-local function FlushHousingRefresh()
-	Module.housingRefreshQueued = false
-	RefreshVisibleItems()
-end
-
-function Module:RefreshHousingItems()
-	if self.housingRefreshQueued then
-		return
-	end
-	self.housingRefreshQueued = true
-	C_Timer.After(0.1, FlushHousingRefresh)
-end
-
--- ---------------------------------------------------------------------------
 -- Hook installation / lifecycle
 -- ---------------------------------------------------------------------------
 function Module:HookAuctionHouse()
@@ -464,13 +338,6 @@ function Module:ADDON_LOADED(_, addon)
 	end
 end
 
-function Module:HOUSING_MARKET_AVAILABILITY_UPDATED()
-	self:RefreshHousingItems()
-end
-Module.HOUSING_STORAGE_UPDATED = Module.HOUSING_MARKET_AVAILABILITY_UPDATED
-Module.HOUSING_STORAGE_ENTRY_UPDATED = Module.HOUSING_MARKET_AVAILABILITY_UPDATED
-Module.HOUSE_DECOR_ADDED_TO_CHEST = Module.HOUSING_MARKET_AVAILABILITY_UPDATED
-
 function Module:OnEnable()
 	if not IsActive() or self.setupDone then
 		return
@@ -490,11 +357,4 @@ function Module:OnEnable()
 	end
 	self:RegisterEvent("ADDON_LOADED")
 
-	if C_HousingCatalog_GetCatalogEntryInfoByItem then
-		self:WarmHousingData()
-		self:RegisterEvent("HOUSING_MARKET_AVAILABILITY_UPDATED")
-		self:RegisterEvent("HOUSING_STORAGE_UPDATED")
-		self:RegisterEvent("HOUSING_STORAGE_ENTRY_UPDATED")
-		self:RegisterEvent("HOUSE_DECOR_ADDED_TO_CHEST")
-	end
 end

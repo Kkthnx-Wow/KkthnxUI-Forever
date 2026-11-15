@@ -26,7 +26,13 @@ local format = string.format
 -- application out or a listing of your own, nothing is turned away.
 local function UsingGroupFinder()
 	local C_LFGList = C_LFGList
-	return C_LFGList.HasActiveEntryInfo() or #C_LFGList.GetApplications() > 0
+	if C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
+		return true
+	end
+	-- GetApplications is not in the Forever API docs. Without it a pending
+	-- application cannot be told apart, so only a listing of your own counts.
+	local applications = C_LFGList.GetApplications and C_LFGList.GetApplications()
+	return applications ~= nil and #applications > 0
 end
 
 local function KnowsPlayer(guid)

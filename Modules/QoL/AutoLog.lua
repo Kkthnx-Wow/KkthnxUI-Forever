@@ -7,8 +7,8 @@
 
 		Chosen by the difficulty of the instance, not by a list of instances, so it
 		keeps working as new content ships:
-			Raids           Normal, Heroic, Mythic, and Looking For Raid
-			Dungeons        Mythic and Mythic Plus
+			Raids           Normal (10, 20 and 40 player), Heroic, and Looking For Raid
+			Dungeons        Heroic
 		Timewalking, follower and scenario content is left alone.
 
 		Logging stops half a minute after leaving, so a quick trip out and back in
@@ -25,16 +25,26 @@ local LoggingCombat = LoggingCombat
 
 local STOP_DELAY = 30
 
--- Raid difficulty IDs by the setting that controls them.
+-- Raid difficulty IDs by the setting that controls them. WoW Forever's raids are
+-- the 10, 20 and 40 player sizes (the client's own difficulty tooltip lists those
+-- three), so the legacy IDs lead and the flexible 14, 15 and 17 stay as a
+-- fallback. There is no Mythic raid.
 local RAID_SETTING = {
+	[3] = "AutoLogRaidNormal", -- 10 player
+	[4] = "AutoLogRaidNormal", -- 25 player
+	[9] = "AutoLogRaidNormal", -- 40 player
+	[242] = "AutoLogRaidNormal", -- 20 player
+	[243] = "AutoLogRaidNormal", -- 10 player
 	[14] = "AutoLogRaidNormal",
+	[5] = "AutoLogRaidHeroic",
+	[6] = "AutoLogRaidHeroic",
 	[15] = "AutoLogRaidHeroic",
-	[16] = "AutoLogRaidMythic",
+	[7] = "AutoLogRaidFinder",
 	[17] = "AutoLogRaidFinder",
 }
 
--- Mythic (23) and Mythic Plus keystone (8) dungeons.
-local DUNGEON_DIFFICULTY = { [8] = true, [23] = true }
+-- Heroic dungeons. There is no Mythic or Mythic Plus.
+local DUNGEON_DIFFICULTY = { [2] = true }
 
 local weStarted = false
 local stopTimer
@@ -91,5 +101,4 @@ end
 function Module:SetupAutoLog()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", OnZone)
 	self:RegisterEvent("ZONE_CHANGED_NEW_AREA", OnZone)
-	self:RegisterEvent("CHALLENGE_MODE_START", OnZone)
 end

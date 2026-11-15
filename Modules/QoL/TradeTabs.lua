@@ -25,7 +25,6 @@ local C_SpellBook, C_Spell = C_SpellBook, C_Spell
 
 local SIZE = 32
 local GAP = 4
-local RUNEFORGING = 53428
 
 -- Professions whose first spell is the whole profession. The rest list extra
 -- spells worth having, like the cooking fire.
@@ -88,10 +87,6 @@ local function Build()
 		return
 	end
 	built = true
-
-	if K.Class == "DEATHKNIGHT" and C_SpellBook.IsSpellKnown(RUNEFORGING) then
-		AddTab(RUNEFORGING)
-	end
 
 	-- Read the slots by position: a character with no primary profession can still
 	-- have fishing or cooking, and a nil in a list would end an ipairs walk early.

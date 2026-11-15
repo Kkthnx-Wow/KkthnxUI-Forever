@@ -69,7 +69,6 @@ local C_AzeriteItem_GetPowerLevel = C_AzeriteItem and C_AzeriteItem.GetPowerLeve
 -- the client answers later with HOUSE_LEVEL_FAVOR_UPDATED, whose payload we cache.
 local C_Housing = _G.C_Housing
 local C_Housing_GetTrackedHouseGuid = C_Housing and C_Housing.GetTrackedHouseGuid
-local C_Housing_GetCurrentHouseLevelFavor = C_Housing and C_Housing.GetCurrentHouseLevelFavor
 local C_Housing_GetHouseLevelFavorForLevel = C_Housing and C_Housing.GetHouseLevelFavorForLevel
 local C_Housing_GetMaxHouseLevel = C_Housing and C_Housing.GetMaxHouseLevel
 local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
@@ -94,7 +93,8 @@ local reportLabel = ""
 local lastReport = 0
 
 local xpState, repState, honorState, azeriteState, housingState = {}, {}, {}, {}, {}
-local housingData
+-- Never filled on Forever (no housing), which keeps the housing state unavailable.
+local housingData -- luacheck: ignore 221
 
 local function CreateFS(parent, size)
 	local fs = parent:CreateFontString(nil, "OVERLAY")
@@ -501,21 +501,10 @@ local function BuildAzeriteState()
 	return true
 end
 
-local function RequestHousingFavor()
-	if not (C_Housing_GetTrackedHouseGuid and C_Housing_GetCurrentHouseLevelFavor) then
-		return
-	end
-	local guid = C_Housing_GetTrackedHouseGuid()
-	if guid then
-		C_Housing_GetCurrentHouseLevelFavor(guid)
-	end
-end
-
-local function RequestEndeavorInfo()
-	if C_NeighborhoodInitiative and C_NeighborhoodInitiative.RequestNeighborhoodInitiativeInfo then
-		C_NeighborhoodInitiative.RequestNeighborhoodInitiativeInfo()
-	end
-end
+-- WoW Forever has no housing, so nothing here asks the server for housing favor
+-- or neighbourhood initiative data. Its own UI never does either: it loads no
+-- housing addon and its status bars have no house favor bar. The state builders
+-- below only read, and return nothing when there is no tracked house.
 
 local function GetEndeavorProgress()
 	if not (C_NeighborhoodInitiative and C_NeighborhoodInitiative.GetNeighborhoodInitiativeInfo) then
@@ -874,23 +863,9 @@ local EVENTS = {
 	"HONOR_XP_UPDATE",
 	"PLAYER_FLAGS_CHANGED",
 	"PLAYER_EQUIPMENT_CHANGED",
-	"AZERITE_ITEM_EXPERIENCE_CHANGED",
-	"HOUSE_LEVEL_FAVOR_UPDATED",
-	"TRACKED_HOUSE_CHANGED",
 }
 
-local function OnBarEvent(_, event, arg1)
-	if event == "HOUSE_LEVEL_FAVOR_UPDATED" then
-		if arg1 and C_Housing_GetTrackedHouseGuid and arg1.houseGUID == C_Housing_GetTrackedHouseGuid() then
-			housingData = arg1
-		end
-	elseif event == "TRACKED_HOUSE_CHANGED" then
-		housingData = nil
-		RequestHousingFavor()
-	elseif event == "PLAYER_ENTERING_WORLD" then
-		RequestHousingFavor()
-		RequestEndeavorInfo()
-	end
+local function OnBarEvent()
 	QueueBarUpdate()
 end
 
@@ -1011,8 +986,6 @@ function Module:OnEnable()
 	ApplyAppearance()
 	K.CreateMover(bar, "ExpRepBar", L["Experience Bar"], { "TOP", UIParent, "TOP", 0, -4 }, C.ExpRep.Width, C.ExpRep.Height)
 
-	RequestHousingFavor()
-	RequestEndeavorInfo()
 	RegisterBarEvents()
 	UpdateBar()
 end

@@ -48,14 +48,6 @@ K.AuraWatchList = {
 		[53563] = { corner = "TOPLEFT", color = GOLD, mine = true }, -- Beacon of Light
 		[156910] = { corner = "TOPRIGHT", color = GOLD, mine = true }, -- Beacon of Faith
 	},
-	MONK = {
-		[119611] = { corner = "TOPLEFT", color = TEAL, mine = true }, -- Renewing Mist
-		[124682] = { corner = "TOPRIGHT", color = GREEN, mine = true }, -- Enveloping Mist
-	},
-	EVOKER = {
-		[366155] = { corner = "TOPLEFT", color = BLUE, mine = true }, -- Reversion
-		[364343] = { corner = "TOPRIGHT", color = PINK, mine = true }, -- Echo
-	},
 }
 
 -- The active list for the player's class, or an empty table for classes with no

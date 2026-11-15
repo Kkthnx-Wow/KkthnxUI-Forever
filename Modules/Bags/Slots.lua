@@ -190,14 +190,6 @@ local function Skin(button)
 	star:Hide()
 	button.KKUI_Fav = star
 
-	-- Scrappable marker, top-centre so it clears the four corner overlays, shown on
-	-- gear the Scrapping Machine will accept.
-	local scrap = button:CreateTexture(nil, "OVERLAY", nil, 2)
-	scrap:SetAtlas("bags-icon-scrappable")
-	scrap:SetSize(14, 12)
-	scrap:SetPoint("TOP", button, "TOP", 0, 1)
-	scrap:Hide()
-	button.KKUI_Scrap = scrap
 	-- Equipment set marker: a small accent square on the bottom edge, shown on any
 	-- item that belongs to a saved equipment set, so a set piece is not sold or
 	-- deleted by mistake. A plain square needs no atlas to exist.
@@ -396,9 +388,6 @@ function Module:UpdateSlot(button, bag, slot)
 		if button.KKUI_Fav then
 			button.KKUI_Fav:Hide()
 		end
-		if button.KKUI_Scrap then
-			button.KKUI_Scrap:Hide()
-		end
 		if button.KKUI_Set then
 			button.KKUI_Set:Hide()
 		end
@@ -414,6 +403,12 @@ function Module:UpdateSlot(button, bag, slot)
 	end
 
 	SetItemButtonTexture(button, info.iconFileID)
+	-- SetItemButtonTexture puts the crop back to the full texture, so the Skin()
+	-- crop is lost on the first update. Without it the icon's own baked-in rounded
+	-- frame shows inside ours.
+	if button.KKUI_Icon then
+		button.KKUI_Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	end
 	SetItemButtonCount(button, info.stackCount)
 
 	local quality = info.quality
@@ -541,18 +536,6 @@ function Module:UpdateSlot(button, bag, slot)
 			end
 		end
 		button.KKUI_Bind:SetText(text)
-	end
-
-	-- Scrappable marker for gear the Scrapping Machine will take.
-	if button.KKUI_Scrap then
-		local scrappable = false
-		if C.Bags.ScrapIcon and C_Item.CanScrapItem then
-			local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
-			if C_Item.DoesItemExist(loc) then
-				scrappable = C_Item.CanScrapItem(loc)
-			end
-		end
-		button.KKUI_Scrap:SetShown(scrappable)
 	end
 
 	-- Equipment set marker.
