@@ -58,6 +58,15 @@ local GROUP_GAP = 8
 -- The dedicated reagent pouch, so its free slots can sit under its own shelf.
 local REAGENT_BAG = Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
 
+-- The keyring is bag -1 and only exists where the game says it shows one (WoW
+-- Forever does, Retail does not), so it is asked for rather than assumed.
+local KEYRING_BAG = Enum.BagIndex and Enum.BagIndex.Keyring or -1
+Module.KeyringBag = KEYRING_BAG
+
+function Module.HasKeyring()
+	return C_ActionBar and C_ActionBar.ShouldShowKeyring and C_ActionBar.ShouldShowKeyring() and true or false
+end
+
 -- Within a section: higher quality first, then group identical item ids. The
 -- keys are captured secret-safe when the bucket is built (see LayoutContainer),
 -- so this comparison never touches a tainted value.
@@ -355,7 +364,10 @@ function Module:LayoutContainer(f)
 
 	-- Size the window to the content, with a sane minimum width.
 	local contentH = -y - topBand + GROUP_GAP
-	f:SetWidth(max(rowWidth, 160) + MARGIN * 2)
+	-- The inventory window carries the search box and up to five toolbar buttons
+	-- across its top band, which need about 310 units between them.
+	local minRow = f:GetName() == "KKUI_BagFrame" and 310 or 160
+	f:SetWidth(max(rowWidth, minRow) + MARGIN * 2)
 	f:SetHeight(topBand + contentH + BOTTOM_BAND)
 
 	self:UpdateInfoText(f)
@@ -567,12 +579,26 @@ function Module:CreateContainer(name, title, bags, perRow)
 
 	-- Category group manager and delete-cheapest, main bag window only.
 	if name == "KKUI_BagFrame" then
+		-- Keyring toggle, only where the game has a keyring. The keyring window stays
+		-- closed until asked for. This goes through the game's own bag toggle, the same
+		-- call its keyring button makes, so the open state the rest of the bags follow
+		-- stays truthful and the sync below opens or closes our window to match.
+		local anchor = bagToggle
+		if Module.HasKeyring() then
+			local keyring = IconButton("KeyringToggle", nil, nil, L["Keyring"], function()
+				Module:ToggleKeyring()
+			end, "INV_Misc_Key_03")
+			keyring:SetPoint("RIGHT", bagToggle, "LEFT", -6, 0)
+			f.KeyringButton = keyring
+			anchor = keyring
+		end
+
 		local manager = IconButton("Manager", nil, "Interface\\ICONS\\INV_Misc_Book_09", L["Category Groups"], function()
 			if Module.ToggleManager then
 				Module:ToggleManager()
 			end
 		end, "INV_Misc_Book_09")
-		manager:SetPoint("RIGHT", bagToggle, "LEFT", -6, 0)
+		manager:SetPoint("RIGHT", anchor, "LEFT", -6, 0)
 		f.ManagerButton = manager
 
 		if C.Bags.DeleteButton then
@@ -712,6 +738,9 @@ function Module:PrewarmAll()
 	if self.ReagentFrame then
 		self:PrewarmSlots(self.ReagentFrame)
 	end
+	if self.KeyringFrame then
+		self:PrewarmSlots(self.KeyringFrame)
+	end
 	if self.BankFrame then
 		self:PrewarmSlots(self.BankFrame)
 	end
@@ -724,6 +753,9 @@ function Module:UpdateAll()
 	end
 	if self.ReagentFrame and self.ReagentFrame:IsShown() then
 		self:LayoutContainer(self.ReagentFrame)
+	end
+	if self.KeyringFrame and self.KeyringFrame:IsShown() then
+		self:LayoutContainer(self.KeyringFrame)
 	end
 	if self.BankFrame and self.BankFrame:IsShown() then
 		self:LayoutContainer(self.BankFrame)
@@ -747,6 +779,30 @@ local function IsSellable(info)
 	return info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID] and true or false
 end
 
+-- Seconds between individual item sales.
+local SELL_GAP = 0.2
+local sellQueue, selling = {}, false
+
+local function SellNext()
+	local entry = table.remove(sellQueue, 1)
+	-- Stop when the merchant closes or combat starts; the rest simply stay in the bags.
+	if not entry or not (_G.MerchantFrame and _G.MerchantFrame:IsShown()) or InCombatLockdown() then
+		wipe(sellQueue)
+		selling = false
+		return
+	end
+	-- Re-read the slot, the bag may have changed since the queue was built.
+	local info = C_Container.GetContainerItemInfo(entry.bag, entry.slot)
+	if info and info.itemID and not IsSecret(info.itemID) and info.itemID == entry.itemID and not info.hasNoValue then
+		C_Container.UseContainerItem(entry.bag, entry.slot)
+	end
+	if #sellQueue > 0 then
+		C_Timer.After(SELL_GAP, SellNext)
+	else
+		selling = false
+	end
+end
+
 function Module:SellJunk()
 	-- Grey items go through Blizzard's own bulk sell, then any player-flagged items
 	-- are sold one by one, both only while a merchant is open.
@@ -756,15 +812,23 @@ function Module:SellJunk()
 	if not (_G.MerchantFrame and _G.MerchantFrame:IsShown()) or InCombatLockdown() then
 		return
 	end
+	-- Each sale is a packet to the server. Selling a full set of bags in one frame
+	-- is the kind of burst that gets a client disconnected, so the flagged items
+	-- are queued and sold one per SELL_GAP seconds.
+	wipe(sellQueue)
 	for _, bag in ipairs(self.BagIDs) do
 		local numSlots = C_Container.GetContainerNumSlots(bag) or 0
 		for slot = 1, numSlots do
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			local flagged = info and info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
 			if flagged and not info.hasNoValue then
-				C_Container.UseContainerItem(bag, slot)
+				sellQueue[#sellQueue + 1] = { bag = bag, slot = slot, itemID = info.itemID }
 			end
 		end
+	end
+	if #sellQueue > 0 and not selling then
+		selling = true
+		SellNext()
 	end
 end
 
@@ -826,6 +890,8 @@ function Module:CloseBags()
 	if self.ReagentFrame then
 		self.ReagentFrame:Hide()
 	end
+	-- The keyring window is a companion of the inventory window, so it goes with it.
+	self:CloseKeyring()
 end
 
 function Module:ToggleBags()
@@ -836,8 +902,42 @@ function Module:ToggleBags()
 	end
 end
 
+function Module:OpenKeyring()
+	local keyring = self.KeyringFrame
+	if keyring then
+		keyring:Show()
+		self:LayoutContainer(keyring)
+		-- The window hangs off its mover by the top left corner, so the mover takes the
+		-- window's real size once it is laid out. That keeps the right edge, which is
+		-- what sits against the inventory window, where the default position put it.
+		local mover = keyring.KKUI_Mover
+		if mover then
+			mover:SetSize(keyring:GetSize())
+		end
+	end
+end
+
+function Module:CloseKeyring()
+	if self.KeyringFrame then
+		self.KeyringFrame:Hide()
+	end
+end
+
+-- The keyring window is closed until asked for, and it keeps its own open state.
+-- The game's open state cannot stand in for it: with combined bags the game counts
+-- the keyring as one of the bags in that frame, so it reads as open whenever the
+-- bags are, and a window closed by its own button was opened straight back.
+function Module:ToggleKeyring()
+	if self.KeyringFrame and self.KeyringFrame:IsShown() then
+		self:CloseKeyring()
+	else
+		self:OpenKeyring()
+	end
+end
+
 function Module:CloseAll()
 	self:CloseBags()
+	self:CloseKeyring()
 	if self.CloseBank then
 		self:CloseBank()
 	end
@@ -900,17 +1000,23 @@ function Module:HookBlizzard()
 
 	local function Sync()
 		Banish()
-		if not (_G.IsAnyBagOpen and self.BagFrame) then
+		if not (_G.IsBagOpen and self.BagFrame) then
 			return
 		end
-		local wanted = _G.IsAnyBagOpen() and true or false
-		if wanted == (self.BagFrame:IsShown() and true or false) then
-			return
+		-- The keyring is not followed here, see ToggleKeyring.
+		local wanted = false
+		for _, bag in ipairs(self.BagIDs) do
+			if _G.IsBagOpen(bag) then
+				wanted = true
+				break
+			end
 		end
-		if wanted then
-			self:OpenBags()
-		else
-			self:CloseBags()
+		if wanted ~= (self.BagFrame:IsShown() and true or false) then
+			if wanted then
+				self:OpenBags()
+			else
+				self:CloseBags()
+			end
 		end
 	end
 
@@ -937,6 +1043,31 @@ function Module:HookBlizzard()
 				_G.OpenAllBags()
 			end
 		end)
+	end
+
+	-- The game's own calls for the keyring (its keybind and its slot) open and close
+	-- our window directly, whatever the game then thinks is open.
+	if self.KeyringFrame then
+		local keyringCalls = {
+			ToggleBag = function()
+				self:ToggleKeyring()
+			end,
+			OpenBag = function()
+				self:OpenKeyring()
+			end,
+			CloseBag = function()
+				self:CloseKeyring()
+			end,
+		}
+		for name, action in pairs(keyringCalls) do
+			if type(_G[name]) == "function" then
+				hooksecurefunc(name, function(id)
+					if id == KEYRING_BAG then
+						action()
+					end
+				end)
+			end
+		end
 	end
 end
 
@@ -987,6 +1118,27 @@ function Module:OnEnable()
 		self.ReagentFrame = reagent
 		K.CreateMover(reagent, "ReagentBags", L["Reagent Bag"], { "BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -SideBarsWidth(), 100 + self.BagFrame:GetHeight() + 10 }, reagent:GetWidth(), reagent:GetHeight())
 		K.EnableFrameDrag(reagent)
+	end
+
+	-- The keyring gets its own small window where the game has one, flat since it
+	-- only ever holds keys. Blizzard's keyring button and the strip both toggle it.
+	if self.HasKeyring() then
+		local keyring = self:CreateContainer("KKUI_KeyringFrame", L["Keyring"], { KEYRING_BAG }, 8)
+		keyring.noCategories = true
+		-- Sorting and the bag strip mean nothing for a keyring.
+		keyring.Sort:Hide()
+		keyring.BagToggle:Hide()
+		-- Its close button closes just this window, not the inventory beside it.
+		local close = _G["KKUI_KeyringFrameClose"]
+		if close then
+			close:SetScript("OnClick", function()
+				Module:CloseKeyring()
+			end)
+		end
+		self.KeyringFrame = keyring
+		-- Opens just left of the inventory window with the two tops level.
+		K.CreateMover(keyring, "Keyring", L["Keyring"], { "TOPRIGHT", self.BagFrame, "TOPLEFT", -10, 0 }, keyring:GetWidth(), keyring:GetHeight())
+		K.EnableFrameDrag(keyring)
 	end
 
 	-- The bag slot strip lives on the bag window and starts at its saved state.

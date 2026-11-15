@@ -70,49 +70,72 @@ end
 
 local bar
 
--- Keep the hover highlight a subtle wash. Blizzard re-sets an opaque highlight
--- atlas on mouseover (which is what blanked the icon), so this is re-applied from
--- a SetHighlightAtlas hook.
-local function FixHighlight(btn)
-	local hl = btn:GetHighlightTexture()
-	if hl then
-		hl:SetColorTexture(1, 1, 1, 0.15)
-		hl:SetAllPoints(btn)
+-- The game's micro button art is an atlas with transparent padding, so it sits
+-- small inside our box. Every state texture is stretched to the button and cropped
+-- to the same window. SetTexCoord on an atlas texture works inside the atlas
+-- region, which the game's own SetNormalAtlas and SetHighlightAtlas calls keep.
+local CROP_LEFT, CROP_RIGHT, CROP_TOP, CROP_BOTTOM = 0.18, 0.82, 0.2, 0.8
+
+local function Fill(btn, tex)
+	if tex then
+		tex:ClearAllPoints()
+		tex:SetAllPoints(btn)
+		tex:SetTexCoord(CROP_LEFT, CROP_RIGHT, CROP_TOP, CROP_BOTTOM)
 	end
 end
 
--- Micro button art is an atlas with transparent padding, so it sits small inside
--- our box. Stretch each state texture to fill and crop the padding. The character
--- button draws a separate portrait, handled on its own. Blizzard resets these on
--- UpdateMicroButtons, so this is re-applied from the hook.
+-- The character button draws a live portrait on top of its frame. The game moves it
+-- a couple of pixels when the button is pushed and puts it back when released, so
+-- the fit is applied again after both, with a one pixel nudge while pushed.
+local function FitPortrait(btn)
+	local portrait = btn.Portrait
+	if not portrait then
+		return
+	end
+	local push = btn:GetButtonState() == "PUSHED" and 1 or 0
+	portrait:ClearAllPoints()
+	portrait:SetPoint("TOPLEFT", btn, "TOPLEFT", 1 + push, -1 - push)
+	portrait:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + push, 1 - push)
+	portrait:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+end
+
+-- The main menu button carries a latency bar sized for the game's 32 by 41 button.
+-- Scale it with the button so it stays inside it.
+local function FitExtras(btn)
+	local latency = btn.MainMenuBarPerformanceBar
+	if latency then
+		local w, h = btn:GetSize()
+		latency:SetSize(math.max(2, K.Round(w * 19 / 32)), math.max(2, K.Round(h * 39 / 41)))
+		latency:ClearAllPoints()
+		latency:SetPoint("BOTTOM", btn, "BOTTOM", 0, 0)
+	end
+end
+
+-- Blizzard resets these on UpdateMicroButtons, so this is re-applied from the hook.
 local function CropButton(btn, name)
-	local function fill(tex)
-		if tex then
-			tex:ClearAllPoints()
-			tex:SetAllPoints(btn)
-			tex:SetTexCoord(0.18, 0.82, 0.2, 0.8)
-		end
-	end
-	fill(btn:GetNormalTexture())
-	fill(btn:GetPushedTexture())
-	if btn.GetDisabledTexture then
-		fill(btn:GetDisabledTexture())
-	end
+	Fill(btn, btn:GetNormalTexture())
+	Fill(btn, btn:GetPushedTexture())
+	Fill(btn, btn:GetDisabledTexture())
+	-- The hover art has the icon baked in, which is why the game fades the normal
+	-- texture out on mouseover. It has to be cropped the same way or the icon
+	-- would jump size under the cursor.
+	Fill(btn, btn:GetHighlightTexture())
+	-- The pulse shown when a button wants attention.
+	Fill(btn, btn.FlashContent)
 
 	if name == "CharacterMicroButton" then
-		local portrait = _G.MicroButtonPortrait or btn.Portrait
-		if portrait then
-			portrait:ClearAllPoints()
-			portrait:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-			portrait:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-			portrait:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+		-- The portrait shadow is sized for the game's button and spills past ours.
+		if btn.Shadow then
+			btn.Shadow:SetAlpha(0)
+		end
+		if btn.PushedShadow then
+			btn.PushedShadow:SetAlpha(0)
 		end
 		if btn.PortraitMask then
 			btn.PortraitMask:Hide()
 		end
+		FitPortrait(btn)
 	end
-
-	FixHighlight(btn)
 end
 
 local function ReapplyIcons()
@@ -134,21 +157,40 @@ local function Layout()
 	-- Micro buttons keep their portrait aspect so the icons do not distort.
 	local w = K.Round(h * 0.82)
 	local space = cfg.Spacing
-	local x, count = 0, 0
+	local vertical = cfg.Orientation == "VERTICAL"
 
+	local list, count = {}, 0
 	for _, name in ipairs(buttonNames) do
 		local btn = _G[name]
 		-- Skip buttons the client currently hides, so they leave no blank gap.
 		if btn and btn.__kkuiMicro and btn:IsShown() then
-			btn:ClearAllPoints()
-			btn:SetSize(w, h)
-			btn:SetPoint("LEFT", bar, "LEFT", x, 0)
-			x = x + w + space
 			count = count + 1
+			list[count] = btn
 		end
 	end
 
-	bar:SetSize(math.max(1, x - space), h)
+	local reverse = cfg.Order == "REVERSE"
+	local pos = 0
+	for i = 1, count do
+		local btn = list[reverse and (count - i + 1) or i]
+		btn:ClearAllPoints()
+		btn:SetSize(w, h)
+		FitExtras(btn)
+		if vertical then
+			btn:SetPoint("TOP", bar, "TOP", 0, -pos)
+			pos = pos + h + space
+		else
+			btn:SetPoint("LEFT", bar, "LEFT", pos, 0)
+			pos = pos + w + space
+		end
+	end
+
+	local length = math.max(1, pos - space)
+	if vertical then
+		bar:SetSize(w, length)
+	else
+		bar:SetSize(length, h)
+	end
 	return count
 end
 
@@ -162,32 +204,34 @@ local function Skin(btn, name)
 	btn:SetParent(bar)
 	btn:SetHitRectInsets(0, 0, 0, 0)
 
-	-- Clear the loud background / flash art so only the icon and our border show.
+	-- Clear the game's button plate so only the icon and our border show. The game
+	-- still shows and hides these as the button is pushed, which is harmless. The
+	-- flash art is left alone so an alert pulse is still visible.
 	if btn.Background then
 		btn.Background:SetTexture()
 	end
 	if btn.PushedBackground then
 		btn.PushedBackground:SetTexture()
 	end
-	if btn.FlashContent then
-		btn.FlashContent:SetTexture()
-	end
-	if btn.Flash then
-		btn.Flash:SetTexture()
-	end
-	if btn.FlashBorder then
-		btn.FlashBorder:SetAlpha(0)
-	end
 
 	K.CreateBackground(btn, 0.06, 0.06, 0.06, 0.9)
 	CropButton(btn, name)
 
-	-- Blizzard re-applies an opaque highlight atlas on hover, override it so the
-	-- icon is not blanked out.
+	-- The game swaps the hover atlas on every state change (and the main menu button
+	-- every second), so the crop is applied again each time it does.
 	if btn.SetHighlightAtlas then
 		hooksecurefunc(btn, "SetHighlightAtlas", function(self)
-			FixHighlight(self)
+			Fill(self, self:GetHighlightTexture())
 		end)
+	end
+
+	if name == "CharacterMicroButton" then
+		if btn.SetPushed then
+			hooksecurefunc(btn, "SetPushed", FitPortrait)
+		end
+		if btn.SetNormal then
+			hooksecurefunc(btn, "SetNormal", FitPortrait)
+		end
 	end
 
 	if not btn.KKUI_Border then
@@ -249,6 +293,25 @@ end
 
 function Module:OnEnable()
 	if not C.MicroMenu.Enable then
+		-- With ours off, the stock micro menu is parked on the hidden parent when the
+		-- player asked for that, and left as the game made it otherwise. The menu
+		-- itself is untouched, so the game's own layout code keeps working, and
+		-- keybinds still open every panel.
+		local stock = C.MicroMenu.HideStock and _G.MicroMenuContainer
+		if stock then
+			local hidden = _G.KKUI_HiddenParent
+			if not hidden then
+				hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
+				hidden:Hide()
+			end
+			if InCombatLockdown() then
+				K.DeferCombat("MicroMenuStockHide", function()
+					stock:SetParent(hidden)
+				end)
+			else
+				stock:SetParent(hidden)
+			end
+		end
 		return
 	end
 	self:Setup()

@@ -31,6 +31,7 @@ Module.Categories = {
 	{ key = "New", name = L["New"] },
 	{ key = "Equipment", name = L["Equipment"] },
 	{ key = "Consumable", name = L["Consumables"] },
+	{ key = "Ammo", name = L["Ammunition"] },
 	{ key = "TradeGoods", name = L["Trade Goods"] },
 	{ key = "ReagentBag", name = L["Reagent Bag"] },
 	{ key = "GearEnhancement", name = L["Gear Enhancements"] },
@@ -212,6 +213,9 @@ function Module:GetCategory(bag, slot, info)
 			return "Collectible"
 		elseif classID == ItemClass.Container or classID == ItemClass.Quiver then
 			return "Container"
+		elseif classID == ItemClass.Projectile then
+			-- Arrows and bullets, which Forever's ranged weapons still use.
+			return "Ammo"
 		elseif classID == ItemClass.Housing then
 			return "Housing"
 		elseif EQUIP_CLASS[classID] then

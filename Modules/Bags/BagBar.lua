@@ -17,6 +17,7 @@ local _G = _G
 local pcall = pcall
 local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
+local C_Timer_After = C_Timer.After
 local GetItemButtonIconTexture = GetItemButtonIconTexture
 
 local BUTTONS = {
@@ -26,7 +27,13 @@ local BUTTONS = {
 	"CharacterBag2Slot",
 	"CharacterBag3Slot",
 	"CharacterReagentBag0Slot",
+	"KeyRingButton",
 }
+local KEYRING = "KeyRingButton"
+local KEYRING_SHARE = 33 / 45 -- the stock keyring slot against a stock bag slot
+-- What the game uses for the keyring when it has not set one yet (it does so on
+-- the first bag update), so the slot never shows empty.
+local KEYRING_ATLAS = "UI-HUD-ActionBar-Keyring-Small"
 
 -- Stand-in bag icon for the backpack (and any empty slot), so it never reads as a
 -- blank square. The client hands empty slots this default texture id.
@@ -40,10 +47,24 @@ local function IconOf(btn, name)
 end
 
 -- Square off and fit the icon. Bag swaps and Blizzard's UpdateTextures reset this,
--- so it is re-applied from those hooks.
+-- so it is re-applied from those hooks. The icon sits one pixel down and right
+-- while the button is held, which is the only pressed look the flat slot needs.
 local function CropIcon(btn, name)
 	local icon = IconOf(btn, name)
 	if not icon then
+		return
+	end
+	local push = btn.__kkuiDown and 1 or 0
+	icon:ClearAllPoints()
+	icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1 + push, -1 - push)
+	icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + push, 1 - push)
+	-- The keyring icon is an atlas the game swaps as keys come and go. Replacing it
+	-- or setting texture coordinates would break the atlas, so only the fit is ours.
+	if name == KEYRING then
+		if not (icon:GetAtlas() or icon:GetTexture()) then
+			icon:SetAtlas(KEYRING_ATLAS)
+		end
+		icon:Show()
 		return
 	end
 	local tex = icon:GetTexture()
@@ -51,9 +72,6 @@ local function CropIcon(btn, name)
 		icon:SetTexture(BACKPACK_ICON)
 	end
 	icon:Show()
-	icon:ClearAllPoints()
-	icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-	icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
 	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 end
 
@@ -63,16 +81,26 @@ local function StripStock(btn)
 	if nt then
 		nt:SetAlpha(0)
 	end
+	-- The stock highlight is the round frame ring, which is hidden above, so hover
+	-- is a soft wash over the whole slot inside our border instead.
 	local ht = btn.GetHighlightTexture and btn:GetHighlightTexture()
 	if ht then
-		ht:SetAlpha(0)
+		ht:SetColorTexture(1, 1, 1, 0.18)
+		ht:SetBlendMode("ADD")
+		ht:ClearAllPoints()
+		ht:SetAllPoints(btn)
+		ht:SetAlpha(1)
 	end
 	local pt = btn.GetPushedTexture and btn:GetPushedTexture()
 	if pt then
 		pt:SetAlpha(0)
 	end
+	-- Retail buttons mask the icon with CircleMask, Forever's with SquareMask.
 	if btn.CircleMask then
 		btn.CircleMask:Hide()
+	end
+	if btn.SquareMask then
+		btn.SquareMask:Hide()
 	end
 	if btn.IconBorder then
 		btn.IconBorder:SetAlpha(0)
@@ -99,26 +127,79 @@ local function Layout()
 	local cfg = C.BagBar
 	local size = cfg.ButtonSize
 	local space = cfg.Spacing
-	local x, count = 0, 0
+	local vertical = cfg.Orientation == "VERTICAL"
 
+	local list, count = {}, 0
 	for _, name in ipairs(BUTTONS) do
 		local btn = _G[name]
-		if btn and btn.__kkuiBag then
-			-- Re-assert the parent: Blizzard's BagsBar layout reparents the buttons
-			-- back to itself, which is what made them snap away.
-			if btn:GetParent() ~= bar then
-				btn:SetParent(bar)
-			end
-			btn:ClearAllPoints()
-			btn:SetSize(size, size)
-			btn:SetPoint("LEFT", bar, "LEFT", x, 0)
-			x = x + size + space
+		-- The keyring only exists in some clients and the game hides it when it has
+		-- none, so a hidden button leaves no gap.
+		if btn and btn.__kkuiBag and (name ~= KEYRING or btn:IsShown()) then
 			count = count + 1
+			list[count] = btn
 		end
 	end
 
-	bar:SetSize(math.max(1, x - space), size)
+	local reverse = cfg.Order == "REVERSE"
+	local keyring = _G[KEYRING]
+	local pos = 0
+	for i = 1, count do
+		local btn = list[reverse and (count - i + 1) or i]
+		-- Re-assert the parent: Blizzard's BagsBar layout reparents the buttons
+		-- back to itself, which is what made them snap away.
+		if btn:GetParent() ~= bar then
+			btn:SetParent(bar)
+		end
+		btn:ClearAllPoints()
+		-- The keyring is a narrow slot in the stock bar (33 wide against 45), so it
+		-- takes that share of the bag size along the bar's direction.
+		local step = size
+		if btn == keyring then
+			step = K.Round(size * KEYRING_SHARE)
+		end
+		if vertical then
+			btn:SetSize(size, step)
+			btn:SetPoint("TOP", bar, "TOP", 0, -pos)
+		else
+			btn:SetSize(step, size)
+			btn:SetPoint("LEFT", bar, "LEFT", pos, 0)
+		end
+		pos = pos + step + space
+	end
+
+	local length = math.max(1, pos - space)
+	if vertical then
+		bar:SetSize(size, length)
+	else
+		bar:SetSize(length, size)
+	end
 	return count
+end
+
+-- Reparenting is blocked in combat, so the layout is put back once it ends.
+local function RelayoutNow()
+	if InCombatLockdown() then
+		K.DeferCombat("BagBarLayout", function()
+			Layout()
+			ReapplyIcons()
+		end)
+	else
+		Layout()
+	end
+end
+
+-- Coalesces bursts (every item pickup fires OnExpandChanged) into one re-layout
+-- that runs after Blizzard's own Layout has finished.
+local relayoutQueued
+local function QueueRelayout()
+	if relayoutQueued then
+		return
+	end
+	relayoutQueued = true
+	C_Timer_After(0, function()
+		relayoutQueued = false
+		RelayoutNow()
+	end)
 end
 
 local function Skin(btn, name)
@@ -135,6 +216,15 @@ local function Skin(btn, name)
 	if not btn.KKUI_Border then
 		K.CreateBorder(btn)
 	end
+
+	btn:HookScript("OnMouseDown", function(self)
+		self.__kkuiDown = true
+		CropIcon(self, self:GetName())
+	end)
+	btn:HookScript("OnMouseUp", function(self)
+		self.__kkuiDown = nil
+		CropIcon(self, self:GetName())
+	end)
 
 	-- Blizzard restores its skin (round mask, normal texture) here, re-apply ours.
 	if btn.UpdateTextures and not btn.__kkuiHook then
@@ -161,39 +251,28 @@ function Module:Setup()
 	bar = CreateFrame("Frame", "KKUI_BagBar", UIParent)
 	bar:SetSize(200, C.BagBar.ButtonSize)
 
-	-- Take the Blizzard container out of play so it stops re-laying the buttons.
-	-- The real culprit is not frame events: BagsBar:Layout is driven through the
-	-- EventRegistry callback "MainMenuBarManager.OnExpandChanged" and the bag
-	-- manager's CURSOR_CHANGED (fires on every item pickup / auto-expand), which
-	-- UnregisterAllEvents does not remove. Drop those callbacks so Layout stops
-	-- firing, and keep a Layout hook as a safety net.
+	-- Take the Blizzard container out of play. BagsBar:Layout cannot be stopped
+	-- without editing Blizzard's shared EventRegistry (taint), so it is left to run
+	-- and our layout is put back after it instead. Two paths reach it:
+	--   1. Direct calls (self:Layout()), caught by the hook below.
+	--   2. The EventRegistry callback "MainMenuBarManager.OnExpandChanged", which
+	--      fires on every cursor pickup. Blizzard stored the original Layout
+	--      function there, so the hook never sees it. We register our own callback
+	--      under our own owner (the supported addon path, run through
+	--      securecallfunction) and re-lay one tick later, because the order of
+	--      callbacks within one event is not guaranteed.
 	local bagsBar = _G.BagsBar
 	if bagsBar then
 		bagsBar:UnregisterAllEvents()
-		if _G.EventRegistry then
-			_G.EventRegistry:UnregisterCallback("MainMenuBarManager.OnExpandChanged", bagsBar)
-		end
 		if bagsBar.Layout then
-			hooksecurefunc(bagsBar, "Layout", function()
-				-- Reparenting is blocked in combat, so the layout is put back once
-				-- it ends.
-				if InCombatLockdown() then
-					K.DeferCombat("BagBarLayout", function()
-						Layout()
-						ReapplyIcons()
-					end)
-				else
-					Layout()
-				end
-			end)
+			hooksecurefunc(bagsBar, "Layout", RelayoutNow)
 		end
 		bagsBar:SetParent(hidden)
 	end
-
-	if _G.EventRegistry and _G.MainMenuBarBagManager then
-		_G.EventRegistry:UnregisterFrameEventAndCallback("CURSOR_CHANGED", _G.MainMenuBarBagManager)
-		_G.EventRegistry:UnregisterFrameEventAndCallback("EXPAND_BAG_BAR_CHANGED", _G.MainMenuBarBagManager)
+	if _G.EventRegistry then
+		_G.EventRegistry:RegisterCallback("MainMenuBarManager.OnExpandChanged", QueueRelayout, self)
 	end
+
 	local toggle = _G.BagBarExpandToggle
 	if toggle then
 		toggle:UnregisterAllEvents()
@@ -203,7 +282,9 @@ function Module:Setup()
 
 	for _, name in ipairs(BUTTONS) do
 		local btn = _G[name]
-		if btn then
+		-- Skip the keyring when the option is off or the game has hidden it, so it
+		-- stays on the hidden Blizzard bar.
+		if btn and (name ~= KEYRING or (C.BagBar.ShowKeyring and btn:IsShown())) then
 			pcall(Skin, btn, name)
 		end
 	end
@@ -227,6 +308,24 @@ end
 
 function Module:OnEnable()
 	if not C.BagBar.Enable then
+		-- With ours off, the stock bag bar is parked on the hidden parent when the
+		-- player asked for that, and left as the game made it otherwise. Its events
+		-- and layout are left alone either way.
+		local stock = C.BagBar.HideStock and _G.BagsBar
+		if stock then
+			local hidden = _G.KKUI_HiddenParent
+			if not hidden then
+				hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
+				hidden:Hide()
+			end
+			if InCombatLockdown() then
+				K.DeferCombat("BagBarStockHide", function()
+					stock:SetParent(hidden)
+				end)
+			else
+				stock:SetParent(hidden)
+			end
+		end
 		return
 	end
 	self:Setup()
