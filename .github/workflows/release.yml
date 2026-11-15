@@ -1,0 +1,50 @@
+# Packages the addon and publishes it to GitHub Releases. CurseForge and Wago are
+# added later by putting their project ids in the TOC and their keys in the
+# repository secrets, nothing here needs to change for that.
+#
+# Runs when an annotated tag is pushed. The tag name becomes the version, so tag
+# what you want the release called.
+#
+#   git tag -a 1.0.0 -m "1.0.0"
+#   git push origin 1.0.0
+#
+# The packager reads .pkgmeta for the folder layout and the TOC for the game
+# version.
+name: Release
+
+on:
+  push:
+    tags:
+      - "**"
+
+# The packager creates the GitHub release itself, which needs write access to
+# contents.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package and release
+    runs-on: ubuntu-latest
+
+    env:
+      # Optional. Empty until the addon has CurseForge and Wago projects.
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      # Provided by Actions automatically.
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v4
+        with:
+          # The changelog is built from the commits since the previous tag, so
+          # the full history has to be there.
+          fetch-depth: 0
+
+      # The release type comes from the tag. A tag containing "beta" uploads as a
+      # beta, "alpha" as an alpha, anything else as a full release.
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -g forever
