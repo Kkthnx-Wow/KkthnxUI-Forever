@@ -47,7 +47,11 @@ Module.NewText = NewText
 function Module.GradientLabel(self, anchor, size, yOffset)
 	local text = NewText(self, size or 12)
 	text:SetJustifyH("CENTER")
-	text:SetPoint("BOTTOM", anchor, "TOP", 0, yOffset or 6)
+	-- Pinned to both edges of the anchor so the label can never be wider than the
+	-- bar it sits on. A single centre point let a long name run past the frame and
+	-- over its neighbours, with both edges set it is cut off with an ellipsis.
+	text:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, yOffset or 6)
+	text:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, yOffset or 6)
 
 	-- Our own gradient rather than the AftLevelup-ToastBG atlas, whose violet was
 	-- baked into the art, so it matched nothing else and its colour and alpha could

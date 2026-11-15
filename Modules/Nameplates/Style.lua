@@ -712,7 +712,11 @@ end
 local function BuildName(self)
 	local name = self:CreateFontString(nil, "OVERLAY")
 	K.SetFont(name, C.Nameplate.NameSize, K.FontOutlineStyle())
-	name:SetPoint("BOTTOM", self.Health, "TOP", 0, 4)
+	-- Allowed to run a little wider than the bar, but not without limit. A long
+	-- name used to spread across the whole screen row and over the plate beside it.
+	name:SetPoint("BOTTOMLEFT", self.Health, "TOPLEFT", -24, 4)
+	name:SetPoint("BOTTOMRIGHT", self.Health, "TOPRIGHT", 24, 4)
+	name:SetWordWrap(false)
 	name:SetJustifyH("CENTER")
 	-- Colour through the tag system so it updates on name/faction events, not
 	-- only when the health bar happens to recolour (which needed a target/click).
