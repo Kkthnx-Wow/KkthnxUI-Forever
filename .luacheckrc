@@ -80,7 +80,7 @@ stds.wow = {
 		"CompleteQuest", "GetNumQuestChoices", "GetQuestItemInfo", "GetQuestReward",
 		"SHIFT_KEY_TEXT", "CTRL_KEY_TEXT", "ALT_KEY_TEXT", "NONE",
 		"CancelDuel", "StaticPopup_Hide", "C_PetBattles", "CinematicFrame_CancelCinematic", "MovieFrame",
-		"GetInventoryItemLink", "GetInventoryItemTexture", "GetWeaponEnchantInfo",
+		"GetInventoryItemCount", "GetInventoryItemLink", "GetInventoryItemTexture", "GetWeaponEnchantInfo",
 		"SetItemCraftingQualityOverlay", "ClearItemCraftingQualityOverlay",
 		"strtrim", "StaticPopup_Show", "MenuUtil", "GetCursorInfo", "CursorHasItem",
 		"ClearCursor", "PickupInventoryItem", "GetInventorySlotInfo", "SetItemButtonQuality",

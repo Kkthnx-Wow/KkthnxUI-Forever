@@ -31,7 +31,6 @@ local CATEGORY_ICON = {
 	Tooltip = "INV_Misc_Note_01",
 	ExperienceBar = "Achievement_Level_10",
 	AlertFrames = "INV_Misc_Bell_01",
-	PullCountdown = "INV_Misc_PocketWatch_01",
 	GroupTools = "INV_Misc_GroupLooking",
 	Loot = "INV_Box_01",
 	MicroMenu = "INV_Misc_Book_09",
@@ -69,7 +68,14 @@ local function SplitSections(controls)
 			current.controls[#current.controls + 1] = control
 		end
 	end
-	return sections
+	-- A header with nothing under it would draw an empty card, so drop it.
+	local kept = {}
+	for _, section in ipairs(sections) do
+		if #section.controls > 0 then
+			kept[#kept + 1] = section
+		end
+	end
+	return kept
 end
 
 -- Build one titled card: a soft box holding a section's controls, stacked by
@@ -97,10 +103,14 @@ local function BuildCard(host, section, width)
 		y = -36
 	end
 
+	local flyoutButtons = {}
 	for _, control in ipairs(section.controls) do
 		local builder = GUI.Builders[control.kind]
 		if builder then
 			local widget = builder(card, control)
+			if control.kind == "extra" then
+				flyoutButtons[#flyoutButtons + 1] = widget
+			end
 			-- Stretch width-aware widgets (sliders, dropdowns) to fill the card so
 			-- their left and right edges share one grid line.
 			if widget.KKUI_SetWidth then
@@ -117,6 +127,16 @@ local function BuildCard(host, section, width)
 			widget:SetPoint("TOPLEFT", card, "TOPLEFT", indent, y)
 			y = y - (widget.height or 28)
 		end
+	end
+
+	-- Flyout buttons in one card share the widest width so the list reads as a
+	-- column instead of a ragged edge.
+	local widest = 0
+	for _, button in ipairs(flyoutButtons) do
+		widest = math.max(widest, button:GetWidth())
+	end
+	for _, button in ipairs(flyoutButtons) do
+		button:SetWidth(widest)
 	end
 
 	local height = -y + 10

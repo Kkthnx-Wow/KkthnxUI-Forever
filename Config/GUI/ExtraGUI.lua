@@ -73,6 +73,7 @@ function GUI.CreateExtraButton(parent, control)
 	button:SetSize(control.width or 160, 24)
 	button:SetText(control.label)
 	K.SkinButton(button)
+	GUI.FitButtonWidth(button, control.width or 160)
 	button:SetScript("OnClick", function()
 		local extra = GUI.CreateExtraGUI(control.name, control.title, control.build)
 		if extra:IsShown() then

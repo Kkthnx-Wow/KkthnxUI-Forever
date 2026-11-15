@@ -38,6 +38,8 @@ function Module:RestyleCrosshair()
 	local color = C.QoL.CrosshairColor or { 1, 1, 1 }
 	local offset = GAP / 2 + length / 2
 
+	frame:ClearAllPoints()
+	frame:SetPoint("CENTER", UIParent, "CENTER", 0, C.QoL.CrosshairOffset or 0)
 	frame:SetSize((GAP + length) * 2, (GAP + length) * 2)
 	Place(frame.Top, "CENTER", THICKNESS, length, 0, offset)
 	Place(frame.Bottom, "CENTER", THICKNESS, length, 0, -offset)
@@ -58,7 +60,6 @@ end
 
 function Module:SetupCrosshair()
 	frame = CreateFrame("Frame", nil, UIParent)
-	frame:SetPoint("CENTER", UIParent, "CENTER", 0, C.QoL.CrosshairOffset or 0)
 	frame:SetFrameStrata("BACKGROUND")
 	frame:EnableMouse(false)
 	for _, key in ipairs({ "Top", "Bottom", "Left", "Right" }) do

@@ -100,7 +100,7 @@ K.ConfigDefaults = {
 			[2] = { 0.82, 0.31, 0.31 },
 			[3] = { 0.85, 0.45, 0.25 },
 			[4] = { 0.95, 0.76, 0.32 },
-			[5] = { 0.22, 0.80, 0.30 }, -- friendly: clear green, away from Evoker teal
+			[5] = { 0.22, 0.80, 0.30 }, -- friendly: clear green
 			[6] = { 0.22, 0.80, 0.30 },
 			[7] = { 0.22, 0.80, 0.30 },
 			[8] = { 0.36, 0.72, 0.88 },
@@ -240,6 +240,10 @@ K.ConfigDefaults = {
 
 	-- Blizzard frame skins.
 	Skins = {
+		CharacterFrames = true, -- class background behind the model on the Character and Inspect windows
+		CharacterFramesWide = true, -- give the paper doll tab and the inspect window more width for the model
+		GearInfo = true, -- red marker for a missing enchant and the gems beside each slot
+		CharacterSlots = true, -- our slot look, quality border and item level on the character and inspect frames
 		SocialColors = true, -- class/difficulty colour the Friends, Who, and Guild panels
 		GameMenu = true, -- skin the pause menu and add a KkthnxUI options button
 		ObjectiveTracker = false, -- tidy the quest tracker header/minimise and recolour its bars, off while the scenario tracker taint reports are open
@@ -252,6 +256,9 @@ K.ConfigDefaults = {
 		Enable = true,
 		ButtonSize = 28,
 		Spacing = 6,
+		Orientation = "HORIZONTAL", -- HORIZONTAL or VERTICAL
+		Order = "DEFAULT", -- DEFAULT or REVERSE
+		HideStock = true, -- hide the game's own micro menu while ours is off
 	},
 
 	-- Movable, reskinned bag bar.
@@ -259,6 +266,10 @@ K.ConfigDefaults = {
 		Enable = true,
 		ButtonSize = 30,
 		Spacing = 6,
+		Orientation = "HORIZONTAL", -- HORIZONTAL or VERTICAL
+		Order = "DEFAULT", -- DEFAULT puts the backpack first, REVERSE puts it last
+		ShowKeyring = true, -- the keyring button, when the client has one
+		HideStock = true, -- hide the game's own bag bar while ours is off
 	},
 
 	-- All-in-one bag and bank replacement, auto categorised.
@@ -281,7 +292,6 @@ K.ConfigDefaults = {
 		ShowNewItems = true, -- glow freshly looted items
 		ShowCurrencies = true, -- tracked currency row along the bottom
 		JunkIcon = true, -- coin marker on grey items
-		ScrapIcon = true, -- marker on gear the Scrapping Machine will accept
 		ShowEquipmentSet = false, -- marker on items that belong to a saved equipment set
 		DesaturateJunk = false, -- grey out the icon of vendor trash
 		DeleteButton = true, -- show the delete-cheapest-junk button
@@ -418,9 +428,8 @@ K.ConfigDefaults = {
 		AutoLog = false, -- switch combat logging on in logged content
 		AutoLogRaidNormal = true,
 		AutoLogRaidHeroic = true,
-		AutoLogRaidMythic = true,
 		AutoLogRaidFinder = false,
-		AutoLogDungeon = true, -- Mythic and Mythic Plus dungeons
+		AutoLogDungeon = true, -- Heroic dungeons
 	},
 
 	-- Hands-off questing: accept, turn in, and reward selection.
@@ -485,7 +494,6 @@ K.ConfigDefaults = {
 		ShowMountSource = true, -- collection status/source on a player's mount buff (hold Shift)
 		BorderColor = true, -- tint the tooltip border by unit class/reaction
 		ShowMount = false, -- the mount a player is riding (off: clutter on every player tooltip)
-		ShowMythicScore = true, -- a player's Mythic+ rating
 		ShowRole = true, -- tank/healer/dps icon for group members
 		ShowFactionIcon = true, -- faction crest on the name, hides the faction line
 		ShowRaidIcon = true, -- raid target marker ahead of the unit name

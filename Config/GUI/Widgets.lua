@@ -461,7 +461,7 @@ function GUI.CreateSlider(parent, control)
 		holder:SetWidth(w)
 	end
 
-	holder.height = 60
+	holder.height = 66
 	return holder
 end
 
@@ -625,11 +625,23 @@ end
 -- Action button (runs a callback)
 -- ---------------------------------------------------------------------------
 
+-- A fixed width clipped longer labels, so grow the button to fit its text and
+-- keep the requested width as the minimum. Call after the label is set.
+function GUI.FitButtonWidth(button, minWidth)
+	local fs = button:GetFontString()
+	local width = minWidth
+	if fs then
+		width = math.max(minWidth, math.ceil(fs:GetStringWidth()) + 24)
+	end
+	button:SetWidth(width)
+end
+
 function GUI.CreateButton(parent, control)
 	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
 	button:SetSize(control.width or 150, 24)
 	button:SetText(control.label)
 	K.SkinButton(button)
+	GUI.FitButtonWidth(button, control.width or 150)
 	button:SetScript("OnClick", function()
 		if control.onClick then
 			control.onClick()

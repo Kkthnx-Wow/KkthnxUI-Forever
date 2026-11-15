@@ -309,7 +309,7 @@ local function UnitControls(key, opts)
 		Add({ kind = "check", label = L["Show Name"], path = { "Unitframe", key, "ShowName" }, reload = true, dependsOn = dep })
 	end
 	if opts.classPower then
-		Add({ kind = "check", label = L["Show Class Resource"], path = { "Unitframe", key, "ClassPower" }, reload = true, dependsOn = dep, tooltip = L["Combo points, runes, chi, soul shards, and the monk stagger bar."] })
+		Add({ kind = "check", label = L["Show Class Resource"], path = { "Unitframe", key, "ClassPower" }, reload = true, dependsOn = dep, tooltip = L["Combo points, holy power, soul shards, and arcane charges."] })
 		Add({ kind = "check", label = L["Show Additional Power"], path = { "Unitframe", key, "AdditionalPower" }, reload = true, dependsOn = dep, tooltip = L["The mana strip druids keep while shapeshifted."] })
 	end
 	if opts.showSolo then
@@ -494,7 +494,7 @@ GUI.schema = {
 			-- the group frames. Shared settings sit in their own block at the end
 			-- so they are not mistaken for one more unit.
 			{ kind = "header", label = L["Your Frames"] },
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, swing = true, totems = true }), L["Your own frame, including your class resource such as combo points or runes."]),
+			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, swing = true, totems = true }), L["Your own frame, including your class resource such as combo points or holy power."]),
 			ExtraButton(L["Pet"], "UF_Pet", UnitControls("Pet", { power = true, debuffs = true, happiness = true }), L["Your pet's frame, shown only while you have one out."]),
 
 			{ kind = "header", label = L["Target Frames"] },
@@ -755,7 +755,6 @@ GUI.schema = {
 			{ kind = "check", label = L["Show Faction Icon"], path = { "Tooltip", "ShowFactionIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a Horde/Alliance crest on the name and hide the faction text line."] },
 			{ kind = "check", label = L["Border Color By Unit"], path = { "Tooltip", "BorderColor" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Tint the tooltip border by the unit's class or reaction."] },
 			{ kind = "check", label = L["Show Mount"], path = { "Tooltip", "ShowMount" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Show Mythic+ Rating"], path = { "Tooltip", "ShowMythicScore" }, dependsOn = { "Tooltip", "Enable" } },
 			{ kind = "check", label = L["Show Role Icon"], path = { "Tooltip", "ShowRole" }, dependsOn = { "Tooltip", "Enable" } },
 			{ kind = "check", label = L["Show Targeted By"], path = { "Tooltip", "ShowTargetedBy" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["List which group members are targeting the unit."] },
 			{ kind = "check", label = L["Show Target"], path = { "Tooltip", "ShowTarget" }, dependsOn = { "Tooltip", "Enable" } },
@@ -803,17 +802,6 @@ GUI.schema = {
 	},
 
 	{
-		name = "PullCountdown",
-		icon = "Interface/ICONS/Ability_Warrior_Charge",
-		title = L["Pull Countdown"],
-		controls = {
-			{ kind = "header", label = L["Pull Countdown"] },
-			{ kind = "check", label = L["Enable Pull Countdown"], path = { "PullCountdown", "Enable" }, tooltip = L["Announce a pull timer in party/raid chat with /pull [seconds] (alias /pc). A second /pull cancels. Needs a group and no combat."] },
-			{ kind = "slider", label = L["Default Seconds"], path = { "PullCountdown", "Seconds" }, min = 3, max = 30, step = 1, dependsOn = { "PullCountdown", "Enable" }, tooltip = L["Seconds used when you type /pull with no number."] },
-		},
-	},
-
-	{
 		name = "GroupTools",
 		icon = "Interface/ICONS/Ability_Warrior_BattleShout",
 		title = L["Group Tools"],
@@ -821,6 +809,10 @@ GUI.schema = {
 			{ kind = "header", label = L["Group Tools"] },
 			{ kind = "check", label = L["Enable Group Tools"], path = { "GroupTools", "Enable" }, reload = true, tooltip = L["A movable panel shown only in a group: ready check, role check, pull timer, world markers, target icons, and a role count."] },
 			{ kind = "slider", label = L["Pull Timer Seconds"], path = { "GroupTools", "PullTime" }, min = 3, max = 30, step = 1, reload = true, dependsOn = { "GroupTools", "Enable" }, tooltip = L["Seconds counted down by the pull timer button."] },
+
+			{ kind = "header", label = L["Pull Command"] },
+			{ kind = "check", label = L["Enable Pull Countdown"], path = { "PullCountdown", "Enable" }, tooltip = L["Announce a pull timer in party/raid chat with /pull [seconds] (alias /pc). A second /pull cancels. Needs a group and no combat."] },
+			{ kind = "slider", label = L["Default Seconds"], path = { "PullCountdown", "Seconds" }, min = 3, max = 30, step = 1, dependsOn = { "PullCountdown", "Enable" }, tooltip = L["Seconds used when you type /pull with no number."] },
 		},
 	},
 
@@ -844,11 +836,30 @@ GUI.schema = {
 		controls = {
 			{ kind = "header", label = L["Micro Menu"] },
 			{ kind = "check", label = L["Enable Micro Menu"], path = { "MicroMenu", "Enable" }, reload = true, tooltip = L["A movable, reskinned row of the character/spellbook/collections buttons."] },
+			{ kind = "check", label = L["Hide Blizzard Micro Menu"], path = { "MicroMenu", "HideStock" }, reload = true, tooltip = L["Hide the game's own micro menu while ours is off. Panels still open from their keybinds."] },
+			{ kind = "dropdown", label = L["Orientation"], path = { "MicroMenu", "Orientation" }, options = {
+				{ text = L["Horizontal"], value = "HORIZONTAL" },
+				{ text = L["Vertical"], value = "VERTICAL" },
+			}, reload = true, dependsOn = { "MicroMenu", "Enable" } },
+			{ kind = "dropdown", label = L["Order"], path = { "MicroMenu", "Order" }, options = {
+				{ text = L["Default"], value = "DEFAULT" },
+				{ text = L["Reverse"], value = "REVERSE" },
+			}, reload = true, dependsOn = { "MicroMenu", "Enable" } },
 			{ kind = "slider", label = L["Button Size"], path = { "MicroMenu", "ButtonSize" }, min = 20, max = 40, step = 1, reload = true, dependsOn = { "MicroMenu", "Enable" } },
 			{ kind = "slider", label = L["Button Spacing"], path = { "MicroMenu", "Spacing" }, min = 0, max = 12, step = 1, reload = true, dependsOn = { "MicroMenu", "Enable" } },
 
 			{ kind = "header", label = L["Bag Bar"] },
 			{ kind = "check", label = L["Enable Bag Bar"], path = { "BagBar", "Enable" }, reload = true, tooltip = L["A movable, reskinned bag bar with the backpack free-slot count."] },
+			{ kind = "check", label = L["Hide Blizzard Bag Bar"], path = { "BagBar", "HideStock" }, reload = true, tooltip = L["Hide the game's own bag bar while ours is off. The bags still open from their keybinds."] },
+			{ kind = "dropdown", label = L["Orientation"], path = { "BagBar", "Orientation" }, options = {
+				{ text = L["Horizontal"], value = "HORIZONTAL" },
+				{ text = L["Vertical"], value = "VERTICAL" },
+			}, reload = true, dependsOn = { "BagBar", "Enable" } },
+			{ kind = "dropdown", label = L["Order"], path = { "BagBar", "Order" }, options = {
+				{ text = L["Backpack First"], value = "DEFAULT" },
+				{ text = L["Backpack Last"], value = "REVERSE" },
+			}, reload = true, dependsOn = { "BagBar", "Enable" } },
+			{ kind = "check", label = L["Show Keyring"], path = { "BagBar", "ShowKeyring" }, reload = true, dependsOn = { "BagBar", "Enable" }, tooltip = L["Show the keyring button on the bag bar, when the game has one."] },
 			{ kind = "slider", label = L["Bag Button Size"], path = { "BagBar", "ButtonSize" }, min = 20, max = 40, step = 1, reload = true, dependsOn = { "BagBar", "Enable" } },
 			{ kind = "slider", label = L["Bag Button Spacing"], path = { "BagBar", "Spacing" }, min = 0, max = 12, step = 1, reload = true, dependsOn = { "BagBar", "Enable" } },
 		},
@@ -875,7 +886,6 @@ GUI.schema = {
 			{ kind = "check", label = L["Show Bind Type"], path = { "Bags", "ShowItemBind" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Mark bind-on-equip and bind-on-use gear that has not bound yet."] },
 			{ kind = "check", label = L["Glow New Items"], path = { "Bags", "ShowNewItems" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" } },
 			{ kind = "check", label = L["Junk Coin Icon"], path = { "Bags", "JunkIcon" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" } },
-			{ kind = "check", label = L["Scrappable Icon"], path = { "Bags", "ScrapIcon" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Mark gear the Scrapping Machine will accept."] },
 			{ kind = "check", label = L["Equipment Set Marker"], path = { "Bags", "ShowEquipmentSet" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Put a small square on items that belong to a saved equipment set."] },
 			{ kind = "check", label = L["Fade Junk Items"], path = { "Bags", "DesaturateJunk" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Grey out the icon of vendor trash so it fades behind the rest."] },
 			{ kind = "check", label = L["Delete Junk Button"], path = { "Bags", "DeleteButton" }, reload = true, dependsOn = { "Bags", "Enable" }, tooltip = L["Show a button that deletes your lowest value junk item to free a slot."] },
@@ -1032,17 +1042,19 @@ GUI.schema = {
 			{ kind = "header", label = L["Crosshair"] },
 			{ kind = "check", label = L["Show Crosshair"], path = { "QoL", "Crosshair" }, reload = true, tooltip = L["A small crosshair in the middle of the screen."] },
 			{ kind = "slider", label = L["Crosshair Size"], path = { "QoL", "CrosshairSize" }, min = 6, max = 40, step = 1, apply = ApplyQoL, dependsOn = { "QoL", "Crosshair" } },
+			{ kind = "slider", label = L["Crosshair Height"], path = { "QoL", "CrosshairOffset" }, min = -300, max = 300, step = 1, apply = ApplyQoL, dependsOn = { "QoL", "Crosshair" }, tooltip = L["Move the crosshair up or down from the centre of the screen."] },
 			{ kind = "color", label = L["Crosshair Colour"], path = { "QoL", "CrosshairColor" }, apply = ApplyQoL, dependsOn = { "QoL", "Crosshair" } },
 			{ kind = "check", label = L["Crosshair In Combat Only"], path = { "QoL", "CrosshairCombatOnly" }, reload = true, dependsOn = { "QoL", "Crosshair" } },
 
-			{ kind = "header", label = L["Keepsakes"] },
+			{ kind = "header", label = L["Screenshots"] },
 			{ kind = "check", label = L["Achievement Screenshot"], path = { "QoL", "AchievementShot" }, reload = true, tooltip = L["Take a screenshot a moment after you earn an achievement."] },
+
+			{ kind = "header", label = L["Combat Logging"] },
 			{ kind = "check", label = L["Automatic Combat Logging"], path = { "QoL", "AutoLog" }, reload = true, tooltip = L["Turn combat logging on in the content below and off half a minute after you leave. A log you start yourself is never stopped."] },
 			{ kind = "check", label = L["Normal Raids"], path = { "QoL", "AutoLogRaidNormal" }, dependsOn = { "QoL", "AutoLog" } },
 			{ kind = "check", label = L["Heroic Raids"], path = { "QoL", "AutoLogRaidHeroic" }, dependsOn = { "QoL", "AutoLog" } },
-			{ kind = "check", label = L["Mythic Raids"], path = { "QoL", "AutoLogRaidMythic" }, dependsOn = { "QoL", "AutoLog" } },
 			{ kind = "check", label = L["Raid Finder"], path = { "QoL", "AutoLogRaidFinder" }, dependsOn = { "QoL", "AutoLog" } },
-			{ kind = "check", label = L["Mythic and Mythic Plus Dungeons"], path = { "QoL", "AutoLogDungeon" }, dependsOn = { "QoL", "AutoLog" } },
+			{ kind = "check", label = L["Heroic Dungeons"], path = { "QoL", "AutoLogDungeon" }, dependsOn = { "QoL", "AutoLog" } },
 		},
 	},
 
@@ -1051,9 +1063,11 @@ GUI.schema = {
 		icon = "Interface/ICONS/INV_Chest_Cloth_17",
 		title = L["Skins"],
 		controls = {
-			{ kind = "header", label = L["Skins"] },
-
 			{ kind = "header", label = L["Social"] },
+			{ kind = "check", label = L["Character & Inspect Frames"], path = { "Skins", "CharacterFrames" }, reload = true, tooltip = L["Put a class background behind the model on the Character and Inspect windows. The windows themselves keep their stock look."] },
+			{ kind = "check", label = L["Wider Character & Inspect"], path = { "Skins", "CharacterFramesWide" }, reload = true, dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Make the paper doll tab and the inspect window wider so the model has room. Another open window may overlap the extra width."] },
+			{ kind = "check", label = L["Character & Inspect Slots"], path = { "Skins", "CharacterSlots" }, reload = true, tooltip = L["Restyle the equipment slots on the Character and Inspect frames. Square icons, a border tinted by item quality, and the item level on each slot."] },
+			{ kind = "check", label = L["Gems & Enchant Markers"], path = { "Skins", "GearInfo" }, reload = true, dependsOn = { "Skins", "CharacterSlots" }, tooltip = L["Show a red marker beside a slot that is missing an enchant, and the gems socketed in each item."] },
 			{ kind = "check", label = L["Social Class Colours"], path = { "Skins", "SocialColors" }, reload = true, tooltip = L["Class-colour names and difficulty-colour levels in the Friends, Who, and Guild panels."] },
 
 				{ kind = "header", label = L["Game Menu"] },
