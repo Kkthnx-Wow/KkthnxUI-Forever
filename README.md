@@ -20,6 +20,7 @@ Log in and type `/kk` to open the options.
 - Nameplates
 - Bags with categories, search and a bag bar
 - Micro menu, minimap, tooltips, chat, world map tweaks and a quest tracker skin
+- Character and inspect frame skin with slot item levels and enchant warnings
 - Automation and quality of life modules, each one optional
 
 ## Commands
@@ -33,7 +34,6 @@ Log in and type `/kk` to open the options.
 These exist in the Retail edition and are not loaded here yet.
 
 - The bank window and bank bar
-- The character and inspect frame skin and the gear overlay
 
 ## Reporting problems
 

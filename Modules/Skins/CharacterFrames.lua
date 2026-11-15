@@ -2,14 +2,23 @@
 	Addon: KkthnxUI
 	File: Modules/Skins/CharacterFrames.lua
 	Purpose:
-		Clean up and resize the Character and Inspect frames: strip the Blizzard
-		textures, standardise the item slot sizes, reposition the model and slots,
-		and swap in a class dressing room background on the gear tab.
+		Improve the Character and Inspect windows without restyling them. The
+		stock frame, tabs and stat panel stay as Blizzard draws them. We add three
+		things: a class background behind the model, more width for the paper doll,
+		and on Inspect an item level line. The equipment slots get our border from
+		CharacterSlots.lua.
 
-		Inspect lives in the load on demand Blizzard_InspectUI, so it is styled on
-		load or when its addon fires ADDON_LOADED. Layout changes defer to the next
-		tick and respect combat lockdown, since these are secure frames. Retail only
-		for now.
+		Built against the WoW Forever 1.60.1 frame source, which is not the Retail
+		layout. The Character window is a portrait frame holding a LeftPaneHost and
+		a RightPaneHost and sizes itself in UpdateSize. The Inspect window is still
+		a button frame with an Inset and a PlayerModel.
+
+		Nothing here runs inside a Blizzard code path. The first character window
+		after login showed Blizzard's own status bar text failing on a secret value
+		because addon code had run in the panel show chain, so this file hooks no
+		Blizzard function and writes no field on a Blizzard table. The one job that
+		must follow Blizzard (the width that UpdateSize resets) runs from a watcher
+		frame parented to the window, which only ticks while the window is open.
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
@@ -17,644 +26,275 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:NewModule("CharacterFrames")
 
 local _G = _G
-local select = select
-local hooksecurefunc = hooksecurefunc
+local CreateFrame = CreateFrame
 local InCombatLockdown = InCombatLockdown
-local HideUIPanel = HideUIPanel
 local UnitClass = UnitClass
-local PanelTemplates_GetSelectedTab = PanelTemplates_GetSelectedTab
-local C_AddOns = C_AddOns
-local C_Timer = C_Timer
+local IsSecret = K.IsSecret
 
-local StripTextures = K.StripTextures
+-- Extra pixels given to the paper doll tab. The model, its background and both
+-- slot columns are anchored to the pane edges, so they follow on their own.
+local CHARACTER_EXTRA = 60
+local INSPECT_EXTRA = 60
 
--- Blizzard panel constants (12.0.7).
-local PANEL_DEFAULT_WIDTH = _G.PANEL_DEFAULT_WIDTH or 338
-local PANEL_DEFAULT_HEIGHT = _G.PANEL_DEFAULT_HEIGHT or 424
-local PANEL_INSET_LEFT_OFFSET = _G.PANEL_INSET_LEFT_OFFSET or 4
-local PANEL_INSET_RIGHT_OFFSET = _G.PANEL_INSET_RIGHT_OFFSET or -6
-local PANEL_INSET_BOTTOM_OFFSET = _G.PANEL_INSET_BOTTOM_OFFSET or 4
-local PANEL_INSET_BOTTOM_BUTTON_OFFSET = _G.PANEL_INSET_BOTTOM_BUTTON_OFFSET or 26
-local PANEL_INSET_ATTIC_OFFSET = _G.PANEL_INSET_ATTIC_OFFSET or -60
-local CHARACTERFRAME_EXPANDED_WIDTH = _G.CHARACTERFRAME_EXPANDED_WIDTH or 540
+-- Blizzard's own width constants, with the 1.60.1 values as a fallback.
+local FRAME_WIDTH = _G.CHARACTER_FRAME_WIDTH or 631
+local FRAME_COLLAPSED_WIDTH = _G.CHARACTER_FRAME_COLLAPSED_WIDTH or 398
+local INSPECT_WIDTH = 338
 
-local CHAR_PAPERDOLL_WIDTH = 640
-local CHAR_PAPERDOLL_HEIGHT = 431
-local CHAR_INSET_OFFSET = PANEL_DEFAULT_WIDTH + PANEL_INSET_RIGHT_OFFSET + (CHAR_PAPERDOLL_WIDTH - CHARACTERFRAME_EXPANDED_WIDTH)
+local ILVL_SIZE = 12
 
-local INSPECT_PAPERDOLL_WIDTH = 438
-local INSPECT_PAPERDOLL_HEIGHT = 431
-local INSPECT_INSET_OFFSET_PAPER = 432
-local INSPECT_TAB_GUILD = 3
-local SLOT_SIZE = 37
-local CHAR_MODEL_ZOOM_SCALE = 1.1
-local MARBLE_BG = "Interface\\FrameGeneral\\UI-Background-Marble"
+-- The class dressing room art is an atlas per class (checked in the 1.60.1
+-- client), already cropped to the painted area. Retail uses the same names.
+local CLASS_ART = "dressingroom-background-"
 
-local function ShouldStyle()
+local function Enabled()
 	return C.Skins and C.Skins.CharacterFrames
 end
 
--- Pawn sits under PaperDollFrame and the stats pane blocks its clicks. Frame level
--- only orders siblings, so raise the strata on the button instead.
-local pawnHookInstalled = false
+local function Wide()
+	return C.Skins and C.Skins.CharacterFramesWide
+end
 
-local function LiftPawnButton(button, refFrame)
-	if not (button and refFrame) then
+local function SetClassArt(texture, class)
+	texture:SetAtlas(CLASS_ART .. class)
+end
+
+-- ---------------------------------------------------------------------------
+-- Character window
+-- ---------------------------------------------------------------------------
+
+local leftBase
+
+-- The width the window should have right now. UpdateSize resets it to the stock
+-- value whenever the tab or the details pane changes, so this is recomputed
+-- from the same two facts Blizzard uses rather than remembered.
+local function CharacterTargets(frame)
+	local detailsShown = frame.RightPaneHost and frame.RightPaneHost:IsShown()
+	local base = detailsShown and FRAME_WIDTH or FRAME_COLLAPSED_WIDTH
+	local extra = (Wide() and frame.activeSubframe == "PaperDollFrame") and CHARACTER_EXTRA or 0
+	return base + extra, leftBase + extra
+end
+
+local function ApplyCharacterWidth(frame)
+	if InCombatLockdown() then
 		return
 	end
-	button:EnableMouse(true)
-	button:SetFrameStrata("HIGH")
-	button:SetFrameLevel(refFrame:GetFrameLevel() + 50)
-	button:Raise()
+	local width, leftWidth = CharacterTargets(frame)
+	if frame:GetWidth() ~= width then
+		frame:SetWidth(width)
+	end
+	local host = frame.LeftPaneHost
+	if host and host:GetWidth() ~= leftWidth then
+		host:SetWidth(leftWidth)
+	end
 end
 
-local function FixInventoryPawnButton()
-	local button = _G.PawnUI_InventoryPawnButton
-	local statsPane = _G.CharacterStatsPane
-	local characterFrame = _G.CharacterFrame
-	if not (button and characterFrame) then
+-- Retail sits the slot columns close to the window edge and the weapon row close
+-- to the bottom. Forever leaves 24px on the left, 20 on the right and 30 below.
+local SLOT_EDGE = 10
+local WEAPON_BOTTOM = 10
+
+-- Move one slot's single anchor, keeping whatever else about it Blizzard chose.
+-- Each column hangs off its first slot and the rest are chained, so moving the
+-- first one moves the lot. Nil leaves that offset as it is.
+local function NudgeSlot(slot, x, y)
+	if not slot or slot:GetNumPoints() ~= 1 then
 		return
 	end
-	LiftPawnButton(button, statsPane or characterFrame)
+	local point, relativeTo, relativePoint, offsetX, offsetY = slot:GetPoint(1)
+	slot:ClearAllPoints()
+	slot:SetPoint(point, relativeTo, relativePoint, x or offsetX, y or offsetY)
 end
 
-local function FixInspectPawnButton()
-	local button = _G.PawnUI_InspectPawnButton
-	local inspectFrame = _G.InspectFrame
-	if not (button and inspectFrame) then
+local characterStyled
+
+local function StyleCharacterFrame()
+	if characterStyled then
 		return
 	end
-	LiftPawnButton(button, inspectFrame)
-end
-
-local function FixPawnButtons()
-	if not ShouldStyle() then
-		return
-	end
-	FixInventoryPawnButton()
-	FixInspectPawnButton()
-end
-
-local function InstallPawnButtonFix()
-	if pawnHookInstalled or not _G.PawnUI_InventoryPawnButton_Move then
-		return
-	end
-	-- Hooking a tainted global propagates the taint into us and blocks secure code.
-	-- Skip the cosmetic reposition rather than taint ourselves.
-	if not issecurevariable("PawnUI_InventoryPawnButton_Move") then
-		return
-	end
-	pawnHookInstalled = true
-	hooksecurefunc("PawnUI_InventoryPawnButton_Move", FixPawnButtons)
-end
-
-local function RefreshPawnButtons()
-	if not ShouldStyle() then
-		return
-	end
-	InstallPawnButtonFix()
-	if _G.PawnUI_InventoryPawnButton_Move and issecurevariable("PawnUI_InventoryPawnButton_Move") then
-		_G.PawnUI_InventoryPawnButton_Move()
-	else
-		FixPawnButtons()
-	end
-end
-
--- Strip a slot's stock frame art but keep the item icon, then crop the icon and
--- add our border. A blanket strip hides the icon too, so it is done by hand here.
-local function StyleSlot(slot)
-	if slot.kkuiSlot then
-		slot:SetSize(SLOT_SIZE, SLOT_SIZE)
-		return
-	end
-	slot.kkuiSlot = true
-
-	local name = slot:GetName()
-	local icon = name and _G[name .. "IconTexture"]
-
-	if slot.SetNormalTexture then
-		slot:SetNormalTexture(0)
-		slot:SetPushedTexture(0)
-		slot:SetHighlightTexture(0)
-	end
-	for _, region in ipairs({ slot:GetRegions() }) do
-		if region ~= icon and region.GetObjectType and region:GetObjectType() == "Texture" then
-			region:SetAlpha(0)
-		end
-	end
-
-	slot:SetSize(SLOT_SIZE, SLOT_SIZE)
-
-	if icon then
-		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		icon:ClearAllPoints()
-		icon:SetPoint("TOPLEFT", 1, -1)
-		icon:SetPoint("BOTTOMRIGHT", -1, 1)
-	end
-
-	if not slot.KKUI_Border then
-		K.CreateBorder(slot)
-	end
-	Module.UpdateSlotBorder(slot)
-end
-
--- Colour our border by the equipped item's quality (we hid Blizzard's own quality
--- ring). The unit is read from the slot name so inspect slots use the target.
-local GetInventoryItemQuality = _G.GetInventoryItemQuality
-local C_Item = _G.C_Item
-
-local function SlotUnit(slot)
-	local name = slot:GetName() or ""
-	if name:find("^Inspect") then
-		return _G.InspectFrame and _G.InspectFrame.unit
-	end
-	return "player"
-end
-
-local function UpdateSlotBorder(slot)
-	local border = slot.KKUI_Border
-	if not border or not GetInventoryItemQuality then
-		return
-	end
-	local id = slot.GetID and slot:GetID()
-	local unit = SlotUnit(slot)
-	local quality = id and unit and GetInventoryItemQuality(unit, id)
-	if quality and not K.IsSecret(quality) and quality > 1 and C_Item and C_Item.GetItemQualityColor then
-		local r, g, b = C_Item.GetItemQualityColor(quality)
-		border.__customColor = true
-		border:SetVertexColor(r, g, b)
-	else
-		K.ResetBorderColor(border)
-	end
-end
-Module.UpdateSlotBorder = UpdateSlotBorder
-
--- Only touch equipment slots (name contains "Slot"), never talents and the like.
-local function StyleItemSlots(...)
-	for i = 1, select("#", ...) do
-		local slot = select(i, ...)
-		local name = slot and slot.GetName and slot:GetName()
-		if name and name:find("Slot") and (slot:IsObjectType("Button") or slot:IsObjectType("ItemButton")) then
-			StyleSlot(slot)
-		end
-	end
-end
-
-local function SetMarbleBackground(bg)
-	if not bg then
-		return
-	end
-	bg:SetTexture(MARBLE_BG, "REPEAT", "REPEAT")
-	bg:SetTexCoord(0, 1, 0, 1)
-	bg:SetHorizTile(true)
-	bg:SetVertTile(true)
-end
-
-local function ApplyDefaultInset(frame, useButtonBar)
-	frame.Inset:ClearAllPoints()
-	frame.Inset:SetPoint("TOPLEFT", frame, "TOPLEFT", PANEL_INSET_LEFT_OFFSET, PANEL_INSET_ATTIC_OFFSET)
-	local bottom = useButtonBar and PANEL_INSET_BOTTOM_BUTTON_OFFSET or PANEL_INSET_BOTTOM_OFFSET
-	frame.Inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", PANEL_INSET_RIGHT_OFFSET, bottom)
-end
-
-local function ApplyPaperdollInset(frame, offsetX)
-	frame.Inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", offsetX, PANEL_INSET_BOTTOM_OFFSET)
-end
-
-local function AdjustCharacterModelZoom()
+	local frame = _G.CharacterFrame
 	local scene = _G.CharacterModelScene
-	local camera = scene and scene.GetActiveCamera and scene:GetActiveCamera()
-	if not (camera and camera.GetZoomDistance and camera.SetZoomDistance) then
+	if not (frame and frame.LeftPaneHost and scene) then
 		return
 	end
+	characterStyled = true
 
-	local distance = camera:GetZoomDistance()
-	if not distance then
-		return
-	end
+	leftBase = frame.LeftPaneHost:GetWidth()
 
-	local target = distance * CHAR_MODEL_ZOOM_SCALE
-	local maxDistance = camera.GetMaxZoomDistance and camera:GetMaxZoomDistance()
-	if maxDistance and maxDistance > 0 and target > maxDistance then
-		target = maxDistance
-	end
+	-- Head starts the left column, Hands the right one, main hand the weapon row.
+	NudgeSlot(_G.CharacterHeadSlot, SLOT_EDGE)
+	NudgeSlot(_G.CharacterHandsSlot, -SLOT_EDGE)
+	NudgeSlot(_G.CharacterMainHandSlot, nil, WEAPON_BOTTOM)
 
-	camera:SetZoomDistance(target)
-	if camera.SnapToTargetInterpolationZoom then
-		camera:SnapToTargetInterpolationZoom()
-	end
-end
-
-local function FitCharacterEnchantAnimationToInset()
-	local CharacterFrame = _G.CharacterFrame
-	local CharacterModelScene = _G.CharacterModelScene
-	local inset = CharacterFrame and CharacterFrame.Inset
-	local enchant = CharacterModelScene and CharacterModelScene.GearEnchantAnimation
-	if not (inset and enchant and enchant.FrameFX and enchant.TopFrame) then
-		return
-	end
-
-	local width = inset:GetWidth()
-	local height = inset:GetHeight()
-	if not (width and height and width > 0 and height > 0) then
-		return
-	end
-
-	-- Blizzard's enchant animation is a centered 128x128 widget. Our layout is
-	-- wider, so pin and size it to the inset or the glow hugs the middle.
-	enchant:ClearAllPoints()
-	enchant:SetPoint("TOPLEFT", inset, "TOPLEFT", 1, -1)
-	enchant:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -1, 1)
-	enchant.FrameFX:ClearAllPoints()
-	enchant.FrameFX:SetAllPoints(enchant)
-	enchant.TopFrame:ClearAllPoints()
-	enchant.TopFrame:SetAllPoints(enchant)
-
-	local glowTextures = {
-		enchant.FrameFX.PurpleGlow,
-		enchant.FrameFX.BlueGlow,
-		enchant.FrameFX.Sparkles,
-		enchant.FrameFX.Mask,
-		enchant.TopFrame.Frame,
-	}
-	for i = 1, #glowTextures do
-		local tex = glowTextures[i]
-		if tex then
-			tex:ClearAllPoints()
-			tex:SetAllPoints(enchant)
+	-- The race background is four pieces, which Blizzard only ever gives a new
+	-- texture, so hiding each one by alpha holds.
+	for _, key in ipairs({ "BackgroundTopLeft", "BackgroundTopRight", "BackgroundBotLeft", "BackgroundBotRight" }) do
+		local piece = scene[key]
+		if piece then
+			piece:SetAlpha(0)
 		end
+	end
+
+	-- The darkening overlay is not hidden by alpha: SetPaperDollBackground sets its
+	-- alpha back to 0.85 every time the paper doll updates, which dimmed our art to
+	-- near black. It is the only region on the scene's border layer, so the whole
+	-- layer is switched off instead.
+	scene:DisableDrawLayer("BORDER")
+
+	local _, class = UnitClass("player")
+	if class then
+		local art = scene:CreateTexture(nil, "BACKGROUND", nil, -8)
+		art:SetAllPoints()
+		SetClassArt(art, class)
+		Module.characterArt = art
+	end
+
+	if Wide() then
+		-- The watcher is parented to the window, so it only ticks while it is open.
+		local watcher = CreateFrame("Frame", nil, frame)
+		watcher:SetScript("OnUpdate", function()
+			ApplyCharacterWidth(frame)
+		end)
+		Module.characterWatcher = watcher
 	end
 end
 
 -- ---------------------------------------------------------------------------
--- Character frame layout
+-- Inspect window (Blizzard_InspectUI, load on demand)
 -- ---------------------------------------------------------------------------
-function Module:ApplyCharacterLayout()
-	if InCombatLockdown() or not ShouldStyle() then
-		return
-	end
 
-	local CharacterFrame = _G.CharacterFrame
-	if not CharacterFrame then
-		return
-	end
+local inspectStyled
+local inspectArt, inspectLevel, inspectClass
 
-	local subframe = CharacterFrame.activeSubframe
-
-	if subframe == "PaperDollFrame" then
-		-- Only widen when the stats sidebar is expanded, collapsed gear keeps the
-		-- Blizzard width and static inset.
-		if CharacterFrame.Expanded then
-			CharacterFrame:SetSize(CHAR_PAPERDOLL_WIDTH, CHAR_PAPERDOLL_HEIGHT)
-			ApplyPaperdollInset(CharacterFrame, CHAR_INSET_OFFSET)
-		end
-
-		local _, class = UnitClass("player")
-		if class then
-			CharacterFrame.Inset.Bg:SetTexture("Interface\\DressUpFrame\\DressingRoom" .. class)
-			CharacterFrame.Inset.Bg:SetTexCoord(1 / 512, 479 / 512, 46 / 512, 455 / 512)
-			CharacterFrame.Inset.Bg:SetHorizTile(false)
-			CharacterFrame.Inset.Bg:SetVertTile(false)
-		end
-
-		CharacterFrame.Background:Hide()
-	elseif subframe == "ReputationFrame" or subframe == "TokenFrame" then
-		CharacterFrame.Background:Show()
-	end
-end
-
-function Module:RestoreCharacterLayout()
+local function ApplyInspectWidth(frame)
 	if InCombatLockdown() then
-		K.DeferCombat("CharacterRestore", function()
-			if not ShouldStyle() then
-				Module:RestoreCharacterLayout()
-			end
-		end)
 		return
 	end
-
-	local CharacterFrame = _G.CharacterFrame
-	if not CharacterFrame then
-		return
-	end
-
-	CharacterFrame.Background:Show()
-	if CharacterFrame.UpdateSize then
-		CharacterFrame:UpdateSize()
+	local paperDollShown = _G.InspectPaperDollFrame and _G.InspectPaperDollFrame:IsShown()
+	local width = INSPECT_WIDTH + ((Wide() and paperDollShown) and INSPECT_EXTRA or 0)
+	if frame:GetWidth() ~= width then
+		frame:SetWidth(width)
 	end
 end
 
-function Module:StyleCharacterFrame()
-	if self.charStyled then
-		self:ApplyCharacterLayout()
-		return
-	end
-	self.charStyled = true
+-- Follow the inspected player: class art from their class, item level from the
+-- inspect data. Both are cheap reads, done on the watcher's slow tick. The art
+-- is only shown on the Character tab, the other tabs keep the stock inset.
+local function RefreshInspectInfo(frame)
+	local paperDoll = _G.InspectPaperDollFrame
+	inspectArt:SetShown(paperDoll and paperDoll:IsShown() or false)
 
-	local CharacterFrame = _G.CharacterFrame
-	local CharacterModelScene = _G.CharacterModelScene
-	local PaperDollItemsFrame = _G.PaperDollItemsFrame
-	local PaperDollFrame = _G.PaperDollFrame
-	local CharacterStatsPane = _G.CharacterStatsPane
-	local CharacterFrameInsetRight = _G.CharacterFrameInsetRight
-	if not (CharacterFrame and CharacterModelScene and PaperDollItemsFrame) then
+	local unit = frame.unit
+	if not unit then
 		return
 	end
 
-	if CharacterFrame:IsShown() then
-		HideUIPanel(CharacterFrame)
+	local _, class = UnitClass(unit)
+	if class and not IsSecret(class) and class ~= inspectClass then
+		inspectClass = class
+		SetClassArt(inspectArt, class)
 	end
 
-	CharacterModelScene:DisableDrawLayer("BACKGROUND")
-	CharacterModelScene:DisableDrawLayer("BORDER")
-	CharacterModelScene:DisableDrawLayer("OVERLAY")
-	StripTextures(CharacterModelScene)
-
-	StyleItemSlots(PaperDollItemsFrame:GetChildren())
-
-	_G.CharacterHeadSlot:SetPoint("TOPLEFT", CharacterFrame.Inset, "TOPLEFT", 6, -6)
-	_G.CharacterHandsSlot:SetPoint("TOPRIGHT", CharacterFrame.Inset, "TOPRIGHT", -6, -6)
-	-- Centre the two weapon slots with a gap so they never overlap.
-	_G.CharacterMainHandSlot:ClearAllPoints()
-	_G.CharacterMainHandSlot:SetPoint("BOTTOM", CharacterFrame.Inset, "BOTTOM", -(SLOT_SIZE / 2 + 3), 5)
-	_G.CharacterSecondaryHandSlot:ClearAllPoints()
-	_G.CharacterSecondaryHandSlot:SetPoint("BOTTOM", CharacterFrame.Inset, "BOTTOM", SLOT_SIZE / 2 + 3, 5)
-
-	CharacterModelScene:SetSize(0, 0)
-	CharacterModelScene:ClearAllPoints()
-	-- Keep the model scene inside Blizzard's inner frame, not the full inset, or the
-	-- enchant animation looks offset.
-	CharacterModelScene:SetPoint("TOPLEFT", CharacterFrame.Inset, 46, -4)
-	CharacterModelScene:SetPoint("BOTTOMRIGHT", CharacterFrame.Inset, -47, 31)
-	FitCharacterEnchantAnimationToInset()
-
-	if not self.charWatcher then
-		-- Re-apply our layout from a decoupled ticker instead of a secure hook on
-		-- UpdateSize. Any of our code running inside the panel show path taints it,
-		-- and Blizzard's numeric health status bar then errors comparing its secret
-		-- value. The watcher runs in its own execution, so the show stays clean.
-		-- Parented to CharacterFrame so it only ticks while the panel is open. A
-		-- frame under a hidden parent gets no OnUpdate, which gates the watcher for
-		-- free without an OnShow hook, so still nothing of ours runs in the show
-		-- path. Throttled on top, since a resize only needs catching within a
-		-- fraction of a second.
-		local watcher = CreateFrame("Frame", nil, CharacterFrame)
-		local lastWidth
-		local elapsed = 0
-		watcher:SetScript("OnUpdate", function(_, delta)
-			elapsed = elapsed + delta
-			if elapsed < 0.1 then
-				return
-			end
-			elapsed = 0
-			local width = CharacterFrame:GetWidth()
-			if width ~= lastWidth then
-				lastWidth = width
-				Module:ApplyCharacterLayout()
-				FitCharacterEnchantAnimationToInset()
-			end
-		end)
-		self.charWatcher = watcher
-	end
-
-	local itemLevelValue = CharacterStatsPane.ItemLevelFrame.Value
-	local ilvlFont, _, ilvlFlags = itemLevelValue:GetFont()
-	itemLevelValue:SetFont(ilvlFont, 20, ilvlFlags)
-
-	local function StyleTitleChildren(...)
-		for i = 1, select("#", ...) do
-			local child = select(i, ...)
-			if child and not child.kkuiStyled then
-				child:DisableDrawLayer("BACKGROUND")
-				child.kkuiStyled = true
-			end
-		end
-	end
-
-	if PaperDollFrame and PaperDollFrame.TitleManagerPane and PaperDollFrame.TitleManagerPane.ScrollBox then
-		hooksecurefunc(PaperDollFrame.TitleManagerPane.ScrollBox, "Update", function(scrollBox)
-			if ShouldStyle() then
-				StyleTitleChildren(scrollBox.ScrollTarget:GetChildren())
-			end
-		end)
-	end
-
-	CharacterStatsPane.ClassBackground:ClearAllPoints()
-	CharacterStatsPane.ClassBackground:SetHeight(CharacterStatsPane.ClassBackground:GetHeight() + 6)
-	CharacterStatsPane.ClassBackground:SetParent(CharacterFrameInsetRight)
-	CharacterStatsPane.ClassBackground:SetPoint("CENTER")
-
-	-- Recolour a slot border whenever its item changes.
-	if _G.PaperDollItemSlotButton_Update then
-		hooksecurefunc("PaperDollItemSlotButton_Update", function(slot)
-			if ShouldStyle() and slot.KKUI_Border then
-				UpdateSlotBorder(slot)
-			end
-		end)
-	end
-
-	if _G.PaperDollFrame_SetPlayer then
-		hooksecurefunc("PaperDollFrame_SetPlayer", function()
-			if ShouldStyle() then
-				AdjustCharacterModelZoom()
-				FitCharacterEnchantAnimationToInset()
-				RefreshPawnButtons()
-			end
-		end)
-	end
-
-	if PaperDollFrame then
-		PaperDollFrame:HookScript("OnShow", RefreshPawnButtons)
-		if _G.PaperDollFrame_UpdateStats then
-			hooksecurefunc("PaperDollFrame_UpdateStats", RefreshPawnButtons)
-		end
-	end
-
-	self:ApplyCharacterLayout()
-	AdjustCharacterModelZoom()
-	FitCharacterEnchantAnimationToInset()
-	RefreshPawnButtons()
-end
-
--- ---------------------------------------------------------------------------
--- Inspect frame (Blizzard_InspectUI, load on demand)
--- ---------------------------------------------------------------------------
-function Module:ApplyInspectLayout(tabID)
-	if InCombatLockdown() or not ShouldStyle() then
-		return
-	end
-
-	local InspectFrame = _G.InspectFrame
-	if not InspectFrame then
-		return
-	end
-
-	tabID = tabID or PanelTemplates_GetSelectedTab(InspectFrame)
-	if tabID == 1 then
-		InspectFrame:SetSize(INSPECT_PAPERDOLL_WIDTH, INSPECT_PAPERDOLL_HEIGHT)
-		ApplyPaperdollInset(InspectFrame, INSPECT_INSET_OFFSET_PAPER)
-
-		local _, targetClass = UnitClass("target")
-		if targetClass then
-			InspectFrame.Inset.Bg:SetTexture("Interface\\DressUpFrame\\DressingRoom" .. targetClass)
-			InspectFrame.Inset.Bg:SetTexCoord(0.00195312, 0.935547, 0.00195312, 0.978516)
-			InspectFrame.Inset.Bg:SetHorizTile(false)
-			InspectFrame.Inset.Bg:SetVertTile(false)
-		end
+	local api = _G.C_PaperDollInfo
+	local ilvl = api and api.GetInspectItemLevel and api.GetInspectItemLevel(unit)
+	if ilvl and not IsSecret(ilvl) and ilvl > 0 then
+		inspectLevel:SetFormattedText("%s: %d", _G.STAT_AVERAGE_ITEM_LEVEL or "Item Level", ilvl)
 	else
-		InspectFrame:SetSize(PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_HEIGHT)
-		ApplyDefaultInset(InspectFrame, tabID == INSPECT_TAB_GUILD)
-		SetMarbleBackground(InspectFrame.Inset.Bg)
+		inspectLevel:SetText("")
 	end
 end
 
-function Module:RestoreInspectLayout()
-	if InCombatLockdown() then
-		K.DeferCombat("InspectRestore", function()
-			if not ShouldStyle() then
-				Module:RestoreInspectLayout()
-			end
-		end)
+local function StyleInspectFrame()
+	if inspectStyled then
 		return
 	end
-
-	local InspectFrame = _G.InspectFrame
-	if not InspectFrame then
+	local frame = _G.InspectFrame
+	local model = _G.InspectModelFrame
+	local inset = frame and frame.Inset
+	if not (frame and model and inset) then
 		return
 	end
+	inspectStyled = true
 
-	InspectFrame:SetSize(PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_HEIGHT)
-	local tabID = PanelTemplates_GetSelectedTab(InspectFrame)
-	ApplyDefaultInset(InspectFrame, tabID == INSPECT_TAB_GUILD)
-	SetMarbleBackground(InspectFrame.Inset.Bg)
-end
-
-function Module:StyleInspectFrame()
-	if self.inspectStyled then
-		self:ApplyInspectLayout()
-		return
+	-- Class art sits over the inset's marble, so the marble is never touched.
+	inspectArt = inset:CreateTexture(nil, "BACKGROUND", nil, -4)
+	inspectArt:SetAllPoints()
+	local _, class = UnitClass("player")
+	if class then
+		SetClassArt(inspectArt, class)
 	end
 
-	local InspectFrame = _G.InspectFrame
-	local InspectModelFrame = _G.InspectModelFrame
-	local InspectPaperDollItemsFrame = _G.InspectPaperDollItemsFrame
-	if not (InspectFrame and InspectModelFrame and InspectPaperDollItemsFrame) then
-		return
+	-- The race background pieces, the overlay and the ornate corner borders.
+	model:DisableDrawLayer("BACKGROUND")
+	model:DisableDrawLayer("BORDER")
+	model:DisableDrawLayer("OVERLAY")
+
+	if _G.InspectGuildFrameBG then
+		_G.InspectGuildFrameBG:SetAlpha(0)
 	end
 
-	self.inspectStyled = true
+	-- Our own item level line, between the model and the weapon row.
+	local paperDoll = _G.InspectPaperDollFrame
+	inspectLevel = (paperDoll or frame):CreateFontString(nil, "OVERLAY")
+	K.SetFont(inspectLevel, ILVL_SIZE, K.FontOutlineStyle())
+	inspectLevel:SetJustifyH("CENTER")
+	inspectLevel:SetPoint("BOTTOM", inset, "BOTTOM", 0, 32)
 
-	if self.SetupGearInfo then
-		self:SetupGearInfo()
+	-- The wider layout re-centres the model and the weapon row. Done once: both
+	-- are anchored to the window, so they follow the width from then on.
+	if Wide() then
+		model:ClearAllPoints()
+		model:SetPoint("TOPLEFT", inset, "TOPLEFT", 46, -4)
+		model:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -46, 48)
+
+		local main, off, ranged = _G.InspectMainHandSlot, _G.InspectSecondaryHandSlot, _G.InspectRangedSlot
+		if main and off and ranged then
+			-- Three slots 37 wide with a 5 gap, centred as a row on the window.
+			main:ClearAllPoints()
+			main:SetPoint("BOTTOM", frame, "BOTTOM", -42, 16)
+			off:ClearAllPoints()
+			off:SetPoint("LEFT", main, "RIGHT", 5, 0)
+			ranged:ClearAllPoints()
+			ranged:SetPoint("LEFT", off, "RIGHT", 5, 0)
+		end
 	end
 
-	if InspectFrame:IsShown() then
-		HideUIPanel(InspectFrame)
-	end
-
-	InspectPaperDollItemsFrame.InspectTalents:ClearAllPoints()
-	InspectPaperDollItemsFrame.InspectTalents:SetPoint("TOPRIGHT", InspectFrame, "BOTTOMRIGHT", 0, -1)
-
-	InspectModelFrame:DisableDrawLayer("BACKGROUND")
-	InspectModelFrame:DisableDrawLayer("BORDER")
-	InspectModelFrame:DisableDrawLayer("OVERLAY")
-	StripTextures(InspectModelFrame)
-	StyleItemSlots(InspectPaperDollItemsFrame:GetChildren())
-
-	_G.InspectHeadSlot:SetPoint("TOPLEFT", InspectFrame.Inset, "TOPLEFT", 6, -6)
-	_G.InspectHandsSlot:SetPoint("TOPRIGHT", InspectFrame.Inset, "TOPRIGHT", -6, -6)
-	_G.InspectMainHandSlot:ClearAllPoints()
-	_G.InspectMainHandSlot:SetPoint("BOTTOM", InspectFrame.Inset, "BOTTOM", -(SLOT_SIZE / 2 + 3), 5)
-	_G.InspectSecondaryHandSlot:ClearAllPoints()
-	_G.InspectSecondaryHandSlot:SetPoint("BOTTOM", InspectFrame.Inset, "BOTTOM", SLOT_SIZE / 2 + 3, 5)
-
-	InspectModelFrame:SetSize(0, 0)
-	InspectModelFrame:ClearAllPoints()
-	InspectModelFrame:SetPoint("TOPLEFT", InspectFrame.Inset, 0, 0)
-	InspectModelFrame:SetPoint("BOTTOMRIGHT", InspectFrame.Inset, 0, 30)
-	InspectModelFrame:SetCamDistanceScale(1.1)
-
-	local averageItemLevelText = InspectPaperDollItemsFrame:CreateFontString(nil, "OVERLAY")
-	K.SetFont(averageItemLevelText, 12, K.FontOutlineStyle())
-	averageItemLevelText:SetJustifyH("CENTER")
-	averageItemLevelText:SetPoint("BOTTOM", InspectFrame.Inset, "BOTTOM", 0, 46)
-
-	if _G.InspectPaperDollFrame_SetLevel and _G.C_PaperDollInfo and _G.C_PaperDollInfo.GetInspectItemLevel then
-		hooksecurefunc("InspectPaperDollFrame_SetLevel", function()
-			if not ShouldStyle() then
-				return
-			end
-			local unit = InspectFrame.unit
-			if not unit then
-				return
-			end
-			local ilvl = _G.C_PaperDollInfo.GetInspectItemLevel(unit)
-			if ilvl then
-				averageItemLevelText:SetFormattedText(_G.DUNGEON_SCORE_LINK_ITEM_LEVEL or "Item Level %d", ilvl)
-			end
-		end)
-	end
-
-	if not self.inspectTabHooked then
-		self.inspectTabHooked = true
-		hooksecurefunc("InspectSwitchTabs", function(newID)
-			C_Timer.After(0, function()
-				Module:ApplyInspectLayout(newID)
-			end)
-		end)
-	end
-
-	if _G.InspectPaperDollItemSlotButton_Update then
-		hooksecurefunc("InspectPaperDollItemSlotButton_Update", function(slot)
-			if ShouldStyle() and slot.KKUI_Border then
-				UpdateSlotBorder(slot)
-			end
-		end)
-	end
-
-	self:ApplyInspectLayout(1)
-
-	if _G.InspectPaperDollFrame then
-		_G.InspectPaperDollFrame:HookScript("OnShow", function()
-			RefreshPawnButtons()
-			-- Recolour every inspect slot once the target's items are known.
-			for _, slot in ipairs({ InspectPaperDollItemsFrame:GetChildren() }) do
-				if slot.KKUI_Border then
-					UpdateSlotBorder(slot)
-				end
-			end
-		end)
-	end
+	local watcher = CreateFrame("Frame", nil, frame)
+	local elapsed = 0.5
+	watcher:SetScript("OnUpdate", function(_, delta)
+		if Wide() then
+			ApplyInspectWidth(frame)
+		end
+		elapsed = elapsed + delta
+		if elapsed >= 0.5 then
+			elapsed = 0
+			RefreshInspectInfo(frame)
+		end
+	end)
+	Module.inspectWatcher = watcher
 end
 
 -- ---------------------------------------------------------------------------
--- Events / lifecycle
+-- Lifecycle
 -- ---------------------------------------------------------------------------
+
 function Module:ADDON_LOADED(_, addon)
-	if addon == "Pawn" then
-		RefreshPawnButtons()
-	elseif addon == "Blizzard_InspectUI" and ShouldStyle() then
-		self:StyleInspectFrame()
+	if addon == "Blizzard_InspectUI" then
+		StyleInspectFrame()
+		self:UnregisterEvent("ADDON_LOADED")
 	end
 end
 
 function Module:OnEnable()
-	if not ShouldStyle() then
+	if not Enabled() then
 		return
 	end
 
-	self:StyleCharacterFrame()
+	StyleCharacterFrame()
 
-	if self.SetupGearInfo then
-		self:SetupGearInfo()
+	if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Blizzard_InspectUI") then
+		StyleInspectFrame()
+	else
+		self:RegisterEvent("ADDON_LOADED")
 	end
-
-	if C_AddOns.IsAddOnLoaded("Blizzard_InspectUI") then
-		self:StyleInspectFrame()
-	end
-	if C_AddOns.IsAddOnLoaded("Pawn") then
-		RefreshPawnButtons()
-	end
-
-	self:RegisterEvent("ADDON_LOADED")
 end
