@@ -102,6 +102,18 @@ function Module:OnEnable()
 		return
 	end
 
+	-- With the Gamepad UI on, the game swaps its stock bars for the gamepad bars in
+	-- Blizzard_GamepadActionBars and drives them itself, including the protected
+	-- SetPreferredGamepadInteractTarget. Our bars would sit beside them doing
+	-- nothing useful while we retired the stock controller frames, so we step aside
+	-- and leave the gamepad bars entirely alone. The setting needs a reload to
+	-- take effect either way.
+	local inputUtil = _G.InputUtil
+	if inputUtil and inputUtil.IsGamepadUIEnabled and inputUtil.IsGamepadUIEnabled() then
+		K.Print("Gamepad UI is on, so the KkthnxUI action bars are off and the game's gamepad bars are used.")
+		return
+	end
+
 	self:DisableBlizzardBars()
 
 	if self.SetupProcGlow then
