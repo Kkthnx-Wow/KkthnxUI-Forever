@@ -13,7 +13,7 @@
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 -- The bag window is built on C_Container. Core guards every call into the bank
--- window (Bank.lua, not ported to WoW Forever yet), so Blizzard's bank stays in use.
+-- window (Bank.lua), so the bags still work if that file is not loaded.
 if not (C_Container and C_Container.GetContainerNumSlots) then
 	return
 end
@@ -970,7 +970,10 @@ local BLIZZARD_ENTRY_POINTS = {
 	"ToggleBag",
 }
 
-function Module:HookBlizzard()
+-- Where the stock bag and bank frames are parked: a shown frame one pixel big
+-- that clips its children and draws nothing. Frames under it still report shown,
+-- which is what keeps Blizzard's own open state truthful.
+function Module:GetBlizzardSink()
 	local sink = _G.KKUI_BagSink
 	if not sink then
 		sink = CreateFrame("Frame", "KKUI_BagSink", UIParent)
@@ -979,6 +982,11 @@ function Module:HookBlizzard()
 		sink:SetClipsChildren(true)
 		sink:SetAlpha(0)
 	end
+	return sink
+end
+
+function Module:HookBlizzard()
+	local sink = self:GetBlizzardSink()
 
 	-- A frame that holds secure item buttons cannot be reparented in combat, so this
 	-- only runs out of it. The next sync after combat catches anything missed.

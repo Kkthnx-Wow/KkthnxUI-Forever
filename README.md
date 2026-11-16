@@ -18,7 +18,7 @@ Log in and type `/kk` to open the options.
 - Action bars with pet, stance and possess bars
 - Player buffs and debuffs, unit frame auras and nameplate auras
 - Nameplates
-- Bags with categories, search and a bag bar
+- Bags and bank with categories, search and a bag bar
 - Micro menu, minimap, tooltips, chat, world map tweaks and a quest tracker skin
 - Character and inspect frame skin with slot item levels and enchant warnings
 - Automation and quality of life modules, each one optional
@@ -28,12 +28,6 @@ Log in and type `/kk` to open the options.
 - `/kk` opens the options
 - `/kk test` shows every unit frame with your own data so you can position them
 - `/kkdebug` lists the debug streams
-
-## Not ported yet
-
-These exist in the Retail edition and are not loaded here yet.
-
-- The bank window and bank bar
 
 ## Reporting problems
 

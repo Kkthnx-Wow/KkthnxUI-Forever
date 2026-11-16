@@ -10,9 +10,9 @@
 	<Script file="Manager.lua" />
 	<Script file="DeleteCheapest.lua" />
 	<Script file="Gold.lua" />
-	<!-- Not ported to WoW Forever yet: the bank window and its tab bar. -->
-	<!-- <Script file="Bank.lua" /> -->
-	<!-- <Script file="BankBar.lua" /> -->
+	<!-- The bank window and its bag slot bar. -->
+	<Script file="Bank.lua" />
+	<Script file="BankBar.lua" />
 	<!-- The small backpack + bag-slot bar, complementary to the bag window. -->
 	<Script file="BagBar.lua" />
 </Ui>
