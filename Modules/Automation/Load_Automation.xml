@@ -6,6 +6,7 @@
 	<Script file="MovieSkip.lua" />
 	<Script file="AutoRepair.lua" />
 	<Script file="SellJunk.lua" />
+	<Script file="AutoAccept.lua" />
 	<!-- Hands-off questing: the shared helpers first, then the per-stage handlers. -->
 	<Script file="Quest.lua" />
 	<Script file="Accept.lua" />

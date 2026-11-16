@@ -396,6 +396,9 @@ K.ConfigDefaults = {
 		AutoRepair = true, -- repair all gear at a repair-capable merchant
 		RepairGuildFunds = false, -- spend guild bank money first when allowed
 		SellJunk = false, -- sell grey items when a merchant opens, independent of the bags
+		AutoSummon = false, -- accept a summon after a short delay, out of combat
+		AutoResurrect = false, -- accept a resurrection request, out of combat
+		AutoInvite = false, -- accept group invites from friends and guild members
 	},
 
 	-- Small quality of life features, each off until switched on.

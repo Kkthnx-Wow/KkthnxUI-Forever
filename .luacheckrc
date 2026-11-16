@@ -95,7 +95,7 @@ stds.wow = {
 		"GetMerchantItemLink", "GetNumBuybackItems", "GetBuybackItemInfo", "GetBuybackItemLink",
 		"GetCurrentGuildBankTab", "GetGuildBankItemInfo", "GetGuildBankItemLink", "C_PetJournal",
 		"C_TransmogCollection", "IsPartyLFG", "UnitAffectingCombat", "GetAreaText", "GetGuildRosterInfo",
-		"GetGuildTradeSkillInfo", "GetQuestDifficultyColor", "C_FriendList", "C_BattleNet", "GetCVar",
+		"GetGuildTradeSkillInfo", "GetQuestDifficultyColor", "C_FriendList", "C_BattleNet", "C_SummonInfo", "AcceptGroup", "AcceptResurrect", "GetCVar",
 		"COLLECTED", "NOT_COLLECTED", "SOURCE",
 		"C_ChatBubbles", "GetCVarBool", "PawnShouldItemLinkHaveUpgradeArrowUnbudgeted",
 		"AnchorUtil", "CustomAuraContainerAuraProcessingPolicy", "AuraContainerSortMethod", "AuraContainerSortDirection", "C_StringUtil",

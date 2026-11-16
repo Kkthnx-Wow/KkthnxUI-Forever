@@ -6,6 +6,7 @@
 		its own file, so every one stays self contained and easy to add to:
 			DeclineDuel.lua  turn away duel and pet-battle duel requests
 			MovieSkip.lua    skip cinematics and movies
+			AutoAccept.lua   accept summons, resurrections and friend invites
 			AutoRepair.lua   repair gear at a merchant, optionally on guild funds
 			Quest.lua        hands-off questing (Accept/TurnIn/Gossip handlers)
 		Each handler re-checks its own toggle when it fires, so changes apply
@@ -30,6 +31,9 @@ function Module:OnEnable()
 		end
 		if self.SetupSellJunk then
 			self:SetupSellJunk()
+		end
+		if self.SetupAutoAccept then
+			self:SetupAutoAccept()
 		end
 	end
 
