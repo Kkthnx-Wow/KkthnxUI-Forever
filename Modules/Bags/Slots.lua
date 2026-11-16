@@ -31,6 +31,7 @@ local C_Item = C_Item
 local SetItemButtonTexture = SetItemButtonTexture
 local SetItemButtonCount = SetItemButtonCount
 local SetItemButtonDesaturated = SetItemButtonDesaturated
+local SetItemButtonTextureVertexColor = SetItemButtonTextureVertexColor
 local CooldownFrame_Set = CooldownFrame_Set
 local C_TradeSkillUI = C_TradeSkillUI
 local TextureKitConstants = TextureKitConstants
@@ -360,6 +361,7 @@ function Module:UpdateSlot(button, bag, slot)
 		SetItemButtonTexture(button, nil)
 		SetItemButtonCount(button, 0)
 		SetItemButtonDesaturated(button, false)
+		SetItemButtonTextureVertexColor(button, 1, 1, 1)
 		if button.KKUI_ItemLevel then
 			button.KKUI_ItemLevel:SetText("")
 		end
@@ -417,6 +419,12 @@ function Module:UpdateSlot(button, bag, slot)
 	local flaggedJunk = info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
 	local isJunk = (not IsSecret(quality) and quality == POOR or flaggedJunk) and not info.hasNoValue
 	SetItemButtonDesaturated(button, info.isLocked or (C.Bags.DesaturateJunk and isJunk) or false)
+	-- Red icon on gear this character cannot use.
+	if C.Bags.TintUnusable and self:IsUnusableGear(bag, slot, info.itemID) then
+		SetItemButtonTextureVertexColor(button, 1, 0.1, 0.1)
+	else
+		SetItemButtonTextureVertexColor(button, 1, 1, 1)
+	end
 
 	SetBorder(button, QualityColor(quality))
 

@@ -294,6 +294,7 @@ K.ConfigDefaults = {
 		JunkIcon = true, -- coin marker on grey items
 		ShowEquipmentSet = false, -- marker on items that belong to a saved equipment set
 		DesaturateJunk = false, -- grey out the icon of vendor trash
+		TintUnusable = true, -- red icon on weapons and armor you cannot use
 		DeleteButton = true, -- show the delete-cheapest-junk button
 		JunkList = {}, -- itemID -> true, items the player flagged as junk
 		ReverseSort = false, -- newest items to the top-left instead
