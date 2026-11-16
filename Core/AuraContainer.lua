@@ -334,7 +334,15 @@ function K.CreateAuraContainer(parent, opts)
 	end
 	container:SetSize(1, 1)
 
-	Guarded(container.SetAuraProcessingPolicy, container, CustomAuraContainerAuraProcessingPolicy.ProcessAura, {})
+	-- The default policy adds nothing to the aura data and is all the groups here
+	-- need. ProcessAura makes the container classify every aura through
+	-- AuraUtil.ProcessAura before it is placed, which is only for groups that filter
+	-- on processedAuraType. On WoW Forever it left every aura unassigned, so no
+	-- button was ever drawn, and nothing reported an error because the container
+	-- runs in the secure environment. It stays opt-in for a caller that needs it.
+	if opts.processAura then
+		Guarded(container.SetAuraProcessingPolicy, container, CustomAuraContainerAuraProcessingPolicy.ProcessAura, {})
+	end
 
 	local FD = AnchorUtil.FlowDirection
 	if container.SetFlowLayoutAnchorPoint and opts.anchorPoint then
