@@ -490,6 +490,7 @@ K.ConfigDefaults = {
 		ShowItemLevel = true, -- inspect item level + spec on players
 		ItemLevelOnShift = false, -- only look it up while shift is held
 		ShowIDs = true, -- spell / item / currency / mount ids
+		ShowItemCount = true, -- how many of an item you hold in the bags and the bank
 		ShowIcons = true, -- icon beside the tooltip title
 		ShowMountSource = true, -- collection status/source on a player's mount buff (hold Shift)
 		BorderColor = true, -- tint the tooltip border by unit class/reaction

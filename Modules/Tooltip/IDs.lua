@@ -2,7 +2,7 @@
 	Addon: KkthnxUI
 	File: Modules/Tooltip/IDs.lua
 	Purpose:
-		Append the spell, item, currency, mount, and aura id to the bottom of a
+		Append the spell, item, currency, mount, aura, and NPC id to the bottom of a
 		tooltip. Uses the modern TooltipDataProcessor post calls plus a SetUnitAura
 		hook for auras, so it stays flavor safe. Ids that arrive as secret values in
 		Midnight are skipped rather than shown.
@@ -13,6 +13,7 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:GetModule("Tooltip")
 
 local _G = _G
+local strsplit = strsplit
 local IsSecret = K.IsSecret
 
 local ID_COLOR = { K.Colors.info[1], K.Colors.info[2], K.Colors.info[3] }
@@ -69,6 +70,24 @@ function Module:SetupIDs()
 		TooltipDataProcessor.AddTooltipPostCall(DT.Mount, function(tt, data)
 			if not tt:IsForbidden() and data and data.id then
 				AddID(tt, "Mount ID", data.id)
+			end
+		end)
+	end
+
+	-- NPC id, the sixth field of a creature GUID. Players and objects without that
+	-- shape are skipped, and a secret GUID cannot be split so it is skipped too.
+	if DT.Unit then
+		TooltipDataProcessor.AddTooltipPostCall(DT.Unit, function(tt, data)
+			if tt:IsForbidden() or not data then
+				return
+			end
+			local guid = data.guid
+			if not guid or IsSecret(guid) then
+				return
+			end
+			local kind, _, _, _, _, npcID = strsplit("-", guid)
+			if kind == "Creature" or kind == "Vehicle" then
+				AddID(tt, "NPC ID", npcID)
 			end
 		end)
 	end

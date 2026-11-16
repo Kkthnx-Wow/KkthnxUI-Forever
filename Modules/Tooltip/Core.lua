@@ -28,6 +28,9 @@ function Module:OnEnable()
 	if self.SetupIDs then
 		self:SetupIDs()
 	end
+	if self.SetupItemCount then
+		self:SetupItemCount()
+	end
 	if self.SetupIcons then
 		self:SetupIcons()
 	end
