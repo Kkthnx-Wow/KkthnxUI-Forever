@@ -1168,6 +1168,9 @@ function Module:OnEnable()
 	if C.Chat.SkinBubbles then
 		self:SetupBubbles()
 	end
+	if self.SetupLinkInfo then
+		self:SetupLinkInfo()
+	end
 	if self.SetupKeywords then
 		self:SetupKeywords()
 	end

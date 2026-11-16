@@ -5,6 +5,7 @@
 	<Script file="Chatbar.lua" />
 	<Script file="Buttons.lua" />
 	<Script file="Filter.lua" />
+	<Script file="LinkInfo.lua" />
 	<Script file="Keywords.lua" />
 	<Script file="History.lua" />
 	<Script file="Bubbles.lua" />
