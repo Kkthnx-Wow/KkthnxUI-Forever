@@ -18,4 +18,5 @@
 	<Script file="QuestAnnounce.lua" />
 	<Script file="AchievementShot.lua" />
 	<Script file="AutoLog.lua" />
+	<Script file="LevelAnnouncer.lua" />
 </Ui>

@@ -22,6 +22,7 @@
 			QuestAnnounce.lua    tell the group about accepted and finished quests
 			AchievementShot.lua  take a screenshot when an achievement is earned
 			AutoLog.lua          turn combat logging on in raids and heroic dungeons
+			LevelAnnouncer.lua   say how long each level took when you ding
 
 		A feature only registers its events when its toggle is on, so a switched
 		off feature costs nothing. Toggles apply on reload.
@@ -172,6 +173,7 @@ local FEATURES = {
 	{ "QuestAnnounce", "SetupQuestAnnounce" },
 	{ "AchievementShot", "SetupAchievementShot" },
 	{ "AutoLog", "SetupAutoLog" },
+	{ "LevelAnnouncer", "SetupLevelAnnouncer" },
 }
 
 function Module:OnEnable()
