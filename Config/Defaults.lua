@@ -357,8 +357,7 @@ K.ConfigDefaults = {
 	-- Odds and ends that do not belong to a bigger system.
 	Misc = {
 		EnhancedMail = false, -- collect gold only, take all, and an attachment tooltip
-		MoveFrames = false, -- drag Blizzard windows and keep where they land
-		MovedFrames = {}, -- saved positions, written as you drag
+		MoveFrames = false, -- drag Blizzard windows for the session, nothing saved
 
 		FocusModifier = "None", -- None, Shift, Ctrl or Alt, sets focus on a modified click
 		FocusButton = "Left", -- Left, Right or Middle

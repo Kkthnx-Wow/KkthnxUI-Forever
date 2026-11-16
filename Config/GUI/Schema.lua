@@ -959,13 +959,7 @@ GUI.schema = {
 
 			{ kind = "header", label = L["Windows"] },
 			{ kind = "check", label = L["Enhanced Mail"], path = { "Misc", "EnhancedMail" }, reload = true, tooltip = L["Adds a collect gold button that leaves the items, a take all button on an open mail, and lists what is attached when you hover a mail."] },
-			{ kind = "check", label = L["Move Blizzard Windows (Experimental)"], path = { "Misc", "MoveFrames" }, reload = true, tooltip = L["Drag Blizzard windows by their title bar and they stay where you put them. Takes them out of Blizzard's panel layout, so they no longer shuffle each other around. Experimental: if a window stops opening or you see taint errors, turn this off and reload."] },
-			{ kind = "button", label = L["Reset Window Positions"], dependsOn = { "Misc", "MoveFrames" }, onClick = function()
-				local module = K:GetModule("MoveFrames", true)
-				if module then
-					module:ResetPositions()
-				end
-			end },
+			{ kind = "check", label = L["Move Blizzard Windows"], path = { "Misc", "MoveFrames" }, reload = true, tooltip = L["Drag Blizzard windows by their title or edges to move them out of the way. Nothing is saved, so every window is back in its usual place after a reload. Windows Blizzard lines up side by side go back sooner, as soon as one of them opens or closes."] },
 
 			{ kind = "header", label = L["GCD Bar"] },
 			{ kind = "check", label = L["Enable GCD Bar"], path = { "Misc", "GCDBar" }, reload = true, tooltip = L["A bar tracking the global cooldown, with the icon of the spell that started it."] },
