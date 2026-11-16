@@ -312,6 +312,20 @@ K.IsSecret = _G.issecretvalue or function()
 	return false
 end
 
+-- Keep one of our frames out of the Gamepad UI cursor. With the Gamepad UI on,
+-- the game scans a focused Blizzard panel for every button inside it, ours
+-- included, and then drives what it found from secure code. A button of ours in
+-- that list tainted the chat focus path (SELECTED_CHAT_FRAME and the active edit
+-- box globals in the taint log). This is the game's own opt out, and it is safe
+-- to call from addon code because it writes the flag through a secure handler.
+-- Children of the frame are ignored with it. Does nothing without the Gamepad UI.
+function K.IgnoreGamepadNav(frame)
+	local mark = _G.SmartNavigation_MarkFrameIgnored
+	if mark and frame then
+		mark(frame)
+	end
+end
+
 -- Coordinates as text, in the precision the player asked for. "Game" follows the
 -- game's own coordinates setting (the same one its map panel and minimap readout
 -- use, a CVar from 12.1.5), so every readout on screen agrees. Tenths or whole

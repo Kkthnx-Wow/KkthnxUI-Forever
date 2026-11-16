@@ -18,6 +18,15 @@ local IsSecret = K.IsSecret
 
 local NUM_FRAMES = Constants.ChatFrameConstants.MaxChatWindows
 
+-- The frame the chat window is pinned to. Edit Mode saves the chat anchor by
+-- frame name and re-applies it on EDIT_MODE_LAYOUTS_UPDATED, which arrives before
+-- PLAYER_LOGIN. Created here at file load so that lookup always finds it. Made
+-- in OnEnable it did not exist yet and the client logged "Couldn't find region
+-- named KKUI_ChatHolder" on every login. Sized and placed in OnEnable.
+local ChatHolder = CreateFrame("Frame", "KKUI_ChatHolder", UIParent)
+ChatHolder:SetSize(1, 1)
+ChatHolder:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 6, 6)
+
 -- ---------------------------------------------------------------------------
 -- Gradient backdrop
 -- ---------------------------------------------------------------------------
@@ -545,6 +554,7 @@ local function AddCopyButton(chatFrame)
 	button:SetScript("OnClick", function()
 		Module:CopyChat(chatFrame)
 	end)
+	K.IgnoreGamepadNav(button)
 	return button
 end
 
@@ -705,10 +715,12 @@ function Module:StyleFrame(index)
 
 	ApplyFont(frame)
 
-	-- Blizzard's fade helpers read frame.oldAlpha, which is only ever set by
-	-- FCF_SetWindowAlpha. A frame that has not had its alpha set yet leaves it nil
-	-- and the fade errors, so seed it the way the reference UIs do.
-	frame.oldAlpha = frame.oldAlpha or 0
+	-- frame.oldAlpha is deliberately not seeded here. It is Blizzard's field, and a
+	-- value written by us is tainted. FocusGamepad reads it through
+	-- FCF_FadeInChatFrame and then activates the chat footer bindings, so with the
+	-- Gamepad UI on that one write tainted the gamepad binding state and ended in a
+	-- forbidden SetPreferredGamepadInteractTarget call. The fade helpers on this
+	-- client already fall back to DEFAULT_CHATFRAME_ALPHA when it is nil.
 
 	-- Blank the stock backdrop and border. The Combat Log re-shows its frame
 	-- textures when its addon loads, so re-apply this on every show as well.
@@ -955,7 +967,8 @@ function Module:OnEnable()
 	-- instead of stored on the frame, so a SetSize behind our back changes nothing
 	-- on screen and there is only one thing left to defend.
 	local bottom = C.Chat.ChatBar and 34 or 6
-	local holder = CreateFrame("Frame", "KKUI_ChatHolder", UIParent)
+	local holder = ChatHolder
+	holder:ClearAllPoints()
 	holder:SetSize(C.Chat.Width, C.Chat.Height)
 	holder:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 6, bottom)
 
