@@ -19,6 +19,7 @@ local K, L = KkthnxUI[1], KkthnxUI[3]
 local ipairs = ipairs
 local pairs = pairs
 local abs = math.abs
+local sort = table.sort
 local strfind = string.find
 local InCombatLockdown = InCombatLockdown
 local GetCursorPosition = GetCursorPosition
@@ -31,6 +32,12 @@ local gridShown = false
 
 local SNAP = 8 -- snap distance in UIParent pixels
 
+-- Frame levels while editing. Boxes are stacked by size, the smallest on top, so
+-- a small box inside a large one can always be reached. The hovered box goes
+-- above all of them.
+local BASE_LEVEL = 10
+local HOVER_LEVEL = 2000
+
 -- Assigned by the popup section further down, so a drag or a nudge can push live
 -- numbers into an open popup instead of leaving it showing stale ones.
 local NotifyPopup = function() end
@@ -42,7 +49,7 @@ local THEME = {
 	coords = { 0.85, 0.72, 0.42 }, -- warm gold coordinate text
 	grid = { 0.72, 0.60, 0.40, 0.10 }, -- soft parchment grid lines
 	center = { 0.70, 0.50, 0.25, 0.40 }, -- deeper bronze centre cross
-	backdrop = { 0.16, 0.11, 0.06, 0.78 }, -- warm dark mover fill
+	backdrop = { 0.16, 0.11, 0.06, 0.88 }, -- warm dark mover fill, dense enough to hide the text of the frame beneath
 	flash = { 0.98, 0.82, 0.40, 1 }, -- bright gold hover / locate flash
 	rest = { 1, 1, 1, 1 }, -- resting border colour
 }
@@ -112,14 +119,34 @@ local function SavedFor(mover)
 	return saved.point or "CENTER", saved.x or 0, saved.y or 0
 end
 
+-- The screen point a mover sits closest to, by which third of the screen its
+-- centre is in.
+local function NearestPoint(mover)
+	local cx, cy = mover:GetCenter()
+	local width, height = UIParent:GetWidth(), UIParent:GetHeight()
+	if not (cx and width and height) then
+		return "CENTER"
+	end
+	local vertical = (cy > height * 2 / 3 and "TOP") or (cy < height / 3 and "BOTTOM") or ""
+	local horizontal = (cx < width / 3 and "LEFT") or (cx > width * 2 / 3 and "RIGHT") or ""
+	local point = vertical .. horizontal
+	return point ~= "" and point or "CENTER"
+end
+
 -- The point a mover is currently pinned by: its saved one, else the one its
--- default position declared.
+-- default position declared. A default that hangs off another frame (focus sits
+-- relative to the player frame) names a point on that frame, not on the screen,
+-- and reading it as a screen point gave offsets like -1710 from the far corner.
+-- Those are pinned by the screen point they sit nearest instead.
 local function CurrentPoint(mover)
 	local point = SavedFor(mover)
 	if point then
 		return point
 	end
 	local default = mover.moverDefault
+	if default and default[2] and default[2] ~= UIParent then
+		return NearestPoint(mover)
+	end
 	return (default and default[1]) or "CENTER"
 end
 K.GetMoverPoint = CurrentPoint
@@ -136,11 +163,63 @@ local function NotifyMoved(mover)
 	end
 end
 
+-- Current position as a whole-pixel offset from the point this mover is pinned by.
+local function CurrentOffset(mover)
+	return OffsetFor(mover, CurrentPoint(mover))
+end
+
+-- One shared name tag for whichever mover is under the mouse or being dragged:
+-- its full name and its live offset. A box too small for its own label still gets
+-- named this way, and the numbers are read fresh on every change so they cannot
+-- disagree with the nudge popup.
+local tag, tagOwner
+local function ShowTag(mover)
+	if not tag then
+		tag = CreateFrame("Frame", nil, UIParent)
+		tag:SetFrameStrata("TOOLTIP")
+		tag:SetHeight(18)
+		K.CreateBackdrop(tag, { 0.05, 0.04, 0.03, 0.95 })
+		tag.Text = tag:CreateFontString(nil, "OVERLAY")
+		K.SetFont(tag.Text, 11, K.FontOutlineStyle())
+		tag.Text:SetPoint("CENTER")
+		tag.Text:SetWordWrap(false)
+	end
+	tagOwner = mover
+	local x, y = CurrentOffset(mover)
+	local c = THEME.coords
+	tag.Text:SetFormattedText("%s  |cff%02x%02x%02x%s  %d, %d|r", mover.moverLabel, c[1] * 255, c[2] * 255, c[3] * 255, CurrentPoint(mover), x, y)
+	tag:SetWidth(tag.Text:GetStringWidth() + 14)
+	tag:ClearAllPoints()
+	-- Above the box, or below it when the box is against the top of the screen.
+	local top = mover:GetTop()
+	if top and top > UIParent:GetHeight() - 26 then
+		tag:SetPoint("TOP", mover, "BOTTOM", 0, -4)
+	else
+		tag:SetPoint("BOTTOM", mover, "TOP", 0, 4)
+	end
+	tag:Show()
+end
+
+local function HideTag(mover)
+	if tag and (not mover or tagOwner == mover) then
+		tagOwner = nil
+		tag:Hide()
+	end
+end
+
+-- Refresh the tag only if it is this mover's.
+local function UpdateTag(mover)
+	if tag and tagOwner == mover and tag:IsShown() then
+		ShowTag(mover)
+	end
+end
+
 local function ApplyOffset(mover, offsetX, offsetY, point)
 	point = point or CurrentPoint(mover)
 	Store()[mover.moverKey] = { point = point, x = offsetX, y = offsetY }
 	mover:ClearAllPoints()
 	mover:SetPoint(point, UIParent, point, offsetX, offsetY)
+	UpdateTag(mover)
 	NotifyMoved(mover)
 end
 
@@ -153,12 +232,8 @@ local function RestorePosition(mover)
 		local default = mover.moverDefault
 		mover:SetPoint(default[1], default[2] or UIParent, default[3] or default[1], default[4] or 0, default[5] or 0)
 	end
+	UpdateTag(mover)
 	NotifyMoved(mover)
-end
-
--- Current position as a whole-pixel offset from the point this mover is pinned by.
-local function CurrentOffset(mover)
-	return OffsetFor(mover, CurrentPoint(mover))
 end
 
 -- Re-pin a mover by a different point without letting it move on screen: the new
@@ -322,11 +397,7 @@ local function OnMoveUpdate(self)
 
 	-- Report the offset in the point this mover is actually pinned by, so the live
 	-- readout matches what gets saved rather than a centre relative number.
-	if self.Coords then
-		local point = CurrentPoint(self)
-		local px, py = OffsetFor(self, point)
-		self.Coords:SetFormattedText("%s  %d, %d", point, px, py)
-	end
+	ShowTag(self)
 	NotifyPopup(self)
 
 	-- Position the guide lines at any snapped axis.
@@ -360,13 +431,22 @@ local function OnDragStart(self)
 	local cx, cy = self:GetCenter()
 	self.__grabX = mx / scale - cx
 	self.__grabY = my / scale - cy
+	self.__dragging = true
 	self:SetScript("OnUpdate", OnMoveUpdate)
 end
 
 local function OnDragStop(self)
 	self:SetScript("OnUpdate", nil)
-	local ox, oy = CurrentOffset(self)
-	ApplyOffset(self, ox, oy)
+	self.__dragging = nil
+	-- Read the point before saving, so a first move keeps the point it was shown with.
+	local point = CurrentPoint(self)
+	local ox, oy = OffsetFor(self, point)
+	ApplyOffset(self, ox, oy, point)
+	if self:IsMouseOver() then
+		ShowTag(self)
+	else
+		HideTag(self)
+	end
 	NotifyPopup(self)
 	local vg, hg = Guides()
 	vg:Hide()
@@ -388,11 +468,9 @@ local function OnKeyDown(self, key)
 		return
 	end
 	self:SetPropagateKeyboardInput(false)
-	local ox, oy = CurrentOffset(self)
-	ApplyOffset(self, ox + step[1], oy + step[2])
-	if self.Coords then
-		self.Coords:SetFormattedText("%s  %d, %d", CurrentPoint(self), ox + step[1], oy + step[2])
-	end
+	local point = CurrentPoint(self)
+	local ox, oy = OffsetFor(self, point)
+	ApplyOffset(self, ox + step[1], oy + step[2], point)
 	NotifyPopup(self)
 end
 
@@ -421,20 +499,17 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 
 	K.CreateBackdrop(mover, THEME.backdrop)
 
+	-- Pinned to both edges so a name can never run past its own box and over a
+	-- neighbour. A name that does not fit is cut with an ellipsis, and the tag
+	-- shown on hover carries it in full.
 	local text = mover:CreateFontString(nil, "OVERLAY")
 	K.SetFont(text, 11, K.FontOutlineStyle())
-	text:SetPoint("CENTER")
+	text:SetPoint("LEFT", mover, "LEFT", 3, 0)
+	text:SetPoint("RIGHT", mover, "RIGHT", -3, 0)
+	text:SetJustifyH("CENTER")
 	text:SetText(mover.moverLabel)
 	text:SetWordWrap(false)
 	mover.Label = text
-
-	-- Live coordinates shown along the top edge while dragging, lifted a few
-	-- pixels so the text clears the border cleanly.
-	local coords = mover:CreateFontString(nil, "OVERLAY")
-	K.SetFont(coords, 10, K.FontOutlineStyle())
-	coords:SetPoint("BOTTOM", mover, "TOP", 0, 5)
-	coords:SetTextColor(THEME.coords[1], THEME.coords[2], THEME.coords[3])
-	mover.Coords = coords
 
 	-- A click (mouse up, including right after a drag) opens the nudge popup for
 	-- this mover so you can type exact coordinates or step it a pixel at a time.
@@ -451,11 +526,19 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 		self:EnableKeyboard(true)
 		self:SetScript("OnKeyDown", OnKeyDown)
 		self.KKUI_Border:SetVertexColor(THEME.flash[1], THEME.flash[2], THEME.flash[3], THEME.flash[4])
+		-- Lift the box under the mouse over whatever it overlaps, so its label and
+		-- border are whole while you work on it.
+		self:SetFrameLevel(HOVER_LEVEL)
+		ShowTag(self)
 	end)
 	mover:SetScript("OnLeave", function(self)
 		self:EnableKeyboard(false)
 		self:SetScript("OnKeyDown", nil)
 		self.KKUI_Border:SetVertexColor(THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+		self:SetFrameLevel(self.__restLevel or 1)
+		if not self.__dragging then
+			HideTag(self)
+		end
 	end)
 
 	RestorePosition(mover)
@@ -563,7 +646,7 @@ local function RefreshPopup()
 	-- numbers means somewhere quite different depending on the point.
 	local point = CurrentPoint(popupTarget)
 	popup.Anchor:SetText(point)
-	popup.AnchorNote:SetFormattedText(L["Offsets are from %s of %s"], point, "UIParent")
+	popup.AnchorNote:SetFormattedText(L["Measured from screen %s"], point)
 end
 
 -- Let a drag or an arrow-key nudge feed the open popup, so the coordinates and the
@@ -601,7 +684,7 @@ local function BuildPopup()
 	end
 
 	popup = CreateFrame("Frame", "KKUI_MoverPopup", UIParent)
-	popup:SetSize(232, 236)
+	popup:SetSize(232, 250)
 	popup:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 260)
 	popup:SetFrameStrata("DIALOG")
 	popup:SetMovable(true)
@@ -720,6 +803,12 @@ local function BuildPopup()
 	local anchorNote = popup:CreateFontString(nil, "OVERLAY")
 	K.SetFont(anchorNote, 10, K.FontOutlineStyle())
 	anchorNote:SetPoint("TOPLEFT", anchorLabel, "BOTTOMLEFT", 0, -12)
+	-- A fixed two line box inside the panel. The sentence ran out past the right
+	-- edge as a single line, and a fixed height keeps the button below it still.
+	anchorNote:SetSize(200, 26)
+	anchorNote:SetJustifyH("LEFT")
+	anchorNote:SetJustifyV("TOP")
+	anchorNote:SetWordWrap(true)
 	anchorNote:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 	popup.AnchorNote = anchorNote
 
@@ -757,7 +846,7 @@ local function BuildPanel()
 	end
 
 	panel = CreateFrame("Frame", "KKUI_MoverPanel", UIParent)
-	panel:SetSize(240, 132)
+	panel:SetSize(240, 152)
 	panel:SetPoint("TOP", UIParent, "TOP", 0, -120)
 	panel:SetFrameStrata("DIALOG")
 	panel:SetMovable(true)
@@ -782,9 +871,11 @@ local function BuildPanel()
 	hint:SetSpacing(3)
 	hint:SetText(L["Drag to move, edges snap. Hover and use arrow keys to nudge."])
 
-	-- Left-aligned under the hint block so it lands on the panel's grid line.
+	-- Sits on the row above the two buttons, lined up with the left one. Hung off
+	-- the hint text it landed on top of the Lock button whenever the hint wrapped
+	-- to a third line.
 	local gridCheck = CreateFrame("CheckButton", nil, panel, "InterfaceOptionsCheckButtonTemplate")
-	gridCheck:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 4, -8)
+	gridCheck:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 36)
 	K.SkinCheckBox(gridCheck)
 	gridCheck.Text:SetText(L["Grid"])
 	gridCheck.Text:ClearAllPoints()
@@ -834,7 +925,25 @@ function K.ToggleMovers(show)
 			mover:EnableKeyboard(false)
 			mover:SetScript("OnKeyDown", nil)
 			mover:SetScript("OnUpdate", nil)
+			mover.__dragging = nil
 		end
+	end
+
+	if show then
+		-- Largest first, so each smaller box lands on a higher level.
+		local bySize = {}
+		for i, mover in ipairs(moverOrder) do
+			bySize[i] = mover
+		end
+		sort(bySize, function(a, b)
+			return a:GetWidth() * a:GetHeight() > b:GetWidth() * b:GetHeight()
+		end)
+		for i, mover in ipairs(bySize) do
+			mover.__restLevel = BASE_LEVEL + i * 2
+			mover:SetFrameLevel(mover.__restLevel)
+		end
+	else
+		HideTag()
 	end
 
 	BuildPanel():SetShown(show)

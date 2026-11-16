@@ -208,7 +208,8 @@ function Module:SpawnUnit(def)
 	frame:SetSize(cfg.Width, Module.TotalHeight(cfg))
 
 	local point = def.point
-	local mover = K.CreateMover(frame, def.mover, def.key, {
+	-- The key is one word (FocusTarget). Spaced out it reads as a name on the mover.
+	local mover = K.CreateMover(frame, def.mover, (def.key:gsub("(%l)(%u)", "%1 %2")), {
 		point[1], self:ResolveAnchor(point[2]), point[3], point[4], point[5],
 	}, frame:GetWidth(), frame:GetHeight())
 
