@@ -35,6 +35,8 @@ function GUI.CreateExtraGUI(name, title, build)
 	frame:SetPoint("TOPLEFT", GUI.window, "TOPRIGHT", 8, 0)
 	frame:SetPoint("BOTTOMLEFT", GUI.window, "BOTTOMRIGHT", 8, 0)
 	frame:SetFrameStrata("HIGH")
+	-- The window can sit near the right edge, so keep the flyout on screen.
+	frame:SetClampedToScreen(true)
 	K.CreateBackground(frame, 0.05, 0.05, 0.05, 0.96)
 	K.CreateBorder(frame)
 

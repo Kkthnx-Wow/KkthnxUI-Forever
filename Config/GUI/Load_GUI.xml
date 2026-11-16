@@ -2,8 +2,10 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
 	<!-- Widgets first (defines K.GUI), then extras, schema, custom panels, window. -->
 	<Script file="Widgets.lua" />
+	<Script file="State.lua" />
 	<Script file="ExtraGUI.lua" />
 	<Script file="Schema.lua" />
+	<Script file="WhatsNew.lua" />
 	<Script file="Profiles.lua" />
 	<Script file="NameplateColors.lua" />
 	<Script file="Movers.lua" />

@@ -2,24 +2,40 @@
 	Addon: KkthnxUI
 	File: Config/GUI/Window.lua
 	Purpose:
-		The options window: a movable panel with a category list on the left and
-		a scrollable content area on the right. Standard categories are laid out
-		from the schema. A category may instead point to a custom panel builder
-		(used by Profiles).
+		The options window: a movable, resizable panel with a grouped page list on
+		the left and a scrollable content area on the right. Standard pages are laid
+		out from the schema. A page may instead point to a custom builder (Profiles,
+		Move UI, What's New).
+
+		Typing in the search box lists matching settings rather than pages. Picking
+		one opens its page, scrolls to it and lights it up. Settings added in a
+		recent version carry Blizzard's own NEW label until their page is opened, and
+		a dot marks every setting that differs from its default. The window size and
+		position are remembered.
 -----------------------------------------------------------------------------]]
 
 local K, L = KkthnxUI[1], KkthnxUI[3]
 
 local tinsert = table.insert
+local max, min = math.max, math.min
+local ipairs, pairs = ipairs, pairs
+local C_Timer = C_Timer
 
 -- Theme colours from the palette so the window tracks any palette change.
 local ACCENT = K.Colors.accent
 local PANEL = K.Colors.panel
 
+local DEFAULT_WIDTH, DEFAULT_HEIGHT = 900, 640
+local MIN_WIDTH, MIN_HEIGHT = 700, 440
+local NAV_WIDTH = 170
+local NEW_COLOR = { 1, 0.82, 0 }
+local MODIFIED_COLOR = { 1, 0.6, 0.2 }
+
 -- Category name to a game icon. These come from the client's own icon library so
 -- there is no art of ours to ship or keep current. A category with no entry here
 -- simply draws no icon.
 local CATEGORY_ICON = {
+	WhatsNew = "INV_Misc_Note_05",
 	General = "INV_Misc_Gear_01",
 	ActionBar = "INV_Misc_EngGizmos_30",
 	Unitframe = "Achievement_Character_Human_Male",
@@ -37,15 +53,69 @@ local CATEGORY_ICON = {
 	Bags = "INV_Misc_Bag_08",
 	Misc = "INV_Misc_Gear_02",
 	Automation = "Trade_Engineering",
+	QoL = "INV_Misc_Gear_08",
 	Skins = "Trade_Engraving",
 	Movers = "Ability_Hunter_Pathfinding",
 	Profiles = "INV_Misc_ScrollUnrolled01",
 }
 
+-- How the page list is grouped. Pages not named here land in a final Other group,
+-- so a page added to the schema is never lost from the list.
+local TOP_PAGES = { "WhatsNew", "General" }
+local GROUPS = {
+	{ title = L["Combat"], pages = { "Unitframe", "Nameplate", "ActionBar", "Auras", "Cooldown", "GroupTools" } },
+	{ title = L["Interface"], pages = { "Minimap", "Chat", "Tooltip", "Bags", "MicroMenu", "ExperienceBar", "AlertFrames", "Loot", "Skins" } },
+	{ title = L["Gameplay"], pages = { "Automation", "QoL", "Misc" } },
+	{ title = L["Setup"], pages = { "Movers", "Profiles" } },
+}
+
 local GUI = K.GUI
 GUI.CustomPanels = GUI.CustomPanels or {}
 
-local window, reloadHint
+-- control -> { widget, card, category }, so search can find and light a setting.
+GUI.controlWidgets = {}
+-- category name -> NEW labels drawn on that page, hidden once the page is seen.
+GUI.badges = {}
+
+local window, reloadHint, reloadGlow
+
+-- ---------------------------------------------------------------------------
+-- NEW label
+-- ---------------------------------------------------------------------------
+
+-- Blizzard's own NewFeatureLabel, the pulsing NEW the stock UI uses. If the
+-- template is missing the label falls back to plain text.
+local function CreateNewBadge(parent, animate)
+	local ok, badge = pcall(CreateFrame, "Frame", nil, parent, animate and "NewFeatureLabelTemplate" or "NewFeatureLabelNoAnimateTemplate")
+	if ok and badge then
+		badge:SetFrameLevel(parent:GetFrameLevel() + 5)
+		badge:Show()
+		return badge
+	end
+	badge = CreateFrame("Frame", nil, parent)
+	badge:SetSize(40, 20)
+	local fs = badge:CreateFontString(nil, "OVERLAY")
+	K.SetFont(fs, 11, "OUTLINE")
+	fs:SetTextColor(NEW_COLOR[1], NEW_COLOR[2], NEW_COLOR[3])
+	fs:SetPoint("CENTER")
+	fs:SetText(L["NEW"])
+	return badge
+end
+
+local function AddBadge(category, badge)
+	GUI.badges[category.name] = GUI.badges[category.name] or {}
+	tinsert(GUI.badges[category.name], badge)
+end
+
+function GUI.HideBadges(name)
+	for key, list in pairs(GUI.badges) do
+		if not name or key == name then
+			for _, badge in ipairs(list) do
+				badge:Hide()
+			end
+		end
+	end
+end
 
 -- ---------------------------------------------------------------------------
 -- Panel layout
@@ -78,16 +148,14 @@ local function SplitSections(controls)
 	return kept
 end
 
--- Build one titled card: a soft box holding a section's controls, stacked by
--- each widget's height. Returns the card and its measured height.
-local function BuildCard(host, section, width)
+-- Build one titled card: a soft box holding a section's controls. The widgets are
+-- made once here and positioned by FitCard, which can run again at another width.
+local function BuildCard(host, section, category)
 	local card = CreateFrame("Frame", nil, host)
-	card:SetWidth(width)
 	-- A subtle top-lit gradient lifts each card off the flat panel behind it.
 	K.GradientBG(card, 0.16, 0.17, 0.19, 0.55, 0.10, 0.10, 0.12, 0.55)
 
-	local contentWidth = width - 30
-	local y = -10
+	card.hasTitle = section.title ~= nil
 	if section.title then
 		local fs = card:CreateFontString(nil, "OVERLAY")
 		K.SetFont(fs, 13, "OUTLINE")
@@ -100,133 +168,191 @@ local function BuildCard(host, section, width)
 		rule:SetHeight(1)
 		rule:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -28)
 		rule:SetPoint("TOPRIGHT", card, "TOPRIGHT", -10, -28)
-		y = -36
 	end
 
+	card.items = {}
 	local flyoutButtons = {}
+	local sectionHasNew = false
 	for _, control in ipairs(section.controls) do
 		local builder = GUI.Builders[control.kind]
 		if builder then
 			local widget = builder(card, control)
+			card.items[#card.items + 1] = { widget = widget, control = control }
 			if control.kind == "extra" then
 				flyoutButtons[#flyoutButtons + 1] = widget
 			end
-			-- Stretch width-aware widgets (sliders, dropdowns) to fill the card so
-			-- their left and right edges share one grid line.
-			if widget.KKUI_SetWidth then
-				widget.KKUI_SetWidth(contentWidth)
+
+			if control.path or control.label then
+				GUI.controlWidgets[control] = { widget = widget, card = card, category = category }
 			end
-			-- Descriptions wrap, refit them to the card so text never spills past
-			-- the edge and the stored height matches the wrapped text.
-			if control.kind == "description" and widget.SetWidth then
-				widget:SetWidth(contentWidth)
-				widget.height = (widget:GetStringHeight() or 12) + 8
+
+			-- A small tag at the right of the row, shown once this setting is changed
+			-- and still waiting on a reload.
+			if control.reload and control.path then
+				local mark = card:CreateFontString(nil, "OVERLAY")
+				K.SetFont(mark, 10)
+				mark:SetTextColor(1, 0.5, 0.1)
+				mark:SetText(L["needs reload"])
+				mark:SetShown(GUI.pendingReload[control] == true)
+				GUI.reloadMarks[control] = mark
+				card.items[#card.items].mark = mark
 			end
-			widget:ClearAllPoints()
-			local indent = control.kind == "description" and 12 or 16
-			widget:SetPoint("TOPLEFT", card, "TOPLEFT", indent, y)
-			y = y - (widget.height or 28)
+
+			-- Dot for a setting that differs from its default.
+			if control.path then
+				local dot = card:CreateTexture(nil, "OVERLAY")
+				dot:SetSize(6, 6)
+				dot:SetColorTexture(MODIFIED_COLOR[1], MODIFIED_COLOR[2], MODIFIED_COLOR[3], 1)
+				dot:SetPoint("RIGHT", widget, "TOPLEFT", -5, control.kind == "check" and -15 or -8)
+				dot:SetShown(GUI.IsModified(control))
+				GUI.modifiedDots[control] = dot
+			end
+
+			-- Blizzard's NEW label on a setting its page has not shown yet.
+			if GUI.IsNew(control) then
+				sectionHasNew = true
+				local badge = CreateNewBadge(card, true)
+				if control.kind == "check" and widget.Text then
+					badge:SetPoint("LEFT", widget.Text, "RIGHT", 14, 0)
+				elseif control.kind == "button" or control.kind == "extra" then
+					badge:SetPoint("LEFT", widget, "RIGHT", 18, 0)
+				else
+					badge:SetPoint("TOPRIGHT", widget, "TOPRIGHT", -24, 2)
+				end
+				AddBadge(category, badge)
+			end
 		end
+	end
+
+	-- A quiet NEW on the card title so a new setting is findable while scrolling.
+	if sectionHasNew and section.title then
+		local badge = CreateNewBadge(card, false)
+		badge:SetPoint("TOPRIGHT", card, "TOPRIGHT", -30, -8)
+		AddBadge(category, badge)
 	end
 
 	-- Flyout buttons in one card share the widest width so the list reads as a
 	-- column instead of a ragged edge.
 	local widest = 0
 	for _, button in ipairs(flyoutButtons) do
-		widest = math.max(widest, button:GetWidth())
+		widest = max(widest, button:GetWidth())
 	end
 	for _, button in ipairs(flyoutButtons) do
 		button:SetWidth(widest)
 	end
-
-	local height = -y + 10
-	card:SetHeight(height)
-	return card, height
+	return card
 end
 
--- Lay a control list into titled cards and flow the cards down `columns`
--- columns, always dropping the next card into the shortest column so mixed
--- section heights stay balanced. A header may set `fullWidth` to span all
--- columns. Exposed on GUI so flyouts reuse the same logic (they pass 1 column).
-function GUI.LayoutControls(host, controls, opts)
-	opts = opts or {}
-	local columns = opts.columns or 1
-	local hostWidth = host:GetWidth()
+-- Size a card to a width and stack its widgets. Returns the card's height.
+local function FitCard(card, width)
+	card:SetWidth(width)
+	local contentWidth = width - 30
+	local y = card.hasTitle and -36 or -10
+	for _, item in ipairs(card.items) do
+		local widget, control = item.widget, item.control
+		-- Stretch width-aware widgets (sliders, dropdowns) to fill the card so
+		-- their left and right edges share one grid line.
+		if widget.KKUI_SetWidth then
+			widget.KKUI_SetWidth(contentWidth)
+		end
+		-- Descriptions wrap, refit them to the card so text never spills past the
+		-- edge and the stored height matches the wrapped text.
+		if control.kind == "description" and widget.SetWidth then
+			widget:SetWidth(contentWidth)
+			widget.height = (widget:GetStringHeight() or 12) + 8
+		end
+		widget:ClearAllPoints()
+		widget:SetPoint("TOPLEFT", card, "TOPLEFT", control.kind == "description" and 12 or 16, y)
+		if item.mark then
+			item.mark:ClearAllPoints()
+			item.mark:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, y - 3)
+		end
+		y = y - (widget.height or 28)
+	end
+	local height = -y + 10
+	card:SetHeight(height)
+	return height
+end
+
+-- Flow built cards down `columns` columns, always dropping the next card into the
+-- shortest column so mixed section heights stay balanced. A header may set
+-- `fullWidth` to span all columns.
+local function PlaceCards(host, hostWidth)
 	if hostWidth <= 1 then
 		hostWidth = 520
 	end
+	-- A page that does not fix its column count uses as many as fit, so a wide
+	-- window is not one long strip of stretched sliders.
+	local columns = host.KKUI_columns
+	if host.KKUI_auto then
+		columns = (hostWidth >= 1100 and 3) or (hostWidth >= 660 and 2) or 1
+	end
 	local gutter = 12
 	local colWidth = math.floor((hostWidth - gutter * (columns - 1)) / columns)
-
-	local topPad = 8
-	local cardGap = 14
+	local topPad, cardGap = 8, 14
 	local used = {}
 	for i = 1, columns do
 		used[i] = 0
 	end
 
-	local function Shortest()
-		local idx = 1
-		for i = 2, columns do
-			if used[i] < used[idx] then
-				idx = i
-			end
-		end
-		return idx
-	end
-
-	for _, section in ipairs(SplitSections(controls)) do
-		local fullWidth = section.fullWidth or columns == 1
-		if fullWidth then
-			local card, height = BuildCard(host, section, hostWidth)
+	for _, entry in ipairs(host.KKUI_cards) do
+		local card = entry.card
+		card:ClearAllPoints()
+		if entry.fullWidth or columns == 1 then
+			local height = FitCard(card, hostWidth)
 			local top = 0
 			for i = 1, columns do
-				top = math.max(top, used[i])
+				top = max(top, used[i])
 			end
 			card:SetPoint("TOPLEFT", host, "TOPLEFT", 0, -(topPad + top))
 			for i = 1, columns do
 				used[i] = top + height + cardGap
 			end
 		else
-			local col = Shortest()
-			local card, height = BuildCard(host, section, colWidth)
-			local x = (col - 1) * (colWidth + gutter)
-			card:SetPoint("TOPLEFT", host, "TOPLEFT", x, -(topPad + used[col]))
+			local col = 1
+			for i = 2, columns do
+				if used[i] < used[col] then
+					col = i
+				end
+			end
+			local height = FitCard(card, colWidth)
+			card:SetPoint("TOPLEFT", host, "TOPLEFT", (col - 1) * (colWidth + gutter), -(topPad + used[col]))
 			used[col] = used[col] + height + cardGap
 		end
 	end
 
 	local total = 0
 	for i = 1, columns do
-		total = math.max(total, used[i])
+		total = max(total, used[i])
 	end
-	total = total + topPad
-	host:SetHeight(total)
-	return total
+	host:SetHeight(total + topPad)
+	host.KKUI_placedWidth = hostWidth
+	return total + topPad
 end
 
--- Everything in a category the search should be able to find: its own title plus
--- the label of every setting it holds. Searching only titles meant a term like
--- "castbar" or "bubble" found nothing, because the word a person remembers is
--- almost never the name of the page it lives on.
-local function SearchText(category)
-	local parts = { category.title or category.name or "" }
-	for _, control in ipairs(category.controls or {}) do
-		if control.label then
-			parts[#parts + 1] = control.label
-		end
-		-- A flyout button carries its own page of settings, so fold those labels in
-		-- as well or half the options in the addon stay unsearchable.
-		for _, inner in ipairs(control.searchControls or {}) do
-			if inner.label then
-				parts[#parts + 1] = inner.label
-			end
-		end
+-- Lay a control list into titled cards. Exposed on GUI so flyouts reuse it (they
+-- pass one column). opts.category names the page for NEW labels and search.
+function GUI.LayoutControls(host, controls, opts)
+	opts = opts or {}
+	local category = opts.category or { name = "flyout" }
+	host.KKUI_columns = opts.columns or 1
+	host.KKUI_auto = opts.columns == nil
+	host.KKUI_cards = {}
+	for _, section in ipairs(SplitSections(controls)) do
+		host.KKUI_cards[#host.KKUI_cards + 1] = { card = BuildCard(host, section, category), fullWidth = section.fullWidth }
 	end
-	return table.concat(parts, " "):lower()
+	host.KKUI_Place = function(width)
+		return PlaceCards(host, width)
+	end
+	return PlaceCards(host, host:GetWidth())
 end
 
--- Build one category panel (a scroll frame + child) on demand.
+-- ---------------------------------------------------------------------------
+-- Pages
+-- ---------------------------------------------------------------------------
+
+local pages = {} -- category name -> { scroll, child, category }
+
 local function BuildPanel(parent, category)
 	local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
 	-- Leave room at the top for the section title and its rule.
@@ -243,36 +369,136 @@ local function BuildPanel(parent, category)
 	if category.custom and GUI.CustomPanels[category.custom] then
 		GUI.CustomPanels[category.custom](child)
 	else
-		GUI.LayoutControls(child, category.controls, { columns = category.columns })
+		GUI.LayoutControls(child, category.controls, { columns = category.columns, category = category })
 	end
 
 	scroll:Hide()
+	pages[category.name] = { scroll = scroll, child = child, category = category }
 	return scroll
+end
+
+-- Fit a page to the content area's current width. Pages that are not showing wait
+-- until they are opened, so dragging the corner only reflows what is on screen.
+local function FitPage(info)
+	local width = info.scroll:GetParent():GetWidth() - 34
+	if width < 100 or info.child.KKUI_placedWidth == width then
+		return
+	end
+	info.child:SetWidth(width)
+	if info.child.KKUI_Place then
+		info.child.KKUI_Place(width)
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Jump to a setting
+-- ---------------------------------------------------------------------------
+
+local function Flash(widget)
+	local anchor = widget:GetParent()
+	local glow = widget.KKUI_Flash
+	if not glow then
+		glow = anchor:CreateTexture(nil, "BACKGROUND", nil, 3)
+		glow:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.4)
+		glow:SetPoint("TOPLEFT", widget, "TOPLEFT", -6, 3)
+		glow:SetPoint("BOTTOMRIGHT", widget, "BOTTOMRIGHT", 6, -3)
+		local group = glow:CreateAnimationGroup()
+		local out = group:CreateAnimation("Alpha")
+		out:SetFromAlpha(1)
+		out:SetToAlpha(0)
+		out:SetDuration(1.6)
+		out:SetStartDelay(0.6)
+		group:SetScript("OnFinished", function()
+			glow:Hide()
+		end)
+		glow.group = group
+		widget.KKUI_Flash = glow
+	end
+	glow:Show()
+	glow.group:Stop()
+	glow.group:Play()
+end
+
+local function ScrollTo(info, widget)
+	local top, widgetTop = info.child:GetTop(), widget:GetTop()
+	if not top or not widgetTop then
+		return
+	end
+	local range = info.scroll:GetVerticalScrollRange()
+	info.scroll:SetVerticalScroll(min(max(top - widgetTop - 60, 0), range))
+end
+
+function GUI.JumpTo(entry)
+	GUI.SelectPage(entry.category.name)
+	local info = pages[entry.category.name]
+	if entry.extra then
+		-- The setting lives on a flyout page, so open it first.
+		local holder = GUI.controlWidgets[entry.extra]
+		if holder and holder.widget.Click then
+			holder.widget:Click()
+			if not (GUI.controlWidgets[entry.control] and GUI.controlWidgets[entry.control].widget:IsVisible()) then
+				holder.widget:Click()
+			end
+		end
+	end
+	C_Timer.After(0.05, function()
+		local holder = GUI.controlWidgets[entry.control]
+		if holder and holder.widget:IsVisible() then
+			if not entry.extra and info then
+				ScrollTo(info, holder.widget)
+			end
+			Flash(holder.widget)
+		end
+	end)
 end
 
 -- ---------------------------------------------------------------------------
 -- Window
 -- ---------------------------------------------------------------------------
 
+local function SaveWindow()
+	local state = GUI.State()
+	if not state or not window then
+		return
+	end
+	local cx, cy = window:GetCenter()
+	local ux, uy = UIParent:GetCenter()
+	if not cx or not ux then
+		return
+	end
+	state.window = { width = window:GetWidth(), height = window:GetHeight(), x = cx - ux, y = cy - uy }
+end
+
+local function RestoreWindow()
+	local state = GUI.State()
+	local saved = state and state.window
+	local maxW, maxH = UIParent:GetWidth() * 0.95, UIParent:GetHeight() * 0.95
+	local width = min(max(saved and saved.width or DEFAULT_WIDTH, MIN_WIDTH), maxW)
+	local height = min(max(saved and saved.height or DEFAULT_HEIGHT, MIN_HEIGHT), maxH)
+	window:SetSize(width, height)
+	window:ClearAllPoints()
+	window:SetPoint("CENTER", UIParent, "CENTER", saved and saved.x or 0, saved and saved.y or 0)
+end
+
 local function BuildWindow()
 	window = CreateFrame("Frame", "KKUI_ConfigWindow", UIParent)
-	window:SetSize(780, 560)
-	window:SetPoint("CENTER")
 	window:SetFrameStrata("HIGH")
 	window:EnableMouse(true)
 	window:SetMovable(true)
+	window:SetResizable(true)
+	window:SetClampedToScreen(true)
+	window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT, UIParent:GetWidth() * 0.95, UIParent:GetHeight() * 0.95)
 	window:RegisterForDrag("LeftButton")
 	window:SetScript("OnDragStart", window.StartMoving)
-	window:SetScript("OnDragStop", window.StopMovingOrSizing)
+	window:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		SaveWindow()
+	end)
+	RestoreWindow()
 	K.CreateGradientBackground(window)
 	K.CreateBorder(window)
 	tinsert(UISpecialFrames, "KKUI_ConfigWindow")
 	GUI.window = window
-	window:HookScript("OnHide", function()
-		if GUI.HideExtras then
-			GUI.HideExtras()
-		end
-	end)
 
 	local header = window:CreateFontString(nil, "OVERLAY")
 	K.SetFont(header, 18, "OUTLINE")
@@ -283,16 +509,16 @@ local function BuildWindow()
 	close:SetPoint("TOPRIGHT", -6, -6)
 	K.SkinCloseButton(close)
 
-	-- Left category column, scrollable so it never runs into the footer no matter
-	-- how many categories exist.
+	-- Left page column, scrollable so it never runs into the footer no matter how
+	-- many pages exist.
 	local nav = CreateFrame("Frame", nil, window)
 	nav:SetPoint("TOPLEFT", 12, -46)
 	nav:SetPoint("BOTTOMLEFT", 12, 44)
-	nav:SetWidth(160)
+	nav:SetWidth(NAV_WIDTH)
 	K.CreateBackground(nav, PANEL[1], PANEL[2], PANEL[3], 0.85)
 	K.CreateBorder(nav)
 
-	-- Search box to filter the category list by name.
+	-- Search box. Typing lists matching settings in place of the page list.
 	local search = CreateFrame("EditBox", nil, nav, "InputBoxTemplate")
 	search:SetHeight(20)
 	search:SetPoint("TOPLEFT", nav, "TOPLEFT", 8, -6)
@@ -305,7 +531,7 @@ local function BuildWindow()
 	K.SetFont(searchHint, 11)
 	searchHint:SetTextColor(K.Colors.disabled[1], K.Colors.disabled[2], K.Colors.disabled[3])
 	searchHint:SetPoint("LEFT", search, "LEFT", 4, 0)
-	searchHint:SetText(L["Search..."])
+	searchHint:SetText(L["Search settings..."])
 
 	local navScroll = CreateFrame("ScrollFrame", nil, nav)
 	navScroll:SetPoint("TOPLEFT", 3, -32)
@@ -313,17 +539,11 @@ local function BuildWindow()
 	navScroll:EnableMouseWheel(true)
 	navScroll:SetScript("OnMouseWheel", function(self, delta)
 		local range = self:GetVerticalScrollRange()
-		local target = self:GetVerticalScroll() - delta * 34
-		if target < 0 then
-			target = 0
-		elseif target > range then
-			target = range
-		end
-		self:SetVerticalScroll(target)
+		self:SetVerticalScroll(min(max(self:GetVerticalScroll() - delta * 34, 0), range))
 	end)
 
 	local navChild = CreateFrame("Frame", nil, navScroll)
-	navChild:SetSize(154, 1)
+	navChild:SetSize(NAV_WIDTH - 12, 1)
 	navScroll:SetScrollChild(navChild)
 
 	-- Right content area.
@@ -344,12 +564,8 @@ local function BuildWindow()
 	titleRule:SetPoint("TOPLEFT", content, "TOPLEFT", 8, -28)
 	titleRule:SetPoint("TOPRIGHT", content, "TOPRIGHT", -8, -28)
 
-	-- Reset the whole page. Right-click already resets one control, but a page
-	-- like Unitframes holds dozens, so this covers the section in one go. It sits
-	-- on the title rule rather than in the footer so it reads as belonging to the
-	-- page it acts on.
-	-- UIPanelButtonTemplate so SkinButton finds a font string to recolour on hover,
-	-- the same way the footer reload button is built.
+	-- Reset the whole page. It sits on the title rule so it reads as belonging to
+	-- the page it acts on.
 	local resetSection = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
 	resetSection:SetSize(112, 20)
 	resetSection:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -5)
@@ -360,26 +576,69 @@ local function BuildWindow()
 		K.SetFont(resetFont, 11, "")
 	end
 
-	local panels = {}
 	local buttons = {}
+	local currentName
 	local currentCategory
-	local function Select(name)
-		for key, panel in pairs(panels) do
-			panel:SetShown(key == name)
+
+	-- Dots on the page list: a count of new settings on What's New, a small dot on
+	-- a page that holds some.
+	function GUI.UpdateNav()
+		for name, btn in pairs(buttons) do
+			local category = GUI.categoryByName[name]
+			if name == "WhatsNew" then
+				local total = GUI.CountNewTotal()
+				btn.Count:SetText(total > 0 and total or "")
+				btn.Count:SetShown(total > 0)
+			else
+				btn.Dot:SetShown(GUI.CountNew(category) > 0 and name ~= currentName)
+			end
+		end
+	end
+
+	-- Leaving a page counts as having seen what was new on it.
+	local function CommitSeen(name)
+		local category = name and GUI.categoryByName[name]
+		if category and category.controls and GUI.MarkPageSeen(category) then
+			GUI.HideBadges(name)
+		end
+	end
+
+	function GUI.SelectPage(name)
+		if name ~= currentName then
+			CommitSeen(currentName)
+		end
+		currentName = name
+		for key, info in pairs(pages) do
+			local active = key == name
+			info.scroll:SetShown(active)
+			if active then
+				FitPage(info)
+				if info.child.KKUI_Refresh then
+					info.child.KKUI_Refresh()
+				end
+			end
 			local btn = buttons[key]
 			if btn then
-				local active = key == name
 				btn.KKUI_Background:SetVertexColor(active and 0.2 or 0.16, active and 0.35 or 0.16, active and 0.6 or 0.16, active and 0.9 or 0.5)
 				btn.Accent:SetShown(active)
 				btn.Text:SetTextColor(active and 0.4 or 0.85, active and 0.6 or 0.85, active and 1 or 0.85)
 			end
 		end
-		contentTitle:SetText(GUI.categoryTitles and GUI.categoryTitles[name] or "")
-		currentCategory = GUI.categoryByName and GUI.categoryByName[name]
-		-- A custom page (profiles, movers, nameplate colours) owns its own state
-		-- and has no control list to walk, so there is nothing to reset there.
+		contentTitle:SetText(GUI.categoryTitles[name] or "")
+		currentCategory = GUI.categoryByName[name]
+		-- A custom page owns its own state and has no control list to walk, so
+		-- there is nothing to reset there.
 		resetSection:SetShown(currentCategory ~= nil and currentCategory.controls ~= nil)
+		GUI.UpdateNav()
 	end
+
+	window:HookScript("OnHide", function()
+		CommitSeen(currentName)
+		GUI.UpdateNav()
+		if GUI.HideExtras then
+			GUI.HideExtras()
+		end
+	end)
 
 	local function ConfirmReset()
 		local count = GUI.ResetCategory(currentCategory)
@@ -397,20 +656,22 @@ local function BuildWindow()
 	GUI.categoryTitles = {}
 	GUI.categoryByName = {}
 
-	local order = {}
+	-- Build every page and its button.
 	for _, category in ipairs(GUI.schema) do
-		panels[category.name] = BuildPanel(content, category)
 		GUI.categoryTitles[category.name] = category.title
 		GUI.categoryByName[category.name] = category
+	end
+
+	for _, category in ipairs(GUI.schema) do
+		BuildPanel(content, category)
 
 		local btn = CreateFrame("Button", nil, navChild)
-		btn:SetSize(148, 30)
-		order[#order + 1] = { btn = btn, title = category.title, haystack = SearchText(category), first = category.name == GUI.schema[1].name }
+		btn:SetSize(NAV_WIDTH - 18, 30)
 		-- No per-button border: a clean rail where only the accent bar and a soft
-		-- background mark the active tab.
+		-- background mark the active page.
 		K.CreateBackground(btn, 0.16, 0.16, 0.16, 0.5)
 
-		-- Accent bar on the left marks the active tab.
+		-- Accent bar on the left marks the active page.
 		local acc = btn:CreateTexture(nil, "OVERLAY")
 		acc:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
 		acc:SetPoint("TOPLEFT", btn.KKUI_Background, "TOPLEFT", 0, 0)
@@ -422,9 +683,8 @@ local function BuildWindow()
 		local iconName = CATEGORY_ICON[category.name]
 		local hasIcon = iconName ~= nil or category.icon
 		if hasIcon then
-			-- Each icon sits in its own small chip: a gradient face with our border
-			-- around it, the same framed treatment the close button uses, so the row
-			-- reads as a set of buttons rather than loose artwork.
+			-- Each icon sits in its own small chip, the same framed treatment the
+			-- close button uses, so the row reads as a set of buttons.
 			local chip = CreateFrame("Frame", nil, btn)
 			chip:SetSize(24, 24)
 			chip:SetPoint("LEFT", 6, 0)
@@ -432,11 +692,8 @@ local function BuildWindow()
 			K.CreateBorder(chip)
 
 			local icon = chip:CreateTexture(nil, "ARTWORK")
-			-- Fill the chip, leaving the 1px border visible.
 			icon:SetPoint("TOPLEFT", 1, -1)
 			icon:SetPoint("BOTTOMRIGHT", -1, 1)
-			-- A game icon for the category, falling back to whatever texture the
-			-- category itself supplied.
 			if iconName and K.SetGUIIcon then
 				K.SetGUIIcon(icon, iconName)
 			else
@@ -451,50 +708,209 @@ local function BuildWindow()
 		text:SetText(category.title)
 		btn.Text = text
 
+		-- A dot for "this page holds something new", a count on What's New.
+		local dot = btn:CreateTexture(nil, "OVERLAY")
+		dot:SetSize(8, 8)
+		dot:SetColorTexture(NEW_COLOR[1], NEW_COLOR[2], NEW_COLOR[3], 1)
+		dot:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+		dot:Hide()
+		btn.Dot = dot
+
+		local count = btn:CreateFontString(nil, "OVERLAY")
+		K.SetFont(count, 11, "OUTLINE")
+		count:SetTextColor(NEW_COLOR[1], NEW_COLOR[2], NEW_COLOR[3])
+		count:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+		count:Hide()
+		btn.Count = count
+
 		local hl = btn:CreateTexture(nil, "HIGHLIGHT")
 		hl:SetAllPoints(btn.KKUI_Background)
 		hl:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.2)
 
 		btn:SetScript("OnClick", function()
-			Select(category.name)
+			GUI.SelectPage(category.name)
 		end)
 		buttons[category.name] = btn
 	end
 
-	-- Alphabetical by the title shown, so a page is easy to find. The first schema
-	-- page (General) stays on top since it is where the window opens.
-	table.sort(order, function(a, b)
-		if a.first ~= b.first then
-			return a.first
+	-- Group the page buttons. Top pages sit unlabelled, then each named group under
+	-- a small heading, then anything left over under Other.
+	local listed = {}
+	local layout = {}
+	for _, name in ipairs(TOP_PAGES) do
+		if buttons[name] then
+			listed[name] = true
+			layout[#layout + 1] = { button = buttons[name] }
 		end
-		return a.title:lower() < b.title:lower()
-	end)
-
-	-- Stack the buttons that match the search text and size the scroll child to
-	-- them. An empty query shows everything.
-	local function Relayout(query)
-		query = query and query:lower() or ""
-		local y = -10
-		for _, entry in ipairs(order) do
-			local match = query == "" or entry.haystack:find(query, 1, true)
-			if match then
-				entry.btn:ClearAllPoints()
-				entry.btn:SetPoint("TOP", navChild, "TOP", 0, y)
-				entry.btn:Show()
-				y = y - 34
-			else
-				entry.btn:Hide()
+	end
+	local function AddGroup(title, names)
+		local group = {}
+		for _, name in ipairs(names) do
+			if buttons[name] and not listed[name] then
+				listed[name] = true
+				group[#group + 1] = { button = buttons[name] }
 			end
+		end
+		if #group == 0 then
+			return
+		end
+		local heading = navChild:CreateFontString(nil, "OVERLAY")
+		K.SetFont(heading, 10, "OUTLINE")
+		heading:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+		heading:SetText(title:upper())
+		layout[#layout + 1] = { heading = heading }
+		for _, item in ipairs(group) do
+			layout[#layout + 1] = item
+		end
+	end
+	for _, group in ipairs(GROUPS) do
+		AddGroup(group.title, group.pages)
+	end
+	local rest = {}
+	for _, category in ipairs(GUI.schema) do
+		if not listed[category.name] then
+			rest[#rest + 1] = category.name
+		end
+	end
+	AddGroup(L["Other"], rest)
+
+	-- Where a setting lives, from the page down: page, the flyout it opens from
+	-- when there is one, then the section when it adds something.
+	local function WhereText(entry, separator, specificFirst)
+		local parts = { entry.category.title }
+		if entry.extra and entry.extra.label then
+			parts[#parts + 1] = entry.extra.label
+		end
+		if entry.section and entry.section ~= entry.category.title and entry.section ~= (entry.extra and entry.extra.label) then
+			parts[#parts + 1] = entry.section
+		end
+		if specificFirst then
+			-- Reverse it, so a narrow row that has to cut the end cuts the page name
+			-- and keeps the part that tells two settings called "Width" apart.
+			for i = 1, math.floor(#parts / 2) do
+				parts[i], parts[#parts - i + 1] = parts[#parts - i + 1], parts[i]
+			end
+		end
+		return table.concat(parts, separator)
+	end
+
+	-- Result rows for the search, built as needed.
+	local resultRows = {}
+	local function ResultRow(i)
+		local row = resultRows[i]
+		if row then
+			return row
+		end
+		row = CreateFrame("Button", nil, navChild)
+		row:SetSize(NAV_WIDTH - 18, 38)
+		K.CreateBackground(row, 0.16, 0.16, 0.16, 0.5)
+		row.name = row:CreateFontString(nil, "OVERLAY")
+		K.SetFont(row.name, 12)
+		row.name:SetPoint("TOPLEFT", 8, -5)
+		row.name:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+		row.name:SetJustifyH("LEFT")
+		row.name:SetWordWrap(false)
+		row.where = row:CreateFontString(nil, "OVERLAY")
+		K.SetFont(row.where, 10)
+		row.where:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+		row.where:SetPoint("BOTTOMLEFT", 8, 5)
+		row.where:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+		row.where:SetJustifyH("LEFT")
+		row.where:SetWordWrap(false)
+		local hl = row:CreateTexture(nil, "HIGHLIGHT")
+		hl:SetAllPoints()
+		hl:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.2)
+		row:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(self.entry.label, 1, 1, 1)
+			GameTooltip:AddLine(self.fullWhere or "", 0.7, 0.8, 1)
+			GameTooltip:Show()
+		end)
+		row:SetScript("OnLeave", GameTooltip_Hide)
+		row:SetScript("OnClick", function(self)
+			local entry = self.entry
+			search:SetText("")
+			search:ClearFocus()
+			-- Clearing an already empty box fires no change, which is the case when
+			-- the Changed list is showing, so put the page list back by hand.
+			GUI.RelayoutNav("")
+			GUI.JumpTo(entry)
+		end)
+		resultRows[i] = row
+		return row
+	end
+
+	local noResults = navChild:CreateFontString(nil, "OVERLAY")
+	K.SetFont(noResults, 11)
+	noResults:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	noResults:SetPoint("TOP", navChild, "TOP", 0, -14)
+	noResults:SetText(L["No settings found."])
+	noResults:Hide()
+
+	-- Stack the page list, or the search results when there is a query.
+	local function Relayout(query, forced)
+		query = query and query:match("^%s*(.-)%s*$") or ""
+		local y = -8
+		local searching = query ~= "" or forced ~= nil
+		for _, item in ipairs(layout) do
+			local frame = item.button or item.heading
+			if searching then
+				frame:Hide()
+			else
+				frame:ClearAllPoints()
+				if item.heading then
+					frame:SetPoint("TOPLEFT", navChild, "TOPLEFT", 10, y - 6)
+					y = y - 22
+				else
+					frame:SetPoint("TOP", navChild, "TOP", 0, y)
+					y = y - 34
+				end
+				frame:Show()
+			end
+		end
+
+		for _, row in ipairs(resultRows) do
+			row:Hide()
+		end
+		noResults:Hide()
+		if searching then
+			local results = forced or GUI.Search(query, 30)
+			noResults:SetText(forced and L["Nothing has been changed."] or L["No settings found."])
+			noResults:SetShown(#results == 0)
+			for i, entry in ipairs(results) do
+				if i > 60 then
+					break
+				end
+				local row = ResultRow(i)
+				row.entry = entry
+				row.name:SetText(entry.label)
+				row.where:SetText(WhereText(entry, " < ", true))
+				row.fullWhere = WhereText(entry, " > ")
+				row:ClearAllPoints()
+				row:SetPoint("TOP", navChild, "TOP", 0, -8 - (i - 1) * 42)
+				row:Show()
+			end
+			y = -8 - min(#results, 60) * 42
 		end
 		navChild:SetHeight(-y + 10)
 		navScroll:SetVerticalScroll(0)
 	end
 	Relayout("")
+	GUI.RelayoutNav = Relayout
 
 	search:SetScript("OnTextChanged", function(self)
 		local text = self:GetText()
 		searchHint:SetShown(text == "")
 		Relayout(text)
+	end)
+	-- Enter opens the best match.
+	search:SetScript("OnEnterPressed", function(self)
+		local first = resultRows[1]
+		if first and first:IsShown() and first.entry then
+			first:Click()
+		else
+			self:ClearFocus()
+		end
 	end)
 	search:SetScript("OnEscapePressed", function(self)
 		self:SetText("")
@@ -504,27 +920,121 @@ local function BuildWindow()
 	-- Footer: reload button and hint.
 	local reload = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
 	reload:SetSize(140, 26)
-	reload:SetPoint("BOTTOMRIGHT", -12, 12)
+	reload:SetPoint("BOTTOMRIGHT", -30, 12)
 	reload:SetText(L["Reload UI"])
 	K.SkinButton(reload, true)
 	reload:SetScript("OnClick", ReloadUI)
+
+	-- A glow that pulses on the reload button once a setting needs a reload.
+	reloadGlow = reload:CreateTexture(nil, "BACKGROUND")
+	reloadGlow:SetColorTexture(1, 0.5, 0.1, 0.35)
+	reloadGlow:SetPoint("TOPLEFT", -3, 3)
+	reloadGlow:SetPoint("BOTTOMRIGHT", 3, -3)
+	reloadGlow:Hide()
+	local pulse = reloadGlow:CreateAnimationGroup()
+	pulse:SetLooping("BOUNCE")
+	local fade = pulse:CreateAnimation("Alpha")
+	fade:SetFromAlpha(1)
+	fade:SetToAlpha(0.25)
+	fade:SetDuration(0.8)
+	reloadGlow.pulse = pulse
 
 	reloadHint = window:CreateFontString(nil, "OVERLAY")
 	K.SetFont(reloadHint, 11)
 	reloadHint:SetPoint("BOTTOMLEFT", 16, 18)
 	reloadHint:SetText(L["Changes marked with a reload take effect after /reload."])
 
-	Select(GUI.schema[1].name)
+	-- Key to the orange dot beside a changed setting.
+	local legendDot = window:CreateTexture(nil, "OVERLAY")
+	legendDot:SetSize(6, 6)
+	legendDot:SetColorTexture(MODIFIED_COLOR[1], MODIFIED_COLOR[2], MODIFIED_COLOR[3], 1)
+	-- The key sits left of the reload button so it never crowds the hint on the left.
+	legendDot:SetPoint("RIGHT", reload, "LEFT", -150, 0)
+	local legend = window:CreateFontString(nil, "OVERLAY")
+	K.SetFont(legend, 10)
+	legend:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	legend:SetPoint("RIGHT", reload, "LEFT", -14, 0)
+	legend:SetJustifyH("RIGHT")
+	legendDot:ClearAllPoints()
+	legendDot:SetPoint("RIGHT", legend, "LEFT", -5, 0)
+	legend:SetText(L["Changed from the default"])
+
+	-- Click to list every setting that differs from its default in the page list.
+	local legendButton = CreateFrame("Button", nil, window)
+	legendButton:SetPoint("TOPLEFT", legendDot, "TOPLEFT", -4, 4)
+	legendButton:SetPoint("BOTTOMRIGHT", legend, "BOTTOMRIGHT", 4, -4)
+	legendButton:SetScript("OnClick", function()
+		search:SetText("")
+		search:ClearFocus()
+		Relayout("", GUI.ChangedEntries())
+	end)
+	legendButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L["Changed settings"], 1, 1, 1)
+		GameTooltip:AddLine(L["Click to list every setting that is not at its default."], 0.8, 0.8, 0.8, true)
+		GameTooltip:Show()
+	end)
+	legendButton:SetScript("OnLeave", GameTooltip_Hide)
+
+	local function UpdateLegend()
+		local count = #GUI.ChangedEntries()
+		legend:SetText(count > 0 and string.format(L["Changed from the default (%d)"], count) or L["Changed from the default"])
+	end
+	UpdateLegend()
+	local baseRefresh = GUI.RefreshModified
+	GUI.RefreshModified = function()
+		baseRefresh()
+		UpdateLegend()
+	end
+
+	-- Resize grip in the bottom right corner.
+	local grip = CreateFrame("Button", nil, window)
+	grip:SetSize(16, 16)
+	grip:SetPoint("BOTTOMRIGHT", -3, 3)
+	grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+	local reflowPending = false
+	local function Reflow()
+		reflowPending = false
+		local info = pages[currentName]
+		if info then
+			FitPage(info)
+		end
+	end
+	grip:SetScript("OnMouseDown", function()
+		window:StartSizing("BOTTOMRIGHT")
+	end)
+	grip:SetScript("OnMouseUp", function()
+		window:StopMovingOrSizing()
+		SaveWindow()
+		Reflow()
+	end)
+	-- Reflow the open page a moment after the size settles, so a drag stays smooth.
+	window:SetScript("OnSizeChanged", function()
+		if not reflowPending then
+			reflowPending = true
+			C_Timer.After(0.1, Reflow)
+		end
+	end)
+
+	GUI.SelectPage(GUI.schema[1].name)
 	GUI.RefreshDependencies()
 	window:Hide()
 	return window
 end
 
--- Highlight the reload hint when a reload-flagged setting changes.
+-- Light the reload hint and the reload button when a reload-flagged setting
+-- changes.
 function GUI.MarkReload()
 	if reloadHint then
 		reloadHint:SetTextColor(1, 0.5, 0.1)
-		reloadHint:SetText(L["Reload needed for some changes to apply."])
+		local count = GUI.pendingCount
+		reloadHint:SetText(count == 1 and L["1 change needs a reload to apply."] or string.format(L["%d changes need a reload to apply."], count))
+	end
+	if reloadGlow and not reloadGlow:IsShown() then
+		reloadGlow:Show()
+		reloadGlow.pulse:Play()
 	end
 end
 

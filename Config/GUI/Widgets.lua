@@ -22,6 +22,33 @@ local ACCENT = K.Colors.accent
 local GUI = {}
 K.GUI = GUI
 
+-- control -> function that redraws its widget from a value, so a reset can update
+-- what is on screen instead of leaving stale widgets behind.
+GUI.refreshers = {}
+
+-- Settings that only take effect after a reload. The window gives each one a small
+-- "needs reload" tag, shown once the setting is changed.
+GUI.reloadMarks = {}
+GUI.pendingReload = {}
+GUI.pendingCount = 0
+
+function GUI.FlagReload(control)
+	if not control.reload then
+		return
+	end
+	if not GUI.pendingReload[control] then
+		GUI.pendingReload[control] = true
+		GUI.pendingCount = GUI.pendingCount + 1
+	end
+	local mark = GUI.reloadMarks[control]
+	if mark then
+		mark:Show()
+	end
+	if GUI.MarkReload then
+		GUI.MarkReload()
+	end
+end
+
 -- ---------------------------------------------------------------------------
 -- Config path access
 -- ---------------------------------------------------------------------------
@@ -129,17 +156,32 @@ function GUI.AttachTooltip(frame, control, refresh)
 		return
 	end
 
+	if refresh and control.path then
+		GUI.refreshers[control] = refresh
+	end
+
 	frame:HookScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText(control.label or "", 1, 1, 1)
 		if control.tooltip then
 			GameTooltip:AddLine(control.tooltip, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3], true)
 		end
+		if GUI.IsNew(control) then
+			GameTooltip:AddLine(format(L["New in %s"], control.since), 1, 0.82, 0)
+		end
+		if GUI.IsModified(control) then
+			GameTooltip:AddLine(L["Changed from the default."], 1, 0.6, 0.2)
+		end
 		-- Say why a greyed row is greyed.
 		if control.dependsOn and not GUI.GetValue(control.dependsOn) then
 			local dependency = DependencyLabel(control.dependsOn)
 			GameTooltip:AddLine(" ")
 			GameTooltip:AddLine(dependency and format(L["Turn on %s first to use this."], dependency) or L["Another setting has to be on first."], 1, 0.5, 0.25, true)
+		end
+		if control.disabledWhen and GUI.GetValue(control.disabledWhen) then
+			local managing = DependencyLabel(control.disabledWhen)
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(managing and format(L["Turn off %s to change this."], managing) or L["Another setting is managing this one."], 1, 0.5, 0.25, true)
 		end
 		if resettable then
 			local shown = DescribeValue(control, GUI.GetDefault(control.path))
@@ -196,6 +238,11 @@ local function ResetControls(controls, count)
 			local default = GUI.GetDefault(control.path)
 			if default ~= nil then
 				K:SetConfig(control.path, CopyDefault(default))
+				local refresh = GUI.refreshers[control]
+				if refresh then
+					refresh(default)
+				end
+				GUI.FlagReload(control)
 				count = count + 1
 			end
 		end
@@ -209,11 +256,11 @@ function GUI.ResetCategory(category)
 		return 0
 	end
 	local count = ResetControls(category.controls, 0)
-	if count > 0 and GUI.MarkReload then
-		-- The widgets on screen still show the old values, and rebuilding the
-		-- whole window live would drop scroll position and open flyouts. A reload
-		-- is the honest way to land it.
-		GUI.MarkReload()
+	if count > 0 then
+		-- Widgets that can redraw themselves already did. Settings that apply
+		-- through a reload still need one to land, so say so.
+		GUI.RefreshDependencies()
+		GUI.RefreshModified()
 	end
 	return count
 end
@@ -225,10 +272,9 @@ function GUI.ApplyChange(control, value)
 	if control.apply then
 		control.apply(value)
 	end
-	if control.reload and GUI.MarkReload then
-		GUI.MarkReload()
-	end
+	GUI.FlagReload(control)
 	GUI.RefreshDependencies()
+	GUI.RefreshModified()
 end
 
 -- ---------------------------------------------------------------------------
@@ -240,17 +286,37 @@ end
 
 GUI.dependents = {}
 
+-- `dependsOn` greys a control while that setting is off. `disabledWhen` is the
+-- reverse, it greys the control while that setting is on, for a value another
+-- setting manages (the UI scale slider while Auto UI Scale is on).
 function GUI.RegisterDependent(widget, control)
-	if control.dependsOn then
-		GUI.dependents[#GUI.dependents + 1] = { widget = widget, path = control.dependsOn }
+	if control.dependsOn or control.disabledWhen then
+		GUI.dependents[#GUI.dependents + 1] = { widget = widget, path = control.dependsOn, off = control.disabledWhen }
 	end
 end
 
 function GUI.RefreshDependencies()
 	for _, entry in ipairs(GUI.dependents) do
 		if entry.widget.KKUI_SetEnabled then
-			entry.widget.KKUI_SetEnabled(GUI.GetValue(entry.path) and true or false)
+			local enabled = true
+			if entry.path then
+				enabled = GUI.GetValue(entry.path) and true or false
+			end
+			if enabled and entry.off and GUI.GetValue(entry.off) then
+				enabled = false
+			end
+			entry.widget.KKUI_SetEnabled(enabled)
 		end
+	end
+end
+
+-- A small dot beside every setting that differs from its default. The window
+-- registers one per control as it builds the page.
+GUI.modifiedDots = {}
+
+function GUI.RefreshModified()
+	for control, dot in pairs(GUI.modifiedDots) do
+		dot:SetShown(GUI.IsModified(control))
 	end
 end
 

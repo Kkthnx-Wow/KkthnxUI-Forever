@@ -11,6 +11,12 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local GUI = K.GUI
 
+-- Marking a setting as new: give it `since = "<version>"`, the release that adds
+-- it, for example `since = "1.0.0-beta5"`. Until its page is opened it carries
+-- Blizzard's NEW label and shows on the What's New page. A player who installs
+-- at or after that version sees nothing marked, so a tag is safe to leave in
+-- place once the release has shipped.
+
 -- The GUI loads before the modules, so resolve the action bar module lazily
 -- when a control actually fires (by which point it exists).
 local function ActionBarModule()
@@ -369,11 +375,11 @@ GUI.schema = {
 		columns = 2,
 		controls = {
 			{ kind = "header", label = L["Interface"] },
-			{ kind = "check", label = L["Auto UI Scale"], path = { "General", "AutoScale" }, reload = true },
-			{ kind = "slider", label = L["UI Scale"], path = { "General", "UIScale" }, min = 0.4, max = 1.15, step = 0.01, reload = true },
+			{ kind = "check", label = L["Auto UI Scale"], path = { "General", "AutoScale" }, reload = true, tooltip = L["Pick the UI scale from your screen height so text and borders stay sharp. Turn off to set the scale yourself."] },
+			{ kind = "slider", label = L["UI Scale"], path = { "General", "UIScale" }, min = 0.4, max = 1.15, step = 0.01, reload = true, disabledWhen = { "General", "AutoScale" }, tooltip = L["The UI scale used when Auto UI Scale is off. Turn off Auto UI Scale to use it."] },
 			{ kind = "dropdown", label = L["Font"], path = { "General", "Font" }, options = MediaOptions(C.Media.Fonts), reload = true },
-			{ kind = "check", label = L["Font Outline"], path = { "General", "FontOutline" }, reload = true },
-			{ kind = "check", label = L["Welcome Message"], path = { "General", "WelcomeMessage" } },
+			{ kind = "check", label = L["Font Outline"], path = { "General", "FontOutline" }, reload = true, tooltip = L["Draw a thin outline around the addon text so it stays readable on bright backgrounds."] },
+			{ kind = "check", label = L["Welcome Message"], path = { "General", "WelcomeMessage" }, tooltip = L["Print the version and a short tip in chat when you log in."] },
 			{ kind = "button", label = L["Report a Bug"], onClick = function()
 				if K.GUI and K.GUI.Hide then
 					K.GUI.Hide()
@@ -392,7 +398,7 @@ GUI.schema = {
 				K.ResetMovers()
 			end },
 			{ kind = "header", label = L["Border"] },
-			{ kind = "dropdown", label = L["Border Style"], path = { "General", "BorderStyle" }, options = MediaOptions(C.Media.Borders), reload = true },
+			{ kind = "dropdown", label = L["Border Style"], path = { "General", "BorderStyle" }, options = MediaOptions(C.Media.Borders), reload = true, tooltip = L["The border texture used around frames and panels."] },
 			{ kind = "color", label = L["Border Color"], path = { "General", "BorderColor" }, apply = function()
 				K.RefreshBorderColors()
 			end },
@@ -561,10 +567,12 @@ GUI.schema = {
 			{ kind = "slider", label = L["Size"], path = { "Minimap", "Size" }, min = 120, max = 300, step = 2, reload = true, dependsOn = { "Minimap", "Enable" } },
 			{ kind = "check", label = L["Square Shape"], path = { "Minimap", "Square" }, reload = true, dependsOn = { "Minimap", "Enable" } },
 			{ kind = "check", label = L["Show Border"], path = { "Minimap", "ShowBorder" }, reload = true, dependsOn = { "Minimap", "Enable" } },
+			{ kind = "header", label = L["Fading"] },
 			{ kind = "check", label = L["Fade Until Hover"], path = { "Minimap", "MouseoverFade" }, reload = true, dependsOn = { "Minimap", "Enable" }, tooltip = L["Fade the minimap out while you are not hovering it."] },
 			{ kind = "slider", label = L["Faded Alpha"], path = { "Minimap", "FadeAlpha" }, min = 0, max = 0.9, step = 0.05, reload = true, dependsOn = { "Minimap", "MouseoverFade" } },
 			{ kind = "check", label = L["Fade Landing Button"], path = { "Minimap", "LandingFade" }, reload = true, dependsOn = { "Minimap", "Enable" }, tooltip = L["Fade the expansion landing page button, the faction symbol in the corner of the map, until you hover it."] },
 			{ kind = "slider", label = L["Landing Button Faded Alpha"], path = { "Minimap", "LandingFadeAlpha" }, min = 0, max = 1, step = 0.05, reload = true, dependsOn = { "Minimap", "LandingFade" } },
+			{ kind = "header", label = L["Zone, Clock and Coordinates"] },
 			{ kind = "check", label = L["Show Zone Text"], path = { "Minimap", "ShowLocation" }, reload = true, dependsOn = { "Minimap", "Enable" } },
 			{ kind = "slider", label = L["Zone Text Size"], path = { "Minimap", "LocationFontSize" }, min = 8, max = 20, step = 1, reload = true, dependsOn = { "Minimap", "ShowLocation" } },
 			{ kind = "check", label = L["Show Clock"], path = { "Minimap", "ShowClock" }, reload = true, dependsOn = { "Minimap", "Enable" } },
@@ -577,6 +585,7 @@ GUI.schema = {
 			}, tooltip = L["How exact the coordinates on the minimap and world map are. Game Setting follows the coordinates option in the game's own interface settings."] },
 			{ kind = "slider", label = L["Auto Zoom Reset"], path = { "Minimap", "ZoomResetDelay" }, min = 0, max = 30, step = 1, dependsOn = { "Minimap", "Enable" }, tooltip = L["Seconds of no scrolling before the minimap zooms back out. 0 turns it off."] },
 			{ kind = "slider", label = L["Collected Button Size"], path = { "Minimap", "CollectedButtonSize" }, min = 16, max = 32, step = 1, reload = true, dependsOn = { "Minimap", "CollectButtons" }, tooltip = L["How big each addon button is inside the collector flyout."] },
+			{ kind = "header", label = L["Performance Readout"] },
 			{ kind = "check", label = L["Show Performance"], path = { "Minimap", "ShowPerformance" }, reload = true, dependsOn = { "Minimap", "Enable" }, tooltip = L["Framerate and latency, graded by colour. Movable, and hovering shows home and world latency plus the addons costing the most time."] },
 			{ kind = "slider", label = L["Performance Text Size"], path = { "Minimap", "PerformanceFontSize" }, min = 8, max = 20, step = 1, reload = true, dependsOn = { "Minimap", "ShowPerformance" } },
 			{ kind = "dropdown", label = L["Performance Separator"], path = { "Minimap", "PerformanceSeparator" }, options = {
@@ -590,6 +599,7 @@ GUI.schema = {
 				{ text = L["Custom"], value = "Custom" },
 			}, dependsOn = { "Minimap", "ShowPerformance" }, tooltip = L["Colour of the fps and ms labels. The numbers themselves are always graded green through red."] },
 			{ kind = "color", label = L["Performance Custom Color"], path = { "Minimap", "PerformanceCustomColor" }, dependsOn = { "Minimap", "ShowPerformance" } },
+			{ kind = "header", label = L["Button Collector"] },
 			{ kind = "check", label = L["Collect Minimap Buttons"], path = { "Minimap", "CollectButtons" }, reload = true, dependsOn = { "Minimap", "Enable" } },
 				{ kind = "dropdown", label = L["Button Collector Corner"], path = { "Minimap", "ButtonCorner" }, options = {
 					{ text = L["Bottom Left"], value = "BOTTOMLEFT" },
@@ -620,12 +630,12 @@ GUI.schema = {
 		title = L["Buffs & Debuffs"],
 		controls = {
 			{ kind = "header", label = L["Player Auras"] },
-			{ kind = "check", label = L["Enable Buffs & Debuffs"], path = { "Auras", "Enable" }, reload = true },
+			{ kind = "check", label = L["Enable Buffs & Debuffs"], path = { "Auras", "Enable" }, reload = true, tooltip = L["Replace the stock buff and debuff frames with our own. Turn off to keep Blizzard's."] },
 			{ kind = "slider", label = L["Buff Size"], path = { "Auras", "BuffSize" }, min = 20, max = 44, step = 1, reload = true, dependsOn = { "Auras", "Enable" } },
 			{ kind = "slider", label = L["Debuff Size"], path = { "Auras", "DebuffSize" }, min = 20, max = 44, step = 1, reload = true, dependsOn = { "Auras", "Enable" } },
-			{ kind = "slider", label = L["Per Row"], path = { "Auras", "PerRow" }, min = 4, max = 16, step = 1, reload = true, dependsOn = { "Auras", "Enable" } },
+			{ kind = "slider", label = L["Per Row"], path = { "Auras", "PerRow" }, min = 4, max = 16, step = 1, reload = true, dependsOn = { "Auras", "Enable" }, tooltip = L["How many auras sit in one row before it wraps to the next."] },
 			{ kind = "slider", label = L["Spacing"], path = { "Auras", "Spacing" }, min = 0, max = 12, step = 1, reload = true, dependsOn = { "Auras", "Enable" } },
-			{ kind = "check", label = L["Show Weapon Enchants"], path = { "Auras", "WeaponEnchant" }, reload = true, dependsOn = { "Auras", "Enable" } },
+			{ kind = "check", label = L["Show Weapon Enchants"], path = { "Auras", "WeaponEnchant" }, reload = true, dependsOn = { "Auras", "Enable" }, tooltip = L["Show temporary weapon enchants, such as poisons and sharpening stones, as aura icons."] },
 		},
 	},
 
@@ -644,29 +654,37 @@ GUI.schema = {
 		icon = "Interface/ICONS/UI_Chat",
 		title = L["Chat"],
 		controls = {
-			{ kind = "header", label = L["Chat"] },
+			{ kind = "header", label = L["Chat Window"] },
 			{ kind = "check", label = L["Enable Chat Skin"], path = { "Chat", "Enable" }, reload = true },
 			{ kind = "slider", label = L["Chat Width"], path = { "Chat", "Width" }, min = 250, max = 900, step = 10, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "slider", label = L["Chat Height"], path = { "Chat", "Height" }, min = 100, max = 600, step = 10, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "header", label = L["Text"] },
 			{ kind = "dropdown", label = L["Font"], path = { "Chat", "Font" }, options = MediaOptions(C.Media.Fonts), reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Font used for chat text, separate from the interface font."] },
 			{ kind = "slider", label = L["Font Size"], path = { "Chat", "FontSize" }, min = 10, max = 20, step = 1, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Font Outline"], path = { "Chat", "FontOutline" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "header", label = L["Behaviour"] },
 			{ kind = "check", label = L["Mouse Wheel Scroll"], path = { "Chat", "MouseWheelScroll" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Sticky Whisper (Experimental)"], path = { "Chat", "StickyWhisper" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Keep the edit box on whisper after replying. Experimental: it changes a chat setting that the stock edit box reads when you press Enter, which can taint whisper handling."] },
 			{ kind = "check", label = L["Whisper Sound"], path = { "Chat", "WhisperSound" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Play a sound when you receive a whisper."] },
 			{ kind = "check", label = L["Remember Chat History"], path = { "Chat", "HistoryPersist" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replay your recent player chat after a reload or relog."] },
+			{ kind = "header", label = L["Chat Bubbles"] },
 			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Give the in-world chat bubbles our border and dark background."] },
 			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Show who is speaking above the chat bubble, in their class colour."] },
+			{ kind = "header", label = L["Names and Links"] },
 			{ kind = "check", label = L["Shorten Channel Names"], path = { "Chat", "ShortenChannels" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Class Colored Names"], path = { "Chat", "ClassColorNames" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Clickable URLs"], path = { "Chat", "URLLinks" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Hyperlink Hover Tooltips"], path = { "Chat", "HyperlinkTooltip" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Loot Icons"], path = { "Chat", "LootIcons" }, since = "1.0.0-beta5", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Show the item icon in front of items in loot messages."] },
+			{ kind = "check", label = L["Item Level in Links"], path = { "Chat", "LinkItemLevel" }, since = "1.0.0-beta5", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Show the item level inside the brackets of weapon and armor links in chat."] },
+			{ kind = "header", label = L["Extras"] },
 			{ kind = "check", label = L["Channel Quick Bar"], path = { "Chat", "ChatBar" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Side Button Strip"], path = { "Chat", "SideButtons" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A fading column of icon buttons on the left of the chat for channels, copy, scroll, and config."] },
 			{ kind = "check", label = L["Repeat Spam Filter"], path = { "Chat", "SpamFilter" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Drop identical messages repeated in public channels within 30 seconds."] },
 			{ kind = "check", label = L["Gradient Backdrop"], path = { "Chat", "GradientBackdrop" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A soft class-colored fade behind the chat that fades out to the right."] },
 			{ kind = "check", label = L["Copy Button"], path = { "Chat", "CopyButton" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Timestamps"], path = { "Chat", "Timestamps" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "header", label = L["Keywords"] },
 			{ kind = "check", label = L["Highlight Keywords"], path = { "Chat", "KeywordHighlight" }, dependsOn = { "Chat", "Enable" }, tooltip = L["Colour your name and any keywords you set wherever they appear in chat."] },
 			{ kind = "editbox", label = L["Extra Keywords"], path = { "Chat", "KeywordList" }, dependsOn = { "Chat", "KeywordHighlight" }, tooltip = L["Comma separated words to watch for. Your name is always watched."], apply = function()
 				local m = K:GetModule("Chat")
@@ -677,6 +695,7 @@ GUI.schema = {
 			{ kind = "color", label = L["Keyword Color"], path = { "Chat", "KeywordColor" }, dependsOn = { "Chat", "KeywordHighlight" } },
 			{ kind = "check", label = L["Keyword Sound"], path = { "Chat", "KeywordSound" }, dependsOn = { "Chat", "KeywordHighlight" }, tooltip = L["Play a short sound when a keyword is mentioned."] },
 			{ kind = "check", label = L["Keyword Count Badge"], path = { "Chat", "KeywordCount" }, reload = true, dependsOn = { "Chat", "KeywordHighlight" }, tooltip = L["Show a badge counting unread keyword mentions in the corner of the chat."] },
+			{ kind = "header", label = L["Fading"] },
 			{ kind = "check", label = L["Fade Inactive Chat"], path = { "Chat", "Fade" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Idle Fade"], path = { "Chat", "IdleFade" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Dim the whole chat to a resting alpha when idle and lift it on hover, instead of dropping old lines."] },
 			{ kind = "slider", label = L["Idle Fade Alpha"], path = { "Chat", "IdleFadeAlpha" }, min = 0, max = 0.9, step = 0.05, reload = true, dependsOn = { "Chat", "IdleFade" } },
@@ -695,7 +714,7 @@ GUI.schema = {
 			{ kind = "slider", label = L["Height"], path = { "Nameplate", "Height" }, min = 6, max = 30, step = 1, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "slider", label = L["Name Size"], path = { "Nameplate", "NameSize" }, min = 8, max = 20, step = 1, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "slider", label = L["View Distance"], path = { "Nameplate", "MaxDistance" }, min = 20, max = 100, step = 5, reload = true, dependsOn = { "Nameplate", "Enable" } },
-			{ kind = "header", label = L["Elements"] },
+			{ kind = "header", label = L["Health and Names"] },
 			{ kind = "check", label = L["Class Colored Health"], path = { "Nameplate", "ClassColor" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Health Percent Text"], path = { "Nameplate", "ShowHealthText" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Quest Icon"], path = { "Nameplate", "ShowQuestIcon" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
@@ -708,23 +727,28 @@ GUI.schema = {
 			{ kind = "check", label = L["Elite / Rare / Boss Icon"], path = { "Nameplate", "ShowClassification" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Friendly Name Only"], path = { "Nameplate", "FriendlyNameOnly" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Hide the health bar on friendly units, showing just the name."] },
 			{ kind = "check", label = L["Guild Name (name-only)"], path = { "Nameplate", "ShowGuildName" }, reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show a player's guild under their name in name-only mode."] },
+			{ kind = "header", label = L["Threat and Colours"] },
 			{ kind = "check", label = L["Threat Coloring"], path = { "Nameplate", "ThreatColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint the plate shadow by your threat: holding, losing, or pulling aggro."] },
 			{ kind = "check", label = L["Threat Health Color"], path = { "Nameplate", "ThreatHealthColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour the enemy health bar itself by your threat, role-aware, instead of by reaction."] },
 			{ kind = "check", label = L["Role Colors"], path = { "Nameplate", "RoleColors" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour hostile plates by caster or melee so casters stand out. A unit that runs on mana is read as a caster."] },
 			{ kind = "color", label = L["Caster Color"], path = { "Nameplate", "CasterColor" }, reload = true, dependsOn = { "Nameplate", "RoleColors" } },
 			{ kind = "color", label = L["Melee Color"], path = { "Nameplate", "MeleeColor" }, reload = true, dependsOn = { "Nameplate", "RoleColors" } },
+			{ kind = "header", label = L["Execute Phase"] },
 			{ kind = "slider", label = L["Execute Range"], path = { "Nameplate", "ExecuteRange" }, min = 0, max = 50, step = 5, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint an enemy's health bar once it drops below this percent. Zero turns it off."] },
 			{ kind = "color", label = L["Execute Color"], path = { "Nameplate", "ExecuteColor" }, reload = true, dependsOn = { "Nameplate", "ExecuteRange" } },
+			{ kind = "header", label = L["Target"] },
 			{ kind = "check", label = L["Target Highlight"], path = { "Nameplate", "TargetHighlight" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Target Class Resource"], path = { "Nameplate", "TargetPower" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Show your combo points / class resource on the target's nameplate."] },
+			{ kind = "header", label = L["Castbar"] },
 			{ kind = "check", label = L["Show Castbar"], path = { "Nameplate", "ShowCastbar" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "slider", label = L["Castbar Height"], path = { "Nameplate", "CastbarHeight" }, min = 8, max = 30, step = 1, reload = true, dependsOn = { "Nameplate", "ShowCastbar" } },
+			{ kind = "header", label = L["Debuffs"] },
 			{ kind = "check", label = L["Show Debuffs"], path = { "Nameplate", "ShowDebuffs" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
-			{ kind = "check", label = L["Only My Debuffs"], path = { "Nameplate", "OnlyMyDebuffs" }, reload = true, dependsOn = { "Nameplate", "ShowDebuffs" } },
+			{ kind = "check", label = L["Only My Debuffs"], path = { "Nameplate", "OnlyMyDebuffs" }, reload = true, dependsOn = { "Nameplate", "ShowDebuffs" }, tooltip = L["Show only the debuffs you applied yourself."] },
 			{ kind = "slider", label = L["Debuff Size"], path = { "Nameplate", "AuraSize" }, min = 16, max = 40, step = 1, reload = true, dependsOn = { "Nameplate", "ShowDebuffs" } },
 			{ kind = "slider", label = L["Debuff Spacing"], path = { "Nameplate", "AuraSpacing" }, min = 0, max = 12, step = 1, reload = true, dependsOn = { "Nameplate", "ShowDebuffs" } },
 			{ kind = "slider", label = L["Max Debuffs"], path = { "Nameplate", "MaxAuras" }, min = 1, max = 10, step = 1, reload = true, dependsOn = { "Nameplate", "ShowDebuffs" } },
-				{ kind = "check", label = L["Show Private Auras"], path = { "Nameplate", "PrivateAuras" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
+				{ kind = "check", label = L["Show Private Auras"], path = { "Nameplate", "PrivateAuras" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Show Blizzard's private auras, the boss mechanics only you can see, on the plate."] },
 				{ kind = "slider", label = L["Private Aura Size"], path = { "Nameplate", "PrivateAuraSize" }, min = 16, max = 44, step = 1, reload = true, dependsOn = { "Nameplate", "PrivateAuras" } },
 
 			{ kind = "header", label = L["Custom Unit Colors"] },
@@ -741,7 +765,7 @@ GUI.schema = {
 		controls = {
 			{ kind = "header", label = L["Tooltip"] },
 			{ kind = "check", label = L["Enable Tooltip Skin"], path = { "Tooltip", "Enable" }, reload = true },
-			{ kind = "check", label = L["Anchor To Cursor"], path = { "Tooltip", "CursorAnchor" }, dependsOn = { "Tooltip", "Enable" } },
+			{ kind = "check", label = L["Anchor To Cursor"], path = { "Tooltip", "CursorAnchor" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Follow the cursor instead of sitting in the default corner."] },
 			{ kind = "check", label = L["Hide In Combat"], path = { "Tooltip", "HideInCombat" }, dependsOn = { "Tooltip", "Enable" } },
 			{ kind = "dropdown", label = L["Health Bar Position"], path = { "Tooltip", "HealthBarPosition" }, options = {
 				{ text = L["Top"], value = "TOP" },
@@ -754,19 +778,19 @@ GUI.schema = {
 			{ kind = "check", label = L["Show Raid Target Icon"], path = { "Tooltip", "ShowRaidIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the skull/star/etc. marker ahead of a marked unit's name."] },
 			{ kind = "check", label = L["Show Faction Icon"], path = { "Tooltip", "ShowFactionIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a Horde/Alliance crest on the name and hide the faction text line."] },
 			{ kind = "check", label = L["Border Color By Unit"], path = { "Tooltip", "BorderColor" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Tint the tooltip border by the unit's class or reaction."] },
-			{ kind = "check", label = L["Show Mount"], path = { "Tooltip", "ShowMount" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Show Role Icon"], path = { "Tooltip", "ShowRole" }, dependsOn = { "Tooltip", "Enable" } },
+			{ kind = "check", label = L["Show Mount"], path = { "Tooltip", "ShowMount" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the mount a player is riding. Off by default because it adds a line to every player tooltip."] },
+			{ kind = "check", label = L["Show Role Icon"], path = { "Tooltip", "ShowRole" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a tank, healer or damage icon for group members."] },
 			{ kind = "check", label = L["Show Targeted By"], path = { "Tooltip", "ShowTargetedBy" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["List which group members are targeting the unit."] },
 			{ kind = "check", label = L["Show Target"], path = { "Tooltip", "ShowTarget" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Show Guild"], path = { "Tooltip", "ShowGuild" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Show Item Level"], path = { "Tooltip", "ShowItemLevel" }, dependsOn = { "Tooltip", "Enable" } },
+			{ kind = "check", label = L["Show Guild"], path = { "Tooltip", "ShowGuild" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the <Guild> line for players."] },
+			{ kind = "check", label = L["Show Item Level"], path = { "Tooltip", "ShowItemLevel" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Inspect players to show their item level and spec on the tooltip."] },
 			{ kind = "check", label = L["Item Level On Shift"], path = { "Tooltip", "ItemLevelOnShift" }, dependsOn = { "Tooltip", "ShowItemLevel" }, tooltip = L["Only inspect for item level while you hold shift. Hold it before you hover, since the lookup happens as the tooltip is built."] },
 			{ kind = "check", label = L["Show IDs"], path = { "Tooltip", "ShowIDs" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Append spell, item, currency, and mount ids to tooltips."] },
 			{ kind = "check", label = L["Show Item Count"], path = { "Tooltip", "ShowItemCount" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show how many of an item you hold in the bags and the bank."] },
 			{ kind = "check", label = L["Show Icons"], path = { "Tooltip", "ShowIcons" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the item, spell, or mount icon beside the tooltip title."] },
 			{ kind = "check", label = L["Show Mount Source"], path = { "Tooltip", "ShowMountSource" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Hold Shift over a player's mount buff to see its collection status and source."] },
-			{ kind = "check", label = L["Show Title"], path = { "Tooltip", "ShowTitle" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Hide PvP Line"], path = { "Tooltip", "HidePvP" }, dependsOn = { "Tooltip", "Enable" } },
+			{ kind = "check", label = L["Show Title"], path = { "Tooltip", "ShowTitle" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the player's title in place of the plain name."] },
+			{ kind = "check", label = L["Hide PvP Line"], path = { "Tooltip", "HidePvP" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Hide the large red PvP line."] },
 		},
 	},
 
@@ -889,6 +913,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Junk Coin Icon"], path = { "Bags", "JunkIcon" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" } },
 			{ kind = "check", label = L["Equipment Set Marker"], path = { "Bags", "ShowEquipmentSet" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Put a small square on items that belong to a saved equipment set."] },
 			{ kind = "check", label = L["Fade Junk Items"], path = { "Bags", "DesaturateJunk" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Grey out the icon of vendor trash so it fades behind the rest."] },
+			{ kind = "check", label = L["Tint Unusable Gear"], path = { "Bags", "TintUnusable" }, since = "1.0.0-beta5", apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Tint the icon red on weapons and armor your character cannot use, going by the red lines the game puts in the item tooltip."] },
 			{ kind = "check", label = L["Delete Junk Button"], path = { "Bags", "DeleteButton" }, reload = true, dependsOn = { "Bags", "Enable" }, tooltip = L["Show a button that deletes your lowest value junk item to free a slot."] },
 			{ kind = "check", label = L["Quest Item Colour"], path = { "Bags", "QuestColor" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Give quest items a quest-yellow border and a bang on items that start a quest."] },
 			{ kind = "check", label = L["Reagent Bag Section"], path = { "Bags", "ReagentBagSection" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Group everything in the reagent pouch into its own section."] },
@@ -988,6 +1013,9 @@ GUI.schema = {
 			{ kind = "check", label = L["Auto Repair"], path = { "Automation", "AutoRepair" }, dependsOn = { "Automation", "Enable" }, tooltip = L["Repair all gear when a repair-capable merchant opens."] },
 			{ kind = "check", label = L["Repair With Guild Funds"], path = { "Automation", "RepairGuildFunds" }, dependsOn = { "Automation", "Enable" }, tooltip = L["Spend guild bank money first when you have repair permission, then fall back to your own."] },
 			{ kind = "check", label = L["Auto Sell Junk"], path = { "Automation", "SellJunk" }, dependsOn = { "Automation", "Enable" }, tooltip = L["Sell all grey items automatically when you open a merchant. Works even with the KkthnxUI bags disabled."] },
+			{ kind = "check", label = L["Auto Accept Summons"], path = { "Automation", "AutoSummon" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a summon after 10 seconds, out of combat, so you can still cancel it."] },
+			{ kind = "check", label = L["Auto Accept Resurrection"], path = { "Automation", "AutoResurrect" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a resurrection request when you are out of combat."] },
+			{ kind = "check", label = L["Auto Accept Invites"], path = { "Automation", "AutoInvite" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept group invites from friends, Battle.net friends and guild members."] },
 
 				{ kind = "header", label = L["Auto Quest"] },
 				{ kind = "check", label = L["Enable Auto Quest"], path = { "AutoQuest", "Enable" }, reload = true, tooltip = L["Accept and turn in quests automatically. Hold the pause key to do it by hand."] },
@@ -1050,6 +1078,16 @@ GUI.schema = {
 			{ kind = "header", label = L["Screenshots"] },
 			{ kind = "check", label = L["Achievement Screenshot"], path = { "QoL", "AchievementShot" }, reload = true, tooltip = L["Take a screenshot a moment after you earn an achievement."] },
 
+			{ kind = "header", label = L["Level Announcer"] },
+			{ kind = "check", label = L["Level Announcer"], path = { "QoL", "LevelAnnouncer" }, since = "1.0.0-beta5", reload = true, tooltip = L["Say how long each level took when you ding. The clock is saved per character and keeps running while you are logged out."] },
+			{ kind = "dropdown", label = L["Announce Channel"], path = { "QoL", "LevelChannel" }, since = "1.0.0-beta5", options = {
+				{ text = L["Local Only"], value = "LOCAL" },
+				{ text = L["Say"], value = "SAY" },
+				{ text = L["Party or Raid"], value = "PARTY" },
+				{ text = L["Guild"], value = "GUILD" },
+			}, dependsOn = { "QoL", "LevelAnnouncer" }, tooltip = L["Where the message goes. Falls back to a local line when that channel is not available."] },
+			{ kind = "check", label = L["Max Level Message"], path = { "QoL", "LevelMaxMessage" }, since = "1.0.0-beta5", dependsOn = { "QoL", "LevelAnnouncer" }, tooltip = L["Use a special line when you reach the maximum level."] },
+
 			{ kind = "header", label = L["Combat Logging"] },
 			{ kind = "check", label = L["Automatic Combat Logging"], path = { "QoL", "AutoLog" }, reload = true, tooltip = L["Turn combat logging on in the content below and off half a minute after you leave. A log you start yourself is never stopped."] },
 			{ kind = "check", label = L["Normal Raids"], path = { "QoL", "AutoLogRaidNormal" }, dependsOn = { "QoL", "AutoLog" } },
@@ -1105,5 +1143,11 @@ GUI.schema = {
 		icon = "Interface/ICONS/INV_Misc_Note_01",
 		title = L["Profiles"],
 		custom = "Profiles",
+	},
+	-- Built by WhatsNew.lua from every control carrying a since tag.
+	{
+		name = "WhatsNew",
+		title = L["What's New"],
+		custom = "WhatsNew",
 	},
 }
