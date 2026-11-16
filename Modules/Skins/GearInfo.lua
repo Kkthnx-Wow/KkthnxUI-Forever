@@ -28,6 +28,8 @@ local CreateFrame = CreateFrame
 local C_Item = C_Item
 local Item = Item
 local GameTooltip = GameTooltip
+local UnitLevel = UnitLevel
+local GetMaxLevelForPlayerExpansion = GetMaxLevelForPlayerExpansion
 local IsSecret = K.IsSecret
 
 local crimson = K.Colors.crimson
@@ -154,6 +156,17 @@ local function EnchantID(link)
 	return id and id > 0 and id or nil
 end
 
+-- A missing enchant is only worth a warning on a character at the level cap.
+-- While leveling nearly every slot is unenchanted and the paper doll filled with
+-- red markers. An unknown or hidden level counts as not at the cap.
+local function AtLevelCap(unit)
+	local level = unit and UnitLevel(unit)
+	if not level or IsSecret(level) then
+		return false
+	end
+	return level >= GetMaxLevelForPlayerExpansion()
+end
+
 local function Clear(overlay)
 	overlay.used = 0
 	for i = 1, MAX_GEMS + 1 do
@@ -174,7 +187,7 @@ function Module.UpdateGear(slot, unit, id, link)
 	end
 
 	local slotGlobal = ENCHANTABLE[id]
-	if slotGlobal and not EnchantID(link) then
+	if slotGlobal and not EnchantID(link) and AtLevelCap(unit) then
 		local frame = Place(slot, overlay, id)
 		frame.isMissing = true
 		frame.slotName = _G[slotGlobal]

@@ -373,8 +373,10 @@ end
 -- Completion state + lifecycle
 -- ---------------------------------------------------------------------------
 
+-- Setup is a first run greeting. Any recorded version counts as done, so an
+-- update does not put the window back on screen. /kk install reopens it.
 function Module:IsInstalled()
-	return KkthnxUIDB and KkthnxUIDB.installedVersion == K.Version
+	return KkthnxUIDB and KkthnxUIDB.installedVersion ~= nil
 end
 
 function Module:MarkInstalled()
