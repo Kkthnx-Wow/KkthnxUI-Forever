@@ -191,13 +191,24 @@ function Module:SetupReveal()
 	local check = CreateFrame("CheckButton", "KKUI_MapRevealCheck", border or WorldMapFrame, "UICheckButtonTemplate")
 	check:SetSize(24, 24)
 	check:SetHitRectInsets(-4, -4, -4, -4)
-	-- The border frame draws its own title art over its children, so lift the box
-	-- (and its label) above it or it hides behind the map header.
-	check:SetFrameLevel((border and border:GetFrameLevel() or 1) + 10)
+	-- The border frame draws its title bar from child frames that sit hundreds of
+	-- levels above it (the nine slice and the title container), so a fixed bump
+	-- left the box and its label hidden behind the map header. Go one above the
+	-- highest child instead.
+	local level = border and border:GetFrameLevel() or 1
+	if border then
+		for _, child in ipairs({ border:GetChildren() }) do
+			if child ~= check and child:GetFrameLevel() > level then
+				level = child:GetFrameLevel()
+			end
+		end
+	end
+	check:SetFrameLevel(level + 1)
 
 	-- Sit just to the left of the map's maximize/minimize button, where the title
 	-- bar has open room. The label reads inward, to the left of the box.
-	local maxMin = border and border.MaximizeMinimizeButton
+	-- Forever names it MaximizeMinimizeFrame. The other key is the Retail one.
+	local maxMin = border and (border.MaximizeMinimizeFrame or border.MaximizeMinimizeButton)
 	if maxMin then
 		check:SetPoint("RIGHT", maxMin, "LEFT", -4, 0)
 	else
