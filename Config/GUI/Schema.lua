@@ -110,6 +110,14 @@ local TEXT_FORMATS = {
 
 local CASTBAR_DEP = { "Unitframe", "Castbar", "Enable" }
 
+-- The border styles by readable name, the folder name as the value.
+local BORDER_STYLES = {
+	{ text = "KkthnxUI", value = "KkthnxUI" },
+	{ text = L["Pixel"], value = "KkthnxUI_Pixel" },
+	{ text = L["Blank"], value = "KkthnxUI_Blank" },
+	{ text = "AzeriteUI", value = "AzeriteUI" },
+}
+
 -- Build dropdown option lists from a media table's keys.
 local function MediaOptions(tbl)
 	local list = {}
@@ -119,6 +127,16 @@ local function MediaOptions(tbl)
 	table.sort(list, function(a, b)
 		return a.text < b.text
 	end)
+	return list
+end
+
+-- The same list for bar textures, with each texture carried along so the
+-- dropdown can draw it.
+local function BarOptions(tbl)
+	local list = MediaOptions(tbl)
+	for _, opt in ipairs(list) do
+		opt.bar = tbl[opt.value]
+	end
 	return list
 end
 
@@ -398,8 +416,11 @@ GUI.schema = {
 				K.ResetMovers()
 			end },
 			{ kind = "header", label = L["Border"] },
-			{ kind = "dropdown", label = L["Border Style"], path = { "General", "BorderStyle" }, options = MediaOptions(C.Media.Borders), reload = true, tooltip = L["The border texture used around frames and panels."] },
-			{ kind = "color", label = L["Border Color"], path = { "General", "BorderColor" }, apply = function()
+			{ kind = "dropdown", label = L["Border Style"], path = { "General", "BorderStyle" }, options = BORDER_STYLES, reload = true, tooltip = L["The border texture used around frames and panels."] },
+			{ kind = "check", label = L["Use Forever Gold"], path = { "General", "ForeverGold" }, since = "1.0.0-beta6", tooltip = L["Colour every border the gold trim Forever uses on its own windows, matched to the border style. Your own border colour is kept and comes back when this is off."], apply = function()
+				K.RefreshBorderColors()
+			end },
+			{ kind = "color", label = L["Border Color"], path = { "General", "BorderColor" }, disabledWhen = { "General", "ForeverGold" }, tooltip = L["The colour of every border."], apply = function()
 				K.RefreshBorderColors()
 			end },
 		},
@@ -469,7 +490,7 @@ GUI.schema = {
 		controls = {
 			{ kind = "header", label = L["Global"] },
 			{ kind = "check", label = L["Enable Unit Frames"], path = { "Unitframe", "Enable" }, reload = true },
-			{ kind = "dropdown", label = L["Status Bar Texture"], path = { "Unitframe", "Texture" }, options = MediaOptions(C.Media.Statusbars), reload = true },
+			{ kind = "dropdown", label = L["Status Bar Texture"], path = { "Unitframe", "Texture" }, options = BarOptions(C.Media.Statusbars), barPreview = true, since = "1.0.0-beta6", reload = true, tooltip = L["The texture on every bar the UI draws. KkthnxUI Forever is the game's own bar art from its cooldown manager."] },
 			{ kind = "check", label = L["Smooth Bar Animation"], path = { "Unitframe", "Smooth" }, reload = true },
 			{ kind = "check", label = L["Class Colored Health"], path = { "Unitframe", "ClassHealth" }, reload = true },
 			{ kind = "check", label = L["Class Colored Border"], path = { "Unitframe", "ClassColorBorder" }, apply = RefreshHealthBorders, tooltip = L["Threat still takes the border over while you have aggro."] },
@@ -736,6 +757,9 @@ GUI.schema = {
 			{ kind = "header", label = L["Execute Phase"] },
 			{ kind = "slider", label = L["Execute Range"], path = { "Nameplate", "ExecuteRange" }, min = 0, max = 50, step = 5, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint an enemy's health bar once it drops below this percent. Zero turns it off."] },
 			{ kind = "color", label = L["Execute Color"], path = { "Nameplate", "ExecuteColor" }, reload = true, dependsOn = { "Nameplate", "ExecuteRange" } },
+			{ kind = "check", label = L["Focus Color"], path = { "Nameplate", "FocusHighlight" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour your focus's health bar so a crowd control or interrupt target is easy to find. Your custom unit colours still come first."] },
+			{ kind = "color", label = L["Focus Bar Color"], path = { "Nameplate", "FocusColor" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Nameplate", "FocusHighlight" } },
+			{ kind = "slider", label = L["Non-Target Alpha"], path = { "Nameplate", "NonTargetAlpha" }, since = "1.0.0-beta6", min = 0.3, max = 1, step = 0.05, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Fade every other plate while you have a target, so the target stands out. At 1 nothing fades."] },
 			{ kind = "header", label = L["Target"] },
 			{ kind = "check", label = L["Target Highlight"], path = { "Nameplate", "TargetHighlight" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Target Class Resource"], path = { "Nameplate", "TargetPower" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Show your combo points / class resource on the target's nameplate."] },
@@ -777,7 +801,8 @@ GUI.schema = {
 			{ kind = "check", label = L["Show Realm Name"], path = { "Tooltip", "ShowRealm" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Append the realm for players from another realm."] },
 			{ kind = "check", label = L["Show Raid Target Icon"], path = { "Tooltip", "ShowRaidIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the skull/star/etc. marker ahead of a marked unit's name."] },
 			{ kind = "check", label = L["Show Faction Icon"], path = { "Tooltip", "ShowFactionIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a Horde/Alliance crest on the name and hide the faction text line."] },
-			{ kind = "check", label = L["Border Color By Unit"], path = { "Tooltip", "BorderColor" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Tint the tooltip border by the unit's class or reaction."] },
+			{ kind = "check", label = L["Unit Frame Click Hint"], path = { "Tooltip", "UnitFrameHint" }, since = "1.0.0-beta6", dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the line telling you to right click a unit frame for its menu."] },
+			{ kind = "check", label = L["Item Quality Border"], path = { "Tooltip", "BorderColor" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Tint the tooltip border in the item's quality colour. Unit tooltips keep the normal border colour."] },
 			{ kind = "check", label = L["Show Mount"], path = { "Tooltip", "ShowMount" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the mount a player is riding. Off by default because it adds a line to every player tooltip."] },
 			{ kind = "check", label = L["Show Role Icon"], path = { "Tooltip", "ShowRole" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a tank, healer or damage icon for group members."] },
 			{ kind = "check", label = L["Show Targeted By"], path = { "Tooltip", "ShowTargetedBy" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["List which group members are targeting the unit."] },
@@ -1010,15 +1035,24 @@ GUI.schema = {
 			{ kind = "check", label = L["Auto Accept Summons"], path = { "Automation", "AutoSummon" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a summon after 10 seconds, out of combat, so you can still cancel it."] },
 			{ kind = "check", label = L["Auto Accept Resurrection"], path = { "Automation", "AutoResurrect" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a resurrection request when you are out of combat."] },
 			{ kind = "check", label = L["Auto Accept Invites"], path = { "Automation", "AutoInvite" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept group invites from friends, Battle.net friends and guild members."] },
+			{ kind = "check", label = L["Release In Battlegrounds"], path = { "Automation", "BattlegroundRelease" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Automation", "Enable" }, tooltip = L["Release your spirit as soon as you die in a battleground. Never in arenas, and never when you have a soulstone or similar way back. Hold Shift as you die to stay where you fell."] },
 
 				{ kind = "header", label = L["Auto Quest"] },
 				{ kind = "check", label = L["Enable Auto Quest"], path = { "AutoQuest", "Enable" }, reload = true, tooltip = L["Accept and turn in quests automatically. Hold the pause key to do it by hand."] },
-				{ kind = "check", label = L["Accept Quests"], path = { "AutoQuest", "Accept" }, dependsOn = { "AutoQuest", "Enable" } },
-				{ kind = "check", label = L["Turn In Quests"], path = { "AutoQuest", "TurnIn" }, dependsOn = { "AutoQuest", "Enable" } },
-				{ kind = "check", label = L["Pick Best Reward"], path = { "AutoQuest", "SelectReward" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["On a choice of rewards, take the one worth the most gold."] },
-				{ kind = "check", label = L["Skip Gossip"], path = { "AutoQuest", "SkipGossip" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Click through an NPC with only a single gossip option."] },
-				{ kind = "check", label = L["Ignore Trivial Quests"], path = { "AutoQuest", "IgnoreTrivial" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Leave low-level grey quests alone."] },
+				{ kind = "check", label = L["Accept Quests"], path = { "AutoQuest", "Accept" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Pick up quests an NPC offers, one at a time. Stops when your quest log is full."] },
+				{ kind = "check", label = L["Turn In Quests"], path = { "AutoQuest", "TurnIn" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Hand in finished quests, grey ones included."] },
+				{ kind = "dropdown", label = L["Reward Choice"], path = { "AutoQuest", "RewardMode" }, since = "1.0.0-beta6", dependsOn = { "AutoQuest", "Enable" }, options = {
+					{ text = L["Take Best Seller"], value = "TAKE" },
+					{ text = L["Mark Best Seller"], value = "HIGHLIGHT" },
+					{ text = L["Choose Myself"], value = "OFF" },
+				}, tooltip = L["When a quest offers a choice of rewards, take the one that sells for the most, mark it with a coin and let you pick, or leave the choice to you. Rewards with no sell value are always left to you."] },
+				{ kind = "check", label = L["Skip Gossip"], path = { "AutoQuest", "SkipGossip" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Click through an NPC with only a single gossip option. Never for flight masters, quest givers, locked options or inside a raid."] },
+				{ kind = "check", label = L["Ignore Trivial Quests"], path = { "AutoQuest", "IgnoreTrivial" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Do not pick up low-level grey quests. Grey quests you already have are still handed in."] },
+				{ kind = "check", label = L["Repeatable Quests"], path = { "AutoQuest", "Repeatable" }, since = "1.0.0-beta6", dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Also accept and hand in daily and repeatable quests. Off by default, since these usually take your materials each time."] },
+				{ kind = "check", label = L["Skip Quests That Cost Gold"], path = { "AutoQuest", "SkipGoldCost" }, since = "1.0.0-beta6", dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Leave a quest for you to hand in when it asks for gold."] },
+				{ kind = "check", label = L["Accept Shared Quests"], path = { "AutoQuest", "SharedQuests" }, since = "1.0.0-beta6", dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Accept quests a party member shares with you, and confirm escort quests they start."] },
 				{ kind = "check", label = L["Share Quests"], path = { "AutoQuest", "Share" }, dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Push accepted quests to your party."] },
+				{ kind = "editbox", label = L["Ignored NPCs"], path = { "AutoQuest", "BlockedNPCs" }, since = "1.0.0-beta6", dependsOn = { "AutoQuest", "Enable" }, tooltip = L["Comma separated NPC IDs that auto quest leaves alone. While talking to an NPC, type /kk questblock to add or remove it."] },
 				{ kind = "dropdown", label = L["Pause Key"], path = { "AutoQuest", "PauseKey" }, dependsOn = { "AutoQuest", "Enable" }, options = {
 					{ text = SHIFT_KEY_TEXT or "Shift", value = "SHIFT" },
 					{ text = CTRL_KEY_TEXT or "Ctrl", value = "CTRL" },
@@ -1041,7 +1075,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Group Death Alert"], path = { "QoL", "GroupDeath" }, reload = true, tooltip = L["Show the name of a party or raid member in the middle of the screen when they die."] },
 
 			{ kind = "header", label = L["Stats"] },
-			{ kind = "check", label = L["Secondary Stats"], path = { "QoL", "SecondaryStats" }, reload = true, tooltip = L["Show critical strike, haste, mastery and versatility on screen. Values freeze while the game hides them in encounters."] },
+			{ kind = "check", label = L["Character Stats"], path = { "QoL", "SecondaryStats" }, reload = true, tooltip = L["Show the combat stats that matter for your class on screen, such as attack power, spell power, crit and hit. A value the game hides keeps its last reading."] },
 			{ kind = "slider", label = L["Stats Text Size"], path = { "QoL", "StatsSize" }, min = 9, max = 28, step = 1, apply = ApplyQoL, dependsOn = { "QoL", "SecondaryStats" } },
 
 			{ kind = "header", label = L["Finds and Invites"] },
@@ -1051,6 +1085,8 @@ GUI.schema = {
 			{ kind = "check", label = L["Block Stranger Invites"], path = { "QoL", "BlockInvites" }, reload = true, tooltip = L["Turn away group invites from anyone who is not a friend, Battle.net friend or guild member. Not used while you have a group finder application or listing."] },
 			{ kind = "check", label = L["Block Join Requests"], path = { "QoL", "BlockRequests" }, dependsOn = { "QoL", "BlockInvites" }, tooltip = L["Also turn away requests from strangers to join your group."] },
 			{ kind = "check", label = L["Copy Name Menu Entry"], path = { "QoL", "CopyName" }, reload = true, tooltip = L["Add Copy Name to the right click menu of players."] },
+			{ kind = "check", label = L["Quick Item Delete"], path = { "QoL", "QuickDelete" }, since = "1.0.0-beta6", reload = true, tooltip = L["Fill in DELETE for you when destroying a good or quest item, so it only takes a click on Yes. The dialog still asks first."] },
+			{ kind = "check", label = L["Trade Partner Info"], path = { "QoL", "TradeInfo" }, since = "1.0.0-beta6", reload = true, tooltip = L["Show under the trade partner's name whether they are a friend, a Battle.net friend, a guild member or a stranger."] },
 
 			{ kind = "header", label = L["Quiet the Interface"] },
 			{ kind = "check", label = L["Hide Error Messages"], path = { "QoL", "HideErrors" }, reload = true, tooltip = L["Hide the red error text such as not enough rage. Full bags, a full quest log and group kick messages stay."] },

@@ -57,7 +57,7 @@ function GUI.CustomPanels.WhatsNew(parent)
 
 		row.new = row:CreateFontString(nil, "OVERLAY")
 		K.SetFont(row.new, 11, "OUTLINE")
-		row.new:SetTextColor(1, 0.82, 0)
+		row.new:SetTextColor(K.Colors.highlight[1], K.Colors.highlight[2], K.Colors.highlight[3])
 		row.new:SetPoint("LEFT", 10, 0)
 		row.new:SetWidth(44)
 		row.new:SetJustifyH("LEFT")

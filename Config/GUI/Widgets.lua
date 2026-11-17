@@ -150,6 +150,36 @@ local function DependencyLabel(path)
 	return labelByPath[table.concat(path, ".")]
 end
 
+-- The options window (or whichever window) a control sits in.
+local function TopWindow(frame)
+	local window = frame
+	while window:GetParent() and window:GetParent() ~= UIParent do
+		window = window:GetParent()
+	end
+	return window
+end
+
+-- Put the tooltip beside the window, level with the control, so it never
+-- covers the controls around the one being read. Right of the window, or
+-- left of it when the screen has no room on the right. Called after Show,
+-- once the tooltip knows its width.
+local function PlaceTooltip(owner)
+	local window = TopWindow(owner)
+	local winLeft, winRight = window:GetLeft(), window:GetRight()
+	local left, right = owner:GetLeft(), owner:GetRight()
+	if not (winLeft and winRight and left and right) then
+		return
+	end
+	local scale = owner:GetEffectiveScale()
+	local roomRight = UIParent:GetRight() * UIParent:GetEffectiveScale() - winRight * scale
+	GameTooltip:ClearAllPoints()
+	if roomRight >= GameTooltip:GetWidth() * GameTooltip:GetEffectiveScale() + 8 then
+		GameTooltip:SetPoint("TOPLEFT", owner, "TOPRIGHT", winRight - right + 6, 0)
+	else
+		GameTooltip:SetPoint("TOPRIGHT", owner, "TOPLEFT", winLeft - left - 6, 0)
+	end
+end
+
 function GUI.AttachTooltip(frame, control, refresh)
 	local resettable = control.path ~= nil
 	if not (control.tooltip or resettable) then
@@ -161,16 +191,19 @@ function GUI.AttachTooltip(frame, control, refresh)
 	end
 
 	frame:HookScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetOwner(self, "ANCHOR_NONE")
 		GameTooltip:SetText(control.label or "", 1, 1, 1)
 		if control.tooltip then
 			GameTooltip:AddLine(control.tooltip, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3], true)
+		end
+		if control.kind == "slider" or control.kind == "dropdown" then
+			GameTooltip:AddLine(L["Shift + mouse wheel to change"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3], true)
 		end
 		if GUI.IsNew(control) then
 			GameTooltip:AddLine(format(L["New in %s"], control.since), 1, 0.82, 0)
 		end
 		if GUI.IsModified(control) then
-			GameTooltip:AddLine(L["Changed from the default."], 1, 0.6, 0.2)
+			GameTooltip:AddLine(L["Changed from the default."], K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3])
 		end
 		-- Say why a greyed row is greyed.
 		if control.dependsOn and not GUI.GetValue(control.dependsOn) then
@@ -189,10 +222,11 @@ function GUI.AttachTooltip(frame, control, refresh)
 			if shown then
 				GameTooltip:AddLine(format(L["Right click to reset to default (%s)"], shown), 0.6, 0.8, 1, true)
 			else
-				GameTooltip:AddLine(L["Right click to reset to default"], 0.6, 0.8, 1, true)
+				GameTooltip:AddLine(L["Right click to reset to default"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3], true)
 			end
 		end
 		GameTooltip:Show()
+		PlaceTooltip(self)
 	end)
 	frame:HookScript("OnLeave", GameTooltip_Hide)
 
@@ -327,6 +361,7 @@ end
 local function SkinButton(button)
 	K.CreateBackground(button, 0.2, 0.2, 0.2, 0.7)
 	K.CreateBorder(button)
+	K.AddBorderHover(button, ACCENT[1], ACCENT[2], ACCENT[3], 0.6)
 	local fs = button:GetFontString()
 	if fs then
 		fs:SetTextColor(K.Colors.offWhite[1], K.Colors.offWhite[2], K.Colors.offWhite[3])
@@ -383,6 +418,9 @@ function GUI.CreateCheck(parent, control)
 	check.Text:SetText(control.label)
 	K.SetFont(check.Text, 12)
 	check.Text:SetTextColor(K.Colors.offWhite[1], K.Colors.offWhite[2], K.Colors.offWhite[3])
+	-- The label is part of the control: hovering it shows the tooltip and
+	-- clicking it toggles the box, not only the 16 pixel square.
+	check:SetHitRectInsets(0, -(math.ceil(check.Text:GetStringWidth()) + 8), 0, 0)
 
 	check:SetChecked(GUI.GetValue(control.path) and true or false)
 	check:SetScript("OnClick", function(self, button)
@@ -400,7 +438,8 @@ function GUI.CreateCheck(parent, control)
 
 	check.KKUI_SetEnabled = function(enabled)
 		check:SetEnabled(enabled)
-		check.Text:SetTextColor(enabled and 1 or 0.4, enabled and 1 or 0.4, enabled and 1 or 0.4)
+		local c = enabled and K.Colors.text or K.Colors.disabled
+		check.Text:SetTextColor(c[1], c[2], c[3])
 	end
 	GUI.RegisterDependent(check, control)
 
@@ -441,6 +480,7 @@ function GUI.CreateSlider(parent, control)
 	track:SetHeight(6)
 	K.CreateBackground(track, 0.08, 0.08, 0.08, 0.95)
 	K.CreateBorder(track)
+	K.AddBorderHover(track, ACCENT[1], ACCENT[2], ACCENT[3], 0.6, slider)
 
 	-- A crisp square handle to match our square, bordered UI rather than a soft dot:
 	-- a bright fill sitting on a dark backing square that reads as a thin border, and
@@ -511,11 +551,25 @@ function GUI.CreateSlider(parent, control)
 		GUI.ApplyChange(control, v)
 	end)
 
+	-- Shift + wheel moves one step per notch, up for more. A plain wheel
+	-- scrolls the page.
+	slider:EnableMouseWheel(true)
+	slider:SetScript("OnMouseWheel", function(self, delta)
+		if not self:IsEnabled() then
+			GUI.ForwardWheel(self, delta)
+			return
+		end
+		GUI.WheelOrScroll(self, delta, function(d)
+			self:SetValue(K.Clamp(Round(self:GetValue() + d * step), control.min, control.max))
+		end)
+	end)
+
 	holder.KKUI_SetEnabled = function(enabled)
 		slider:SetEnabled(enabled)
 		valueBox:SetEnabled(enabled)
 		holder:SetAlpha(enabled and 1 or 0.4)
-		label:SetTextColor(enabled and 1 or 0.5, enabled and 1 or 0.5, enabled and 1 or 0.5)
+		local c = enabled and K.Colors.text or K.Colors.disabled
+		label:SetTextColor(c[1], c[2], c[3])
 	end
 	GUI.AttachTooltip(holder, control, function(reset)
 		slider:SetValue(K.Clamp(Round(reset), control.min, control.max))
@@ -535,6 +589,89 @@ end
 -- Dropdown (lightweight, no UIDropDownMenu taint)
 -- ---------------------------------------------------------------------------
 
+local MENU_ROWS = 12 -- rows a list shows before it scrolls
+local MENU_ROW = 20
+local WHITE = { 1, 1, 1 }
+
+-- One list open at a time. While one is open, Escape closes the list and not
+-- the window: the window's entry in UISpecialFrames is swapped for a small
+-- frame whose hiding closes the list, and swapped back when the list closes.
+-- A click anywhere outside the list and its button closes it too.
+local openMenu, openButton
+local WINDOW_NAME = "KKUI_ConfigWindow"
+local CLOSER_NAME = "KKUI_ConfigMenuCloser"
+
+local closer = CreateFrame("Frame", CLOSER_NAME, UIParent)
+closer:Hide()
+closer:SetScript("OnHide", function()
+	if openMenu then
+		openMenu:Hide()
+	end
+end)
+closer:SetScript("OnEvent", function()
+	if openMenu and not openMenu:IsMouseOver() and not (openButton and openButton:IsMouseOver()) then
+		openMenu:Hide()
+	end
+end)
+
+-- The game's list of frames Escape closes. Swapping an entry in place keeps
+-- the list the same size and order.
+local specialFrames = UISpecialFrames
+
+local function SwapEscape(from, to)
+	for i, name in ipairs(specialFrames) do
+		if name == from then
+			specialFrames[i] = to -- luacheck: ignore 122 (addons are meant to edit this list)
+			return
+		end
+	end
+end
+
+local function OpenMenu(menu, button)
+	if openMenu and openMenu ~= menu then
+		openMenu:Hide()
+	end
+	openMenu, openButton = menu, button
+	SwapEscape(WINDOW_NAME, CLOSER_NAME)
+	closer:Show()
+	closer:RegisterEvent("GLOBAL_MOUSE_DOWN")
+end
+
+local function CloseMenu(menu)
+	if openMenu ~= menu then
+		return
+	end
+	openMenu, openButton = nil, nil
+	closer:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+	closer:Hide()
+	SwapEscape(CLOSER_NAME, WINDOW_NAME)
+end
+
+-- Hand a wheel turn to the page the control sits on, as if the control
+-- were not there.
+function GUI.ForwardWheel(frame, delta)
+	local parent = frame:GetParent()
+	while parent and parent:GetObjectType() ~= "ScrollFrame" do
+		parent = parent:GetParent()
+	end
+	local handler = parent and parent:GetScript("OnMouseWheel")
+	if handler then
+		handler(parent, delta)
+	end
+end
+
+-- Shift + wheel changes a slider or dropdown, a plain wheel always scrolls
+-- the page. A plain wheel cannot tell "change this" from "start scrolling
+-- with the cursor resting here", and the second one quietly changed settings
+-- when it was tried.
+function GUI.WheelOrScroll(frame, delta, adjust)
+	if not IsShiftKeyDown() then
+		GUI.ForwardWheel(frame, delta)
+		return
+	end
+	adjust(delta)
+end
+
 function GUI.CreateDropdown(parent, control)
 	local holder = CreateFrame("Frame", nil, parent)
 	holder:SetSize(260, 46)
@@ -550,14 +687,31 @@ function GUI.CreateDropdown(parent, control)
 	button:SetPoint("RIGHT", holder, "RIGHT", 0, 0)
 	SkinButton(button)
 
-	-- A real chevron from SquareButtonTextures (greyscale, so it tints), instead
-	-- of a typed "v". The down-arrow is the up-arrow with its V coords flipped.
+	-- A chevron drawn like the border (outline, grey band, lit top edge), in the
+	-- border colour so it matches whatever colour the border has. It lights to
+	-- the accent on hover and points up while the list is open.
 	local arrow = button:CreateTexture(nil, "OVERLAY")
-	arrow:SetTexture("Interface\\BUTTONS\\SquareButtonTextures")
-	arrow:SetTexCoord(0.45312500, 0.64062500, 0.20312500, 0.01562500)
-	arrow:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3])
-	arrow:SetSize(14, 14)
-	arrow:SetPoint("RIGHT", -6, 0)
+	arrow:SetTexture(K.MediaFolder .. "Textures\\DropdownArrow.tga")
+	arrow:SetSize(18, 18)
+	arrow:SetPoint("RIGHT", -3, 0)
+	K.TintWithBorder(arrow)
+	local function TintArrow(hover)
+		arrow.__customColor = hover or nil
+		if hover then
+			arrow:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3])
+		else
+			local c = K.GetBorderColor()
+			arrow:SetVertexColor(c[1], c[2], c[3])
+		end
+	end
+	button:HookScript("OnEnter", function(self)
+		if self:IsEnabled() then
+			TintArrow(true)
+		end
+	end)
+	button:HookScript("OnLeave", function()
+		TintArrow(false)
+	end)
 
 	local text = button:CreateFontString(nil, "OVERLAY")
 	K.SetFont(text, 12)
@@ -565,10 +719,31 @@ function GUI.CreateDropdown(parent, control)
 	text:SetPoint("RIGHT", arrow, "LEFT", -4, 0)
 	text:SetJustifyH("LEFT")
 
+	-- A bar texture list draws each choice as the bar itself, in the player's
+	-- class colour, so a texture can be judged without picking it first.
+	local CLASS = K.ClassColor
+	local function AddBarPreview(owner, inset)
+		local preview = owner:CreateTexture(nil, "ARTWORK")
+		preview:SetPoint("TOPLEFT", inset, -inset)
+		preview:SetPoint("BOTTOMRIGHT", -inset, inset)
+		preview:SetVertexColor(CLASS.r, CLASS.g, CLASS.b, 0.85)
+		return preview
+	end
+
+	local buttonPreview
+	if control.barPreview then
+		buttonPreview = AddBarPreview(button, 3)
+		buttonPreview:SetPoint("BOTTOMRIGHT", arrow, "BOTTOMLEFT", -4, -1)
+		K.SetFont(text, 12, "OUTLINE")
+	end
+
 	local function CurrentText()
 		local value = GUI.GetValue(control.path)
 		for _, opt in ipairs(control.options) do
 			if opt.value == value then
+				if buttonPreview and opt.bar then
+					K.SetTextureAsset(buttonPreview, opt.bar)
+				end
 				return opt.text
 			end
 		end
@@ -576,25 +751,80 @@ function GUI.CreateDropdown(parent, control)
 	end
 	text:SetText(CurrentText())
 
+	local options = control.options
+	local count = #options
+	local shown = math.min(count, MENU_ROWS)
+
 	local menu = CreateFrame("Frame", nil, button)
 	menu:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
 	menu:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -2)
+	menu:SetHeight(shown * MENU_ROW + 8)
 	menu:SetFrameStrata("FULLSCREEN_DIALOG")
+	menu:SetClampedToScreen(true)
 	K.CreateBackground(menu, 0.05, 0.05, 0.05, 0.95)
 	K.CreateBorder(menu)
 	menu:Hide()
 
-	local rowY = -4
-	for _, opt in ipairs(control.options) do
-		local row = CreateFrame("Button", nil, menu)
-		row:SetHeight(20)
-		row:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, rowY)
-		row:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -4, rowY)
-		rowY = rowY - 20
+	-- The rows sit in a scroll frame, so a long list (twenty bar textures)
+	-- shows twelve at a time and scrolls instead of running off the screen.
+	local list = CreateFrame("ScrollFrame", nil, menu)
+	list:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, -4)
+	list:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", count > MENU_ROWS and -10 or -4, 4)
+	local content = CreateFrame("Frame", nil, list)
+	content:SetSize(1, count * MENU_ROW)
+	list:SetScrollChild(content)
+
+	local track, thumb
+	if count > MENU_ROWS then
+		track = menu:CreateTexture(nil, "ARTWORK")
+		track:SetColorTexture(1, 1, 1, 0.06)
+		track:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -4, -4)
+		track:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -4, 4)
+		track:SetWidth(3)
+		thumb = menu:CreateTexture(nil, "OVERLAY")
+		thumb:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.8)
+		thumb:SetWidth(3)
+		thumb:SetHeight(math.max(12, (shown * MENU_ROW) * shown / count))
+	end
+	local maxScroll = (count - shown) * MENU_ROW
+	local function ScrollList(offset)
+		offset = K.Clamp(offset, 0, maxScroll)
+		list:SetVerticalScroll(offset)
+		if thumb then
+			local room = shown * MENU_ROW - thumb:GetHeight()
+			thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, -(room * offset / maxScroll))
+		end
+	end
+	list:EnableMouseWheel(true)
+	list:SetScript("OnMouseWheel", function(_, delta)
+		ScrollList(list:GetVerticalScroll() - delta * MENU_ROW * 2)
+	end)
+
+	local rows = {}
+	for i, opt in ipairs(options) do
+		local row = CreateFrame("Button", nil, content)
+		row:SetHeight(MENU_ROW)
+		row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i - 1) * MENU_ROW)
+		row:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -(i - 1) * MENU_ROW)
 		local rowText = row:CreateFontString(nil, "OVERLAY")
-		K.SetFont(rowText, 12)
-		rowText:SetPoint("LEFT", 6, 0)
+		if opt.bar then
+			K.SetTextureAsset(AddBarPreview(row, 2), opt.bar)
+			K.SetFont(rowText, 12, "OUTLINE")
+		else
+			K.SetFont(rowText, 12)
+		end
+		rowText:SetPoint("LEFT", 8, 0)
+		rowText:SetPoint("RIGHT", -4, 0)
+		rowText:SetJustifyH("LEFT")
 		rowText:SetText(opt.text)
+		-- The current choice gets an accent bar down its left edge and white
+		-- text, the rest stay off-white.
+		local mark = row:CreateTexture(nil, "OVERLAY")
+		mark:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
+		mark:SetPoint("TOPLEFT", 0, -2)
+		mark:SetPoint("BOTTOMLEFT", 0, 2)
+		mark:SetWidth(3)
+		row.Text, row.Mark, row.value = rowText, mark, opt.value
 		row:SetHighlightTexture(C.Media.Textures.White8x8)
 		row:GetHighlightTexture():SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3], 0.3)
 		row:SetScript("OnClick", function()
@@ -602,11 +832,58 @@ function GUI.CreateDropdown(parent, control)
 			text:SetText(CurrentText())
 			menu:Hide()
 		end)
+		rows[i] = row
 	end
-	menu:SetHeight(-rowY + 4)
+
+	menu:SetScript("OnShow", function()
+		arrow:SetTexCoord(0, 1, 1, 0)
+		content:SetWidth(list:GetWidth())
+		local value = GUI.GetValue(control.path)
+		local current = 1
+		for i, row in ipairs(rows) do
+			local on = row.value == value
+			row.Mark:SetShown(on)
+			local c = on and WHITE or K.Colors.offWhite
+			row.Text:SetTextColor(c[1], c[2], c[3])
+			if on then
+				current = i
+			end
+		end
+		-- Open with the current choice in view.
+		ScrollList((current - math.ceil(shown / 2)) * MENU_ROW)
+		OpenMenu(menu, button)
+	end)
+	menu:SetScript("OnHide", function()
+		arrow:SetTexCoord(0, 1, 0, 1)
+		CloseMenu(menu)
+	end)
 
 	button:SetScript("OnClick", function()
 		menu:SetShown(not menu:IsShown())
+	end)
+
+	-- Shift + wheel steps through the choices without opening the list, up for
+	-- the one above. A plain wheel scrolls the page.
+	button:EnableMouseWheel(true)
+	button:SetScript("OnMouseWheel", function(self, delta)
+		if not self:IsEnabled() or menu:IsShown() then
+			GUI.ForwardWheel(self, delta)
+			return
+		end
+		GUI.WheelOrScroll(self, delta, function(d)
+			local value = GUI.GetValue(control.path)
+			local index = 1
+			for i, opt in ipairs(options) do
+				if opt.value == value then
+					index = i
+				end
+			end
+			local nextIndex = K.Clamp(index - d, 1, count)
+			if nextIndex ~= index then
+				GUI.ApplyChange(control, options[nextIndex].value)
+				text:SetText(CurrentText())
+			end
+		end)
 	end)
 
 	GUI.AttachTooltip(holder, control, function()
@@ -616,7 +893,8 @@ function GUI.CreateDropdown(parent, control)
 	holder.KKUI_SetEnabled = function(enabled)
 		button:SetEnabled(enabled)
 		holder:SetAlpha(enabled and 1 or 0.4)
-		label:SetTextColor(enabled and 1 or 0.5, enabled and 1 or 0.5, enabled and 1 or 0.5)
+		local c = enabled and K.Colors.text or K.Colors.disabled
+		label:SetTextColor(c[1], c[2], c[3])
 		if not enabled then
 			menu:Hide()
 		end
@@ -643,6 +921,12 @@ function GUI.CreateColor(parent, control)
 	swatch:SetSize(18, 18)
 	swatch:SetPoint("LEFT")
 	K.CreateBorder(swatch)
+	K.AddBorderHover(swatch, ACCENT[1], ACCENT[2], ACCENT[3], 0.6)
+	-- A checker under the colour, so a colour with some transparency reads as
+	-- see-through instead of just darker.
+	local checker = swatch:CreateTexture(nil, "BACKGROUND")
+	checker:SetAllPoints()
+	checker:SetTexture(K.MediaFolder .. "Textures\\Checker.tga")
 	local tex = swatch:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints()
 	tex:SetColorTexture(1, 1, 1)
@@ -657,8 +941,14 @@ function GUI.CreateColor(parent, control)
 		tex:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
 	end
 	Refresh()
+	-- So Reset Section and preset buttons can repaint the swatch.
+	GUI.refreshers[control] = Refresh
 
-	swatch:SetScript("OnClick", function()
+	swatch:SetScript("OnClick", function(_, button)
+		-- Right click is the reset, hooked on by AttachTooltip below.
+		if button ~= "LeftButton" then
+			return
+		end
 		local c = GUI.GetValue(control.path) or { 1, 1, 1, 1 }
 		-- Modern ColorPickerFrame: alpha comes from GetColorAlpha (1 = opaque),
 		-- and info.opacity is that same alpha. The old OpacitySliderFrame is gone.
@@ -682,6 +972,17 @@ function GUI.CreateColor(parent, control)
 			ColorPickerFrame:Show()
 		end
 	end)
+
+	-- The same tooltip and right click reset every other control has, on the
+	-- swatch and on its label.
+	GUI.AttachTooltip(swatch, control, Refresh)
+	GUI.AttachTooltip(holder, control, Refresh)
+
+	holder.KKUI_SetEnabled = function(enabled)
+		swatch:SetEnabled(enabled)
+		holder:SetAlpha(enabled and 1 or 0.4)
+	end
+	GUI.RegisterDependent(holder, control)
 
 	holder.height = 30
 	return holder
