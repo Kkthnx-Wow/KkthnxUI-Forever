@@ -27,6 +27,7 @@ local oUF = K.oUF
 local CreateFrame = CreateFrame
 local IsSecret = K.IsSecret
 local GetAuraDataByIndex = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
+local GetSpellName = C_Spell and C_Spell.GetSpellName
 
 -- Where each named corner sits on the health bar, with a small inset so the dot
 -- clears the border.
@@ -165,12 +166,25 @@ local function Update(self, _, unit)
 			if not data then
 				break
 			end
-			-- A secret spell ID cannot key the watch table, so that aura is skipped.
-			local spellId = data.spellId
-			local entry = spellId and not IsSecret(spellId) and element.watch[spellId]
+			-- Matched by name first. Forever gives every rank of a spell its own
+			-- ID (Renew is 139, 6074, 6075 and on), and the list names one, so an
+			-- ID match alone only ever lit up rank 1. The ID is the fallback for a
+			-- name that reads as secret. With both secret the aura is skipped.
+			local key
+			local name = data.name
+			if name and not IsSecret(name) then
+				key = element.byName[name]
+			end
+			if not key then
+				local spellId = data.spellId
+				if spellId and not IsSecret(spellId) and element.watch[spellId] then
+					key = spellId
+				end
+			end
+			local entry = key and element.watch[key]
 			-- An aura can show up under a wider filter than its entry asked for, a
 			-- shared buff walk finding someone else's copy of a "mine" entry.
-			if entry and element.entryFilter[spellId] == filter then
+			if entry and element.entryFilter[key] == filter then
 				ShowEntry(element, entry, data)
 			end
 		end
@@ -226,7 +240,7 @@ function Build.AuraWatch(self, size)
 	element.size = size or 8
 	element.corners = {}
 	element.watch = watch
-	local filters, entryFilter, seen = {}, {}, {}
+	local filters, entryFilter, byName, seen = {}, {}, {}, {}
 	for spellId, entry in pairs(watch) do
 		local filter = FilterFor(entry)
 		entryFilter[spellId] = filter
@@ -234,9 +248,15 @@ function Build.AuraWatch(self, size)
 			seen[filter] = true
 			filters[#filters + 1] = filter
 		end
+		-- The name this client gives the listed ID, which every rank shares.
+		local name = GetSpellName and GetSpellName(spellId)
+		if name then
+			byName[name] = spellId
+		end
 	end
 	element.filters = filters
 	element.entryFilter = entryFilter
+	element.byName = byName
 
 	self.AuraWatch = element
 	return element

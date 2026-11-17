@@ -28,6 +28,12 @@ local UnitIsDeadOrGhost = UnitIsDeadOrGhost
 local SCALE_TO_100 = CurveConstants and CurveConstants.ScaleTo100
 local UnitHealthMissing = UnitHealthMissing
 
+-- A value centred on a bar sits about a pixel high: the font's line box keeps
+-- room for descenders below the glyphs, and numbers have none. Measured on the
+-- player health bar (text centre 1 pixel above the fill centre), so bar values
+-- are set this much lower.
+local BAR_TEXT_NUDGE = -1
+
 local function NewText(parent, size)
 	local text = parent:CreateFontString(nil, "OVERLAY")
 	K.SetFont(text, size, K.FontOutlineStyle())
@@ -47,18 +53,15 @@ Module.NewText = NewText
 function Module.GradientLabel(self, anchor, size, yOffset)
 	local text = NewText(self, size or 12)
 	text:SetJustifyH("CENTER")
-	-- Pinned to both edges of the anchor so the label can never be wider than the
-	-- bar it sits on. A single centre point let a long name run past the frame and
-	-- over its neighbours, with both edges set it is cut off with an ellipsis.
-	text:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, yOffset or 6)
-	text:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, yOffset or 6)
 
 	-- Our own gradient rather than the AftLevelup-ToastBG atlas, whose violet was
 	-- baked into the art, so it matched nothing else and its colour and alpha could
 	-- not be touched. Two mirrored halves give the same fade out to both edges.
 	local shade = K.CreateTextShade(self, "BACKGROUND", -2)
 	local height = (size or 12) + 6
-	local bottom = (yOffset or 6) - 3
+	-- The strip starts just clear of the border. It used to start 3 above and
+	-- the text 6 above, which left the name riding high with a wide gap under it.
+	local bottom = (yOffset or 6) - 5
 
 	-- Span the anchor width and sit above it at a fixed height. Sizing from the
 	-- name fontstring instead (its TOP/BOTTOM) collapsed the strip to nothing on any
@@ -69,6 +72,13 @@ function Module.GradientLabel(self, anchor, size, yOffset)
 	holder:SetPoint("RIGHT", anchor, "RIGHT", 0, 0)
 	holder:SetPoint("BOTTOM", anchor, "TOP", 0, bottom)
 	holder:SetHeight(height)
+
+	-- The text is centred in the strip, and pinned to both of its edges so the
+	-- label can never be wider than the bar it sits on. A single centre point
+	-- let a long name run past the frame and over its neighbours, with both
+	-- edges set it is cut off with an ellipsis.
+	text:SetPoint("LEFT", holder, "LEFT", 0, 0)
+	text:SetPoint("RIGHT", holder, "RIGHT", 0, 0)
 
 	shade:SetColor(K.StripColor[1], K.StripColor[2], K.StripColor[3], K.GradientAlpha.strip)
 	shade:Show()
@@ -181,7 +191,7 @@ function Build.HealthText(self, size, yOffset, anchor)
 		text:SetPoint("RIGHT", self.Health, "RIGHT", -3, yOffset or 0)
 		text:SetJustifyH("RIGHT")
 	else
-		text:SetPoint("CENTER", self.Health, "CENTER", 0, yOffset or 0)
+		text:SetPoint("CENTER", self.Health, "CENTER", 0, (yOffset or 0) + BAR_TEXT_NUDGE)
 		text:SetJustifyH("CENTER")
 	end
 
@@ -265,7 +275,7 @@ function Build.PowerText(self, size)
 		return
 	end
 	local text = NewText(self.Power, size or 11)
-	text:SetPoint("CENTER", self.Power, "CENTER", 0, 0)
+	text:SetPoint("CENTER", self.Power, "CENTER", 0, BAR_TEXT_NUDGE)
 	text:SetJustifyH("CENTER")
 
 	self.Power.__kkuiText = text
