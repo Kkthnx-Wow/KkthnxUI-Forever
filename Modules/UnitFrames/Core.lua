@@ -131,7 +131,12 @@ local function CleanToken(unit)
 	return unit
 end
 
-local function ShowGroupTooltip(self)
+-- Every frame builds its own tooltip rather than going through Blizzard's
+-- UnitFrame_OnEnter. That keeps the right click hint ours: in the palette's
+-- info colour, and left off entirely when the option says so, without
+-- touching any Blizzard code. The tooltip refreshes through UpdateTooltip
+-- while the cursor stays, the same way the stock one does.
+local function ShowUnitTooltip(self)
 	local unit = self.unit
 	if not (unit and UnitExists(unit)) then
 		self.UpdateTooltip = nil
@@ -139,10 +144,13 @@ local function ShowGroupTooltip(self)
 	end
 	GameTooltip_SetDefaultAnchor(GameTooltip, self)
 	if GameTooltip:SetUnit(CleanToken(unit), self.hideStatusOnTooltip) then
-		GameTooltip_AddBlankLineToTooltip(GameTooltip)
-		GameTooltip_AddInstructionLine(GameTooltip, UNIT_POPUP_RIGHT_CLICK)
+		if C.Tooltip.UnitFrameHint then
+			GameTooltip_AddBlankLineToTooltip(GameTooltip)
+			local info = K.Colors.info
+			GameTooltip:AddLine(UNIT_POPUP_RIGHT_CLICK, info[1], info[2], info[3], true)
+		end
 		GameTooltip:Show()
-		self.UpdateTooltip = ShowGroupTooltip
+		self.UpdateTooltip = ShowUnitTooltip
 	else
 		self.UpdateTooltip = nil
 	end
@@ -152,11 +160,7 @@ local function SafeOnEnter(self)
 	if not (self.unit and UnitExists(self.unit)) then
 		return
 	end
-	if self.mystyle == "party" or self.mystyle == "raid" then
-		ShowGroupTooltip(self)
-	else
-		UnitFrame_OnEnter(self)
-	end
+	ShowUnitTooltip(self)
 end
 
 function Module.EnableInteraction(self, style)

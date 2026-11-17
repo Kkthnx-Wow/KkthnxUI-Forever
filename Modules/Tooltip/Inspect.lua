@@ -59,14 +59,13 @@ local lastInspect = 0
 local settleToken = 0
 local tooltipInspecting
 
-local ILVL_COLOR = K.Colors.gold
-
 -- Append the cached line to a tooltip. Blizzard already prints spec and class,
--- so we only add the average item level it leaves out. A double line keeps the
--- label left and the value hard right, matching the mount / rating rows.
+-- so we only add the average item level it leaves out, as "Item Level: 646",
+-- the label muted and the value in the highlight colour like the other
+-- labelled lines.
 local function AddLines(tt, data)
 	if data.ilvl and data.ilvl > 0 then
-		tt:AddDoubleLine(STAT_AVERAGE_ITEM_LEVEL or "Item Level", data.ilvl, ILVL_COLOR[1], ILVL_COLOR[2], ILVL_COLOR[3], 1, 1, 1)
+		tt:AddLine(K.ColorText("muted", (STAT_AVERAGE_ITEM_LEVEL or "Item Level") .. ":") .. " " .. K.ColorText("highlight", data.ilvl))
 	end
 end
 

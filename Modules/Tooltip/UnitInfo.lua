@@ -24,6 +24,7 @@ local UnitClass = UnitClass
 local UnitClassification = UnitClassification
 local UnitIsPlayer = UnitIsPlayer
 local UnitReaction = UnitReaction
+local UnitCreatureType = UnitCreatureType
 local UnitExists = UnitExists
 local UnitLevel = UnitLevel
 local UnitIsAFK = UnitIsAFK
@@ -46,7 +47,6 @@ local ICON_LIST = _G.ICON_LIST
 local FACTION_HORDE = _G.FACTION_HORDE
 local FACTION_ALLIANCE = _G.FACTION_ALLIANCE
 local LEVEL = _G.LEVEL
-local PLAYER = _G.PLAYER
 
 -- Faction crest markup, shown inline on the name line in place of the "Horde" /
 -- "Alliance" text line (which we drop).
@@ -55,13 +55,33 @@ local FACTION_ICON = {
 	Alliance = "|A:CharacterSelection_Alliance_Icon:14:15|a ",
 }
 
--- Coloured classification suffix for the level line, mirroring the frames.
+local ColorText = K.ColorText
+
+-- Coloured classification suffix for the level line, from the palette.
+local ELITE_TEXT = ColorText("highlight", _G.ELITE or "Elite")
+local RARE_TEXT = ColorText("info", _G.ITEM_QUALITY3_DESC or "Rare")
 local CLASSIFICATION = {
-	elite = " |cffcc8800" .. (_G.ELITE or "Elite") .. "|r",
-	rare = " |cffff99cc" .. (_G.ITEM_QUALITY3_DESC or "Rare") .. "|r",
-	rareelite = " |cffff99cc" .. (_G.ITEM_QUALITY3_DESC or "Rare") .. "|r |cffcc8800" .. (_G.ELITE or "Elite") .. "|r",
-	worldboss = " |cffff0000" .. (_G.BOSS or "Boss") .. "|r",
+	elite = " " .. ELITE_TEXT,
+	rare = " " .. RARE_TEXT,
+	rareelite = " " .. RARE_TEXT .. " " .. ELITE_TEXT,
+	worldboss = " " .. ColorText("negative", _G.BOSS or "Boss"),
 }
+
+-- "Label: value" with the label muted and the value in its own colour. Every
+-- labelled line on the unit tooltip is built through this so they read alike.
+local function Labelled(label, value)
+	return ColorText("muted", label .. ":") .. " " .. value
+end
+Module.Labelled = Labelled
+
+-- Class names as the player reads them, for spotting the class line the client
+-- prints on its own (it is folded into the level line instead).
+local CLASS_NAMES = {}
+for _, list in ipairs({ _G.LOCALIZED_CLASS_NAMES_MALE or {}, _G.LOCALIZED_CLASS_NAMES_FEMALE or {} }) do
+	for _, name in pairs(list) do
+		CLASS_NAMES[name] = true
+	end
+end
 
 -- Role icon markup from the LFG role atlas, sized for the name line.
 local ROLE_ICON = {
@@ -69,6 +89,10 @@ local ROLE_ICON = {
 	HEALER = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:1:20|t",
 	DAMAGER = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:22:41|t",
 }
+
+local function RGBText(r, g, b, text)
+	return format("|cff%02x%02x%02x%s|r", r * 255 + 0.5, g * 255 + 0.5, b * 255 + 0.5, text)
+end
 
 -- Find the first tooltip line (past the name) whose text matches a predicate.
 local function FindLine(tt, predicate)
@@ -138,13 +162,8 @@ function Module:OnUnitTooltip(tt)
 		line:SetTextColor(r, g, b)
 	end
 
-	-- Colour the border to match the unit (class for players, reaction otherwise),
-	-- so it reads the same as the frames. Runs after the SetOwner reset, so it wins.
-	local border = K.GetBorder(tt)
-	if db.BorderColor and border then
-		local r, g, b = UnitColor(unit)
-		border:SetVertexColor(r, g, b)
-	end
+	-- The border stays the configured border colour on a unit. Only an item's
+	-- quality tints it (see the item post-call below).
 	if isPlayer and line then
 		local name = line:GetText()
 		if name and not IsSecret(name) then
@@ -190,18 +209,18 @@ function Module:OnUnitTooltip(tt)
 			local afk, dnd = UnitIsAFK(unit), UnitIsDND(unit)
 			local flag = ""
 			if not IsSecret(afk) and afk then
-				flag = " |cffffcc00" .. CHAT_FLAG_AFK .. "|r"
+				flag = " " .. ColorText("warning", CHAT_FLAG_AFK)
 			elseif not IsSecret(dnd) and dnd then
-				flag = " |cffffcc00" .. CHAT_FLAG_DND .. "|r"
+				flag = " " .. ColorText("warning", CHAT_FLAG_DND)
 			end
 			line:SetText(prefix .. name .. flag)
 		end
 	end
 
-	-- Guild rank. Blizzard already prints the guild name on its own line, so we
-	-- find that line (it contains the guild name, sometimes wrapped in <>) and
-	-- append the rank rather than adding a duplicate. A muted gold keeps it from
-	-- competing with the class-coloured name.
+	-- Guild and rank. Blizzard already prints the guild name on its own line, so
+	-- we find that line (it holds the guild name, sometimes wrapped in <>) and
+	-- rewrite it as "<Guild> (Rank)", the guild in the positive colour and the
+	-- rank muted, rather than adding a duplicate.
 	if db.ShowGuild and isPlayer then
 		local guild, rank = GetGuildInfo(unit)
 		if guild and not IsSecret(guild) then
@@ -209,21 +228,28 @@ function Module:OnUnitTooltip(tt)
 				return t:find(guild, 1, true) ~= nil
 			end)
 			if guildLine then
-				if rank and rank ~= "" then
-					guildLine:SetText(format("%s |cffababab(%s)|r", guild, rank))
+				local text = ColorText("positive", "<" .. guild .. ">")
+				if rank and not IsSecret(rank) and rank ~= "" then
+					text = text .. " " .. ColorText("muted", "(" .. rank .. ")")
 				end
-				guildLine:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+				guildLine:SetText(text)
 			end
 		end
 	end
 
 	-- Colour the health bar to match and keep it anchored outside the tooltip.
+	-- The unit is remembered for the health text, which the bar cannot give
+	-- (its value is a secret).
+	Module.tooltipUnit = unit
 	local bar = _G.GameTooltipStatusBar
 	if bar then
 		local r, g, b = UnitColor(unit)
 		Module.ColorHealthBar(bar, r, g, b)
 		if Module.PositionHealthBar then
 			Module.PositionHealthBar(bar)
+		end
+		if Module.UpdateHealthText then
+			Module.UpdateHealthText(bar)
 		end
 	end
 
@@ -232,38 +258,55 @@ function Module:OnUnitTooltip(tt)
 	-- class-colour the spec line just below so the identity reads as one block.
 	local level = UnitLevel(unit)
 	if level and not IsSecret(level) and LEVEL then
-		local levelLine, levelIndex = FindLine(tt, function(t)
+		local levelLine = FindLine(tt, function(t)
 			return t:find(LEVEL, 1, true) ~= nil
 		end)
 		if levelLine and GetCreatureDifficultyColor then
+			-- One identity line: the level in its difficulty colour, then the rest.
+			-- The word "Level" goes, the number reads as a level on its own.
 			local color = GetCreatureDifficultyColor(level)
+			local levelText = level > 0 and tostring(level) or "??"
 			if color then
-				levelLine:SetTextColor(color.r, color.g, color.b)
+				levelText = RGBText(color.r, color.g, color.b, levelText)
 			end
+			local text = levelLine:GetText()
 			if isPlayer then
-				-- Strip the redundant "(Player)" type tag.
-				local text = levelLine:GetText()
-				if PLAYER and text and not IsSecret(text) then
-					local stripped = text:gsub("%s*%(" .. PLAYER .. "%)", "")
-					if stripped ~= text then
-						levelLine:SetText(stripped)
-					end
-				end
-				-- Class-colour the spec line directly under the level line.
-				local specLine = levelIndex and _G["GameTooltipTextLeft" .. (levelIndex + 1)]
-				local _, class = UnitClass(unit)
+				-- "80 Orc Hunter": race in body text, class in its class colour. The
+				-- client prints the class on a line of its own, which the line
+				-- pre-call in SetupUnitInfo drops.
+				local race = UnitRace(unit)
+				local className, class = UnitClass(unit)
 				-- The class token can be a secret, and a secret can never key a table.
 				local cc = class and not IsSecret(class) and classColors[class]
-				if specLine and cc then
-					specLine:SetTextColor(cc.r, cc.g, cc.b)
+				local parts = { levelText }
+				if race and not IsSecret(race) then
+					parts[#parts + 1] = race
 				end
-			else
+				if className and not IsSecret(className) then
+					parts[#parts + 1] = cc and RGBText(cc.r, cc.g, cc.b, className) or className
+				end
+				levelLine:SetText(tconcat(parts, " "))
+				levelLine:SetTextColor(K.Colors.text[1], K.Colors.text[2], K.Colors.text[3])
+			elseif text and not IsSecret(text) then
+				-- "5 Hostile Beast Elite": the creature line minus its "Level 5"
+				-- opening. Forever sends a bare "Level 1" for many NPCs, which left
+				-- the number alone on its line, so the creature type and the
+				-- reaction are filled in from the unit when the line lacks them.
+				local rest = text:gsub("^" .. LEVEL .. "%s+%S+%s*", "")
+				local creature = UnitCreatureType(unit)
+				if creature and not IsSecret(creature) and not rest:find(creature, 1, true) then
+					rest = creature .. (rest ~= "" and (" " .. rest) or "")
+				end
+				local reaction = UnitReaction(unit, "player")
+				local standing = reaction and not IsSecret(reaction) and _G["FACTION_STANDING_LABEL" .. reaction]
+				if standing then
+					local r, g, b = UnitColor(unit)
+					rest = RGBText(r, g, b, standing) .. (rest ~= "" and (" " .. rest) or "")
+				end
 				local classify = UnitClassification(unit)
-				local suffix = classify and not IsSecret(classify) and CLASSIFICATION[classify]
-				local text = levelLine:GetText()
-				if suffix and text and not IsSecret(text) then
-					levelLine:SetText(text .. suffix)
-				end
+				local suffix = classify and not IsSecret(classify) and CLASSIFICATION[classify] or ""
+				levelLine:SetText(levelText .. (rest ~= "" and (" " .. rest) or "") .. suffix)
+				levelLine:SetTextColor(K.Colors.text[1], K.Colors.text[2], K.Colors.text[3])
 			end
 		end
 	end
@@ -274,19 +317,15 @@ function Module:OnUnitTooltip(tt)
 		-- A secret name cannot be compared or formatted into a string while tainted,
 		-- so the line is left out rather than erroring the whole tooltip.
 		if targetName and not IsSecret(targetName) then
-			local r, g, b = UnitColor(unit .. "target")
+			local value
 			if targetName == K.Name then
-				tt:AddLine(format("%s: %s", TARGET, format("|cff%02x%02x%02x%s|r", K.Colors.crimson[1] * 255, K.Colors.crimson[2] * 255, K.Colors.crimson[3] * 255, YOU)))
+				value = ColorText("negative", ">" .. string.upper(YOU) .. "<")
 			else
-				tt:AddLine(format("%s: %s", TARGET, targetName), r, g, b)
+				local r, g, b = UnitColor(unit .. "target")
+				value = RGBText(r, g, b, targetName)
 			end
+			tt:AddLine(Labelled(TARGET, value))
 		end
-	end
-
-	-- A thin separator sets the stat block (mount / item level) apart from the
-	-- character identity above it.
-	if isPlayer and (db.ShowMount or db.ShowItemLevel) then
-		tt:AddLine(" ")
 	end
 
 	-- Mount the unit is riding, from their buff list.
@@ -298,7 +337,7 @@ function Module:OnUnitTooltip(tt)
 			end
 			local spellID = data.spellId
 			if spellID and not IsSecret(spellID) and C_MountJournal.GetMountFromSpell(spellID) then
-				tt:AddDoubleLine(_G.MOUNT or "Mount", data.name, nil, nil, nil, 1, 1, 1)
+				tt:AddLine(Labelled(_G.MOUNT or "Mount", ColorText("text", data.name)))
 				break
 			end
 		end
@@ -316,13 +355,13 @@ function Module:OnUnitTooltip(tt)
 					local mname = UnitName(member)
 					if mname and not IsSecret(mname) then
 						local r, g, b = UnitColor(member)
-						names[#names + 1] = format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, mname)
+						names[#names + 1] = RGBText(r, g, b, mname)
 					end
 				end
 			end
 		end
 		if #names > 0 then
-			tt:AddLine(format("%s: %s", _G.TARGET or "Target", tconcat(names, ", ")), nil, nil, nil, true)
+			tt:AddLine(Labelled(_G.TARGETED_BY or "Targeted by", tconcat(names, ", ")), nil, nil, nil, true)
 		end
 	end
 
@@ -397,6 +436,10 @@ function Module:SetupUnitInfo()
 			if text and not IsSecret(text) and (text == FACTION_HORDE or text == FACTION_ALLIANCE) then
 				return true
 			end
+			-- The class on a line of its own, already shown on the level line.
+			if text and not IsSecret(text) and CLASS_NAMES[text] then
+				return true
+			end
 		end)
 	end
 
@@ -414,7 +457,7 @@ function Module:SetupUnitInfo()
 		local quality = link and C_Item and C_Item.GetItemInfo and select(3, C_Item.GetItemInfo(link))
 		if quality and quality > 1 and C_Item.GetItemQualityColor then
 			local r, g, b = C_Item.GetItemQualityColor(quality)
-			border:SetVertexColor(r, g, b)
+			K.SetBorderColor(border, r, g, b)
 		else
 			K.ResetBorderColor(border)
 		end

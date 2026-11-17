@@ -12,7 +12,6 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:GetModule("Tooltip")
 
 local _G = _G
-local IsSecret = K.IsSecret
 
 -- Anchor the health bar just outside the tooltip, above or below, with a small
 -- gap. Blizzard re-anchors it on show, so this is called again from the unit
@@ -67,8 +66,6 @@ function Module:StyleHealthBar()
 		K.CreateBorder(bar)
 	end
 
-	-- The bar now runs 0..1 as a health percent (the real amount is secret), so
-	-- the value is the fraction and we show it as a percentage.
 	if not bar.KKUI_Text then
 		local text = bar:CreateFontString(nil, "OVERLAY")
 		K.SetFont(text, 11, K.FontOutlineStyle())
@@ -78,23 +75,27 @@ function Module:StyleHealthBar()
 		-- Hooked on SetValue rather than the OnValueChanged script. A script hook on
 		-- the tooltip bar runs inside the tooltip's own update, which is the same
 		-- execution that goes on to build widget sets.
-		hooksecurefunc(bar, "SetValue", function(self, value)
-			local fs = self.KKUI_Text
-			if not fs then
-				return
-			end
-			if not C.Tooltip.HealthValue or not value or IsSecret(value) then
-				fs:SetText("")
-				return
-			end
-			local minV, maxV = self:GetMinMaxValues()
-			local pct
-			if minV and maxV and not IsSecret(minV) and not IsSecret(maxV) and maxV > minV then
-				pct = (value - minV) / (maxV - minV) * 100
-			else
-				pct = value * 100
-			end
-			fs:SetFormattedText("%d%%", pct)
-		end)
+		hooksecurefunc(bar, "SetValue", Module.UpdateHealthText)
 	end
+end
+
+-- "7.9m / 7.9m" read from the unit the tooltip shows (set by the unit post
+-- call), not from the bar. The numbers are secret on this client, so they go
+-- straight into AbbreviateNumbers and SetFormattedText, the two calls that
+-- accept them, and are never compared or added.
+function Module.UpdateHealthText(bar)
+	local fs = bar.KKUI_Text
+	if not fs then
+		return
+	end
+	local unit = Module.tooltipUnit
+	if not C.Tooltip.HealthValue or not unit or not UnitExists(unit) then
+		fs:SetText("")
+		return
+	end
+	if UnitIsDeadOrGhost(unit) then
+		fs:SetText(DEAD)
+		return
+	end
+	fs:SetFormattedText("%s / %s", AbbreviateNumbers(UnitHealth(unit)), AbbreviateNumbers(UnitHealthMax(unit)))
 end
