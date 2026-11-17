@@ -75,12 +75,31 @@ end
 -- Give a bar its own mover. Bars that default to sitting on another bar anchor
 -- their mover to that bar's mover, so the stacked default layout is preserved
 -- until the user drags one loose.
+-- When the bar it sits on is turned off, it takes that bar's own default spot
+-- instead, so Bar 5 moves to the outer slot rather than pinning its right edge
+-- to the left edge of the screen.
 function Module:AttachMover(def, bar)
 	local p = def.point
 	local relFrame = UIParent
-	if p[2] ~= "UIParent" then
+	local seen = {}
+	while p[2] ~= "UIParent" and not seen[p[2]] do
 		local other = self.bars[p[2]]
-		relFrame = (other and other.KKUI_Mover) or UIParent
+		if other and other.KKUI_Mover then
+			relFrame = other.KKUI_Mover
+			break
+		end
+		seen[p[2]] = true
+		local fallback
+		for _, otherDef in ipairs(self.BarDefs) do
+			if otherDef.key == p[2] then
+				fallback = otherDef.point
+				break
+			end
+		end
+		if not fallback then
+			break
+		end
+		p = fallback
 	end
 
 	local label = "Action Bar " .. (def.key:gsub("Bar", ""))

@@ -42,15 +42,16 @@ local HOVER_LEVEL = 2000
 -- numbers into an open popup instead of leaving it showing stale ones.
 local NotifyPopup = function() end
 
--- A warm, in-world palette so the placement tools read as a natural part of the
--- game rather than a developer overlay: muted gold accents, soft parchment grid,
--- deep bronze highlights.
+-- The placement tools in the palette: highlight gold for the numbers and the
+-- hover flash, faint accent lines for the grid, and the panel colour for the
+-- mover boxes, dense enough to hide the text of the frame beneath.
+local P = K.Colors
 local THEME = {
-	coords = { 0.85, 0.72, 0.42 }, -- warm gold coordinate text
-	grid = { 0.72, 0.60, 0.40, 0.10 }, -- soft parchment grid lines
-	center = { 0.70, 0.50, 0.25, 0.40 }, -- deeper bronze centre cross
-	backdrop = { 0.16, 0.11, 0.06, 0.88 }, -- warm dark mover fill, dense enough to hide the text of the frame beneath
-	flash = { 0.98, 0.82, 0.40, 1 }, -- bright gold hover / locate flash
+	coords = P.highlight, -- coordinate text and titles
+	grid = { P.accent[1], P.accent[2], P.accent[3], 0.10 }, -- grid lines
+	center = { P.accent[1], P.accent[2], P.accent[3], 0.40 }, -- centre cross
+	backdrop = { P.panel[1], P.panel[2], P.panel[3], 0.88 }, -- mover fill
+	flash = { P.highlight[1], P.highlight[2], P.highlight[3], 1 }, -- hover / locate flash
 	rest = { 1, 1, 1, 1 }, -- resting border colour
 }
 
@@ -256,11 +257,11 @@ local function Guides()
 		holder:SetFrameStrata("TOOLTIP")
 
 		guideV = holder:CreateTexture(nil, "OVERLAY")
-		guideV:SetColorTexture(0.4, 0.9, 0.4, 0.9)
+		guideV:SetColorTexture(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3], 0.9)
 		guideV:SetWidth(1)
 		guideV:Hide()
 		guideH = holder:CreateTexture(nil, "OVERLAY")
-		guideH:SetColorTexture(0.4, 0.9, 0.4, 0.9)
+		guideH:SetColorTexture(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3], 0.9)
 		guideH:SetHeight(1)
 		guideH:Hide()
 	end
@@ -525,7 +526,7 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 		end
 		self:EnableKeyboard(true)
 		self:SetScript("OnKeyDown", OnKeyDown)
-		self.KKUI_Border:SetVertexColor(THEME.flash[1], THEME.flash[2], THEME.flash[3], THEME.flash[4])
+		K.SetBorderColor(self.KKUI_Border, THEME.flash[1], THEME.flash[2], THEME.flash[3], THEME.flash[4])
 		-- Lift the box under the mouse over whatever it overlaps, so its label and
 		-- border are whole while you work on it.
 		self:SetFrameLevel(HOVER_LEVEL)
@@ -534,7 +535,7 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 	mover:SetScript("OnLeave", function(self)
 		self:EnableKeyboard(false)
 		self:SetScript("OnKeyDown", nil)
-		self.KKUI_Border:SetVertexColor(THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+		K.SetBorderColor(self.KKUI_Border, THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
 		self:SetFrameLevel(self.__restLevel or 1)
 		if not self.__dragging then
 			HideTag(self)
@@ -608,6 +609,12 @@ function K.ResetMover(key)
 	if not mover then
 		return
 	end
+	-- Action bars and other secure frames hang off their movers, so moving one in
+	-- combat is a blocked action.
+	if InCombatLockdown() then
+		K.Print(L["Cannot move frames during combat."])
+		return
+	end
 	Store()[key] = nil
 	RestorePosition(mover)
 end
@@ -617,10 +624,10 @@ function K.FlashMover(key)
 	if not mover or not editing then
 		return
 	end
-	mover.KKUI_Border:SetVertexColor(THEME.flash[1], THEME.flash[2], THEME.flash[3], THEME.flash[4])
+	K.SetBorderColor(mover.KKUI_Border, THEME.flash[1], THEME.flash[2], THEME.flash[3], THEME.flash[4])
 	C_Timer.After(0.6, function()
 		if mover.KKUI_Border then
-			mover.KKUI_Border:SetVertexColor(THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+			K.SetBorderColor(mover.KKUI_Border, THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
 		end
 	end)
 end
@@ -962,6 +969,10 @@ function K.MoversEnabled()
 end
 
 function K.ResetMovers()
+	if InCombatLockdown() then
+		K.Print(L["Cannot move frames during combat."])
+		return
+	end
 	local store = Store()
 	for key in pairs(store) do
 		store[key] = nil
@@ -972,7 +983,7 @@ function K.ResetMovers()
 	K.Print(L["Frame positions reset."])
 end
 
--- Leaving combat is the first safe moment to place anything that was blocked.
+-- Placing frames is blocked in combat, so move mode closes when a fight starts.
 local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 combat:SetScript("OnEvent", function()

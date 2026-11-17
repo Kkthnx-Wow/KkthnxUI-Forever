@@ -36,6 +36,10 @@ local GetBindingKey = GetBindingKey
 local STARTING_BONUS_PAGES = {
 	DRUID = { [1] = 7, [3] = 9, [4] = 10 },
 	ROGUE = { [1] = 7 },
+	-- Battle, Defensive, Berserker. Battle Stance read live as offset 1, page 7.
+	-- Learning only runs out of combat, so without these a first stance dance
+	-- in a fight stayed on page 1.
+	WARRIOR = { [1] = 7, [2] = 8, [3] = 9 },
 }
 
 -- Page for the skyriding mount bar, shared by every class.
@@ -218,8 +222,18 @@ function Module:UpdateBar(key)
 	local perRow = cfg.PerRow
 	local count = cfg.Buttons
 	local rows = ceil(count / perRow)
+	-- A bar with fewer buttons than one row is only as wide as its buttons, so a
+	-- centred bar stays centred on what is actually shown.
+	local cols = count < perRow and count or perRow
 
-	bar:SetSize(perRow * size + (perRow - 1) * space, rows * size + (rows - 1) * space)
+	bar:SetSize(cols * size + (cols - 1) * space, rows * size + (rows - 1) * space)
+	-- The bar hangs off its mover's top left corner, so the mover has to follow
+	-- a live size change. Left at its old size, a bar given a second row grew
+	-- down past its anchor and off the bottom of the screen until a reload.
+	local mover = bar.KKUI_Mover
+	if mover then
+		mover:SetSize(bar:GetWidth(), bar:GetHeight())
+	end
 
 	local buttonConfig = self:GetButtonConfig(key)
 	buttonConfig.flyoutDirection = self:GetFlyoutDirection(bar, cfg)
@@ -527,9 +541,17 @@ local function LearnBonusBars()
 end
 
 function Module:SetupMainBar(bar)
+	-- Every page the driver can pick needs an action mapping, or the bar shows
+	-- empty on it. Forever puts the vehicle, temp shapeshift and override pages
+	-- at 31, 32 and 33 (read live on 1.60.1), far past the 18 the bar used to
+	-- cover, so the range is taken from the client.
+	local api = C_ActionBar
+	local lastPage = math.max(18, api.GetVehicleBarIndex(), api.GetTempShapeshiftBarIndex(), api.GetOverrideBarIndex(), SKYRIDING_PAGE)
+	for _, page in pairs(BonusPages()) do
+		lastPage = math.max(lastPage, page)
+	end
 	for i, button in ipairs(bar.buttons) do
-		-- Cover all 18 possible page states (the original mapped the same range).
-		for state = 1, 18 do
+		for state = 1, lastPage do
 			button:SetState(state, "action", (state - 1) * 12 + i)
 		end
 		button:SetState(0, "action", i)
