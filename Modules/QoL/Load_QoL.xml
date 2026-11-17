@@ -19,4 +19,6 @@
 	<Script file="AchievementShot.lua" />
 	<Script file="AutoLog.lua" />
 	<Script file="LevelAnnouncer.lua" />
+	<Script file="QuickDelete.lua" />
+	<Script file="TradeInfo.lua" />
 </Ui>

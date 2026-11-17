@@ -12,7 +12,7 @@
 			HideErrors.lua       quiet the red error spam, keep the useful ones
 			HideTips.lua         turn off tutorial pop ups and help tips
 			BossBanner.lua       hide the boss kill banner
-			SecondaryStats.lua   crit, haste, mastery and versatility readout
+			SecondaryStats.lua   class combat stats readout
 			RareAlert.lua        announce rares that appear on the minimap
 			BlockInvites.lua     turn away group invites from strangers
 			CopyName.lua         "Copy Name" on player right click menus
@@ -174,6 +174,8 @@ local FEATURES = {
 	{ "AchievementShot", "SetupAchievementShot" },
 	{ "AutoLog", "SetupAutoLog" },
 	{ "LevelAnnouncer", "SetupLevelAnnouncer" },
+	{ "QuickDelete", "SetupQuickDelete" },
+	{ "TradeInfo", "SetupTradeInfo" },
 }
 
 function Module:OnEnable()
