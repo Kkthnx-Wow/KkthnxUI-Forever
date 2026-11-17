@@ -31,7 +31,7 @@ function Module:OnEnable()
 	end)
 
 	if C.General.WelcomeMessage then
-		K.Print(L["Version %s (build %s) loaded. Type %s for options."], K.Version, K.Build, "|cff5C8BCF/kk|r")
+		K.Print(L["Version %s (build %s) loaded. Type %s for options."], K.Version, K.Build, K.ColorText("accent", "/kk"))
 	end
 end
 
@@ -75,6 +75,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 		local uf = K:GetModule("UnitFrames", true)
 		if uf and uf.ToggleTest then
 			uf:ToggleTest()
+		end
+		return
+	elseif msg == "questblock" then
+		local automation = K:GetModule("Automation", true)
+		if automation and automation.ToggleBlockedNPC then
+			automation:ToggleBlockedNPC()
 		end
 		return
 	elseif msg == "auras" then

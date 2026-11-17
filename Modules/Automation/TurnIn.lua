@@ -3,9 +3,9 @@
 	File: Modules/Automation/TurnIn.lua
 	Purpose:
 		Handing quests in: continuing through the progress page and completing the
-		quest. When a quest offers a choice of rewards and reward selection is on,
-		the highest vendor-value item is picked automatically, with a few known
-		hidden-value items corrected.
+		quest. On a choice of rewards the reward mode decides: leave it, mark the
+		one that sells for the most, or take that one. Quests that cost gold to
+		hand in can be left to you.
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
@@ -14,6 +14,7 @@ local Module = K:GetModule("Automation")
 
 local select = select
 local IsSecret = K.IsSecret
+local CreateFrame = CreateFrame
 local C_Item = C_Item
 
 local GetQuestID = GetQuestID
@@ -22,68 +23,165 @@ local CompleteQuest = CompleteQuest
 local GetNumQuestChoices = GetNumQuestChoices
 local GetQuestItemInfo = GetQuestItemInfo
 local GetQuestReward = GetQuestReward
+local GetQuestMoneyToGet = GetQuestMoneyToGet
 
--- A few reward items carry hidden gold that GetItemInfo reports as no value, so
--- correct them here to keep the "best reward" pick sensible.
-local HIDDEN_VALUE = {
-	[45724] = 100000, -- Champion's Purse, 10 gold
-	[64491] = 2000000, -- Royal Reward, 200 gold
-}
+local COIN_ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+
+-- True when handing this quest in would take gold and that is switched off.
+local function CostsGold()
+	if not C.AutoQuest.SkipGoldCost then
+		return false
+	end
+	local money = GetQuestMoneyToGet()
+	return money and not IsSecret(money) and money > 0 or false
+end
 
 -- Continue past the progress page when the quest can be turned in.
 function Module:OnQuestProgress()
-	if self:IsPaused() or not C.AutoQuest.TurnIn then
+	if not self:CanAutomate() or not self:ShouldTurnIn(GetQuestID()) then
 		return
 	end
-	if IsQuestCompletable() and self:ShouldAccept(GetQuestID()) then
+	if IsQuestCompletable() and not CostsGold() then
 		CompleteQuest()
 	end
 end
 
--- Complete the quest, picking the most valuable reward on a choice.
-function Module:OnQuestComplete()
-	if self:IsPaused() or not C.AutoQuest.TurnIn then
-		return
-	end
-	if not self:ShouldAccept(GetQuestID()) then
-		return
-	end
+-- ---------------------------------------------------------------------------
+-- Reward choice
+-- ---------------------------------------------------------------------------
 
-	local numChoices = GetNumQuestChoices()
-	if numChoices and numChoices > 1 then
-		if not C.AutoQuest.SelectReward then
-			return
-		end
-
-		local bestIndex, bestValue
-		for index = 1, numChoices do
-			local itemID = select(6, GetQuestItemInfo("choice", index))
-			if itemID and not IsSecret(itemID) then
-				local value = select(11, C_Item.GetItemInfo(itemID))
-				if not value then
-					-- Reward not cached yet, retry once it loads.
-					self:WaitForItemData(itemID, function()
-						self:OnQuestComplete()
-					end)
-					return
-				end
-				value = HIDDEN_VALUE[itemID] or value or 0
-				if not bestValue or value > bestValue then
-					bestValue = value
-					bestIndex = index
-				end
+-- The reward button the quest window drew for choice number index.
+local function GetChoiceButton(index)
+	local rewards = _G.QuestInfoRewardsFrame
+	local buttons = rewards and rewards.RewardButtons
+	if buttons then
+		for i = 1, #buttons do
+			local button = buttons[i]
+			if button.type == "choice" and button:GetID() == index and button:IsShown() then
+				return button
 			end
 		end
-
-		if bestIndex then
-			GetQuestReward(bestIndex)
-		end
-	else
-		GetQuestReward(1)
 	end
+	return nil
+end
+
+-- One coin badge, moved to whichever reward is worth the most.
+local marker
+local function ShowMarker(index)
+	local button = GetChoiceButton(index)
+	if not button then
+		return
+	end
+	if not marker then
+		marker = CreateFrame("Frame")
+		marker:SetSize(18, 18)
+		local icon = marker:CreateTexture(nil, "OVERLAY")
+		icon:SetAllPoints()
+		icon:SetTexture(COIN_ICON)
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		local ring = marker:CreateTexture(nil, "ARTWORK")
+		ring:SetPoint("TOPLEFT", -1, 1)
+		ring:SetPoint("BOTTOMRIGHT", 1, -1)
+		local c = K.Colors.highlight
+		ring:SetColorTexture(c[1], c[2], c[3], 1)
+	end
+	marker:SetParent(button)
+	marker:SetFrameLevel(button:GetFrameLevel() + 5)
+	marker:ClearAllPoints()
+	marker:SetPoint("TOPLEFT", button, "TOPLEFT", -3, 3)
+	marker:Show()
+end
+
+local function HideMarker()
+	if marker then
+		marker:Hide()
+		marker:SetParent(nil)
+	end
+end
+
+-- The choice that sells for the most. Returns nil and the first uncached item
+-- when a value is still loading, and nil when nothing has any value at all.
+local function FindBestChoice(numChoices)
+	local bestIndex, bestValue = nil, 0
+	for index = 1, numChoices do
+		local itemID = select(6, GetQuestItemInfo("choice", index))
+		if itemID and not IsSecret(itemID) then
+			local value = select(11, C_Item.GetItemInfo(itemID))
+			if value == nil then
+				return nil, itemID
+			end
+			if value > bestValue then
+				bestValue = value
+				bestIndex = index
+			end
+		end
+	end
+	return bestIndex
+end
+
+-- Complete the quest, dealing with a choice of rewards as the mode says.
+local pendingQuestID
+function Module:OnQuestComplete()
+	HideMarker()
+	if not self:CanAutomate() then
+		return
+	end
+
+	local questID = GetQuestID()
+	local turnIn = self:ShouldTurnIn(questID) and not CostsGold()
+	local mode = C.AutoQuest.RewardMode
+	local numChoices = GetNumQuestChoices() or 0
+
+	if numChoices <= 1 then
+		if turnIn then
+			-- The same value the game's own button passes.
+			GetQuestReward(numChoices == 1 and 1 or 0)
+		end
+		return
+	end
+
+	if mode ~= "TAKE" and mode ~= "HIGHLIGHT" then
+		return
+	end
+
+	local bestIndex, waitingItem = FindBestChoice(numChoices)
+	if waitingItem then
+		-- Run again once, when the item arrives, and only if the same quest is
+		-- still on screen by then.
+		if pendingQuestID ~= questID then
+			pendingQuestID = questID
+			self:WaitForItemData(waitingItem, function()
+				local frame = _G.QuestFrame
+				if pendingQuestID == questID and frame and frame:IsShown() and GetQuestID() == questID then
+					-- Clear first, so a second cold item can wait in turn.
+					pendingQuestID = nil
+					self:OnQuestComplete()
+				end
+			end)
+		end
+		return
+	end
+	pendingQuestID = nil
+
+	-- Nothing sells for anything, so there is no best to pick. Leave it to you.
+	if not bestIndex then
+		return
+	end
+
+	if mode == "TAKE" and turnIn then
+		GetQuestReward(bestIndex)
+	else
+		ShowMarker(bestIndex)
+	end
+end
+
+function Module:OnQuestFinished()
+	pendingQuestID = nil
+	HideMarker()
 end
 
 function Module:SetupTurnIn()
 	self:RegisterEvent("QUEST_PROGRESS", "OnQuestProgress")
 	self:RegisterEvent("QUEST_COMPLETE", "OnQuestComplete")
+	self:RegisterEvent("QUEST_FINISHED", "OnQuestFinished")
 end

@@ -6,6 +6,10 @@
 		older quest-greeting list, the single-quest detail page, area-trigger and
 		auto-accept popups, and shared-quest confirmations. Optionally pushes newly
 		accepted quests to the party.
+
+		A list window is handled one quest at a time. Picking a quest swaps the
+		window to that quest, so the rest of the list is stale until the NPC shows
+		it again. Turn-ins go first so a finished quest can open the next one.
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
@@ -13,7 +17,6 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:GetModule("Automation")
 
 local next = next
-local select = select
 local IsSecret = K.IsSecret
 local InCombatLockdown = InCombatLockdown
 local IsInGroup = IsInGroup
@@ -29,7 +32,6 @@ local GetAvailableQuestInfo = GetAvailableQuestInfo
 local SelectAvailableQuest = SelectAvailableQuest
 local GetQuestID = GetQuestID
 local QuestGetAutoAccept = QuestGetAutoAccept
-local QuestIsFromAreaTrigger = QuestIsFromAreaTrigger
 local AcknowledgeAutoAcceptQuest = AcknowledgeAutoAcceptQuest
 local RemoveAutoQuestPopUp = RemoveAutoQuestPopUp
 local AcceptQuest = AcceptQuest
@@ -40,69 +42,68 @@ local ShowQuestOffer = ShowQuestOffer
 local ShowQuestComplete = ShowQuestComplete
 local QuestLogPushQuest = QuestLogPushQuest
 
--- A questID that is nil, zero, or a Midnight secret value is never safe to act on.
-local function ValidQuest(questID)
-	return questID and not IsSecret(questID) and questID ~= 0
-end
-
--- Quests offered and completed through a gossip window (most modern NPCs).
+-- Quests offered and completed through a gossip window. Returns true when a
+-- quest was picked, so the gossip skip leaves the window alone.
 function Module:HandleGossipQuests()
-	if self:IsPaused() or not C.AutoQuest.Accept then
-		return
-	end
-
 	for _, quest in next, C_GossipInfo.GetActiveQuests() do
-		if quest.isComplete and ValidQuest(quest.questID) and self:ShouldAccept(quest.questID) then
+		if quest.isComplete and not IsSecret(quest.isComplete) and self:ShouldTurnIn(quest.questID, quest.frequency, quest.repeatable or false) then
 			C_GossipInfo.SelectActiveQuest(quest.questID)
+			return true
 		end
 	end
 
 	for _, quest in next, C_GossipInfo.GetAvailableQuests() do
-		if ValidQuest(quest.questID) and self:ShouldAccept(quest.questID) then
+		if self:ShouldAccept(quest.questID, quest.isTrivial, quest.frequency, quest.repeatable or false) then
 			C_GossipInfo.SelectAvailableQuest(quest.questID)
+			return true
 		end
 	end
+
+	return false
 end
 
 -- Fired for both quest gossip and plain gossip. Deal with quests first, then let
 -- the gossip file decide whether to click through a lone gossip option.
 function Module:OnGossipShow()
-	self:HandleGossipQuests()
-	if self.HandleGossipSkip then
+	if not self:CanAutomate() then
+		return
+	end
+	if not self:HandleGossipQuests() and self.HandleGossipSkip then
 		self:HandleGossipSkip()
 	end
 end
 
 -- The older quest-greeting list, used by NPCs without full gossip.
 function Module:OnQuestGreeting()
-	if self:IsPaused() or not C.AutoQuest.Accept then
+	if not self:CanAutomate() then
 		return
 	end
 
 	for index = 1, GetNumActiveQuests() do
 		local _, isComplete = GetActiveTitle(index)
-		local questID = GetActiveQuestID(index)
-		if isComplete and ValidQuest(questID) and self:ShouldAccept(questID) then
+		if isComplete and self:ShouldTurnIn(GetActiveQuestID(index)) then
 			SelectActiveQuest(index)
+			return
 		end
 	end
 
 	for index = 1, GetNumAvailableQuests() do
-		local questID = select(5, GetAvailableQuestInfo(index))
-		if ValidQuest(questID) and self:ShouldAccept(questID) then
+		local isTrivial, frequency, isRepeatable, _, questID = GetAvailableQuestInfo(index)
+		if self:ShouldAccept(questID, isTrivial, frequency, isRepeatable or false) then
 			SelectAvailableQuest(index)
+			return
 		end
 	end
 end
 
 -- The single-quest detail page shown before accepting.
 function Module:OnQuestDetail()
-	if self:IsPaused() or not C.AutoQuest.Accept then
+	if not C.AutoQuest.Accept or not self:CanAutomate() then
 		return
 	end
 
 	local questID = GetQuestID()
-	if not ValidQuest(questID) then
+	if not self:ValidQuest(questID) then
 		return
 	end
 
@@ -110,49 +111,77 @@ function Module:OnQuestDetail()
 		-- Already accepted by the game, the page is only a notice.
 		AcknowledgeAutoAcceptQuest()
 		RemoveAutoQuestPopUp(questID)
-	elseif QuestIsFromAreaTrigger() then
-		AcceptQuest()
-	elseif self:ShouldAccept(questID) then
+		return
+	end
+
+	if self:IsSharedQuest() and not C.AutoQuest.SharedQuests then
+		return
+	end
+
+	if self:ShouldAccept(questID) then
 		AcceptQuest()
 	end
 end
 
--- Area-trigger and end-of-quest popups that live in the objective tracker.
+-- Popups in the objective tracker for quests offered or finished away from an
+-- NPC. The popup stays until the quest is dealt with, so each one is opened
+-- only once rather than on every quest log update.
+local handledPopups = {}
+
 function Module:OnQuestLogUpdate()
-	if self:IsPaused() or not C.AutoQuest.Accept then
+	if InCombatLockdown() or not self:CanAutomate() then
 		return
 	end
 
 	for index = 1, GetNumAutoQuestPopUps() do
 		local questID, popUpType = GetAutoQuestPopUp(index)
-		if ValidQuest(questID) and self:ShouldAccept(questID) then
-			if popUpType == "OFFER" then
+		if self:ValidQuest(questID) and handledPopups[questID] ~= popUpType then
+			if popUpType == "OFFER" and self:ShouldAccept(questID) then
+				handledPopups[questID] = popUpType
 				ShowQuestOffer(questID)
-			elseif popUpType == "COMPLETE" then
+				return
+			elseif popUpType == "COMPLETE" and self:ShouldTurnIn(questID) then
+				handledPopups[questID] = popUpType
 				ShowQuestComplete(questID)
+				return
 			end
 		end
 	end
 end
 
--- Shared quests that need a confirmation (escorts and the like).
+-- Forget a quest once it leaves the log, so the table stays as small as the log.
+function Module:OnQuestRemoved(_, questID)
+	if questID then
+		handledPopups[questID] = nil
+	end
+end
+
+-- A party member starting an escort or similar asks everyone to confirm.
 function Module:OnQuestAcceptConfirm()
-	if not self:IsPaused() and C.AutoQuest.Accept then
+	if C.AutoQuest.Accept and C.AutoQuest.SharedQuests and not self:IsPaused() then
 		ConfirmAcceptQuest()
 	end
 end
 
--- Push a freshly accepted quest to the party when sharing is on.
+-- Push a freshly accepted quest to the party when sharing is on. Pushing works
+-- on the quest log's selection, so select it and then put the old one back.
 function Module:OnQuestAccepted(_, questID)
 	if not C.AutoQuest.Share or InCombatLockdown() or not IsInGroup() then
 		return
 	end
-	if not ValidQuest(questID) or not C_QuestLog.IsPushableQuest(questID) then
+	if not self:ValidQuest(questID) or not C_QuestLog.IsPushableQuest(questID) then
 		return
 	end
 	local logIndex = C_QuestLog.GetLogIndexForQuestID(questID)
-	if logIndex then
-		QuestLogPushQuest(logIndex)
+	if not logIndex then
+		return
+	end
+
+	local previous = C_QuestLog.GetSelectedQuest()
+	C_QuestLog.SetSelectedQuest(questID)
+	QuestLogPushQuest(logIndex)
+	if previous and previous ~= questID then
+		C_QuestLog.SetSelectedQuest(previous)
 	end
 end
 
@@ -161,6 +190,7 @@ function Module:SetupAccept()
 	self:RegisterEvent("QUEST_GREETING", "OnQuestGreeting")
 	self:RegisterEvent("QUEST_DETAIL", "OnQuestDetail")
 	self:RegisterEvent("QUEST_LOG_UPDATE", "OnQuestLogUpdate")
+	self:RegisterEvent("QUEST_REMOVED", "OnQuestRemoved")
 	self:RegisterEvent("QUEST_ACCEPT_CONFIRM", "OnQuestAcceptConfirm")
 	self:RegisterEvent("QUEST_ACCEPTED", "OnQuestAccepted")
 end
