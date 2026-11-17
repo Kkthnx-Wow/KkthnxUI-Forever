@@ -81,20 +81,10 @@ local function StripStock(btn)
 	if nt then
 		nt:SetAlpha(0)
 	end
-	-- The stock highlight is the round frame ring, which is hidden above, so hover
-	-- is a soft wash over the whole slot inside our border instead.
-	local ht = btn.GetHighlightTexture and btn:GetHighlightTexture()
-	if ht then
-		ht:SetColorTexture(1, 1, 1, 0.18)
-		ht:SetBlendMode("ADD")
-		ht:ClearAllPoints()
-		ht:SetAllPoints(btn)
-		ht:SetAlpha(1)
-	end
-	local pt = btn.GetPushedTexture and btn:GetPushedTexture()
-	if pt then
-		pt:SetAlpha(0)
-	end
+	-- The stock highlight is the round frame ring, so the border set's hover,
+	-- pressed and checked looks replace it. Re-applied with the rest, since
+	-- UpdateTextures puts the stock art back.
+	K.StyleButtonStates(btn, 1)
 	-- Retail buttons mask the icon with CircleMask, Forever's with SquareMask.
 	if btn.CircleMask then
 		btn.CircleMask:Hide()

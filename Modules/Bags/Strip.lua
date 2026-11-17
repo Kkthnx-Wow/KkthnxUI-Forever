@@ -209,7 +209,7 @@ local function AddUsage(bag)
 end
 
 local function OnEnter(self)
-	self.KKUI_Border:SetVertexColor(1, 1, 1, 1)
+	K.SetBorderColor(self.KKUI_Border, 1, 1, 1, 1)
 	local bag = self.bagID
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 
@@ -245,7 +245,7 @@ end
 
 local function OnLeave(self)
 	if self.__q then
-		self.KKUI_Border:SetVertexColor(self.__q.r, self.__q.g, self.__q.b, 1)
+		K.SetBorderColor(self.KKUI_Border, self.__q.r, self.__q.g, self.__q.b, 1)
 	else
 		K.ResetBorderColor(self.KKUI_Border)
 	end
@@ -298,6 +298,7 @@ function Module:CreateBagStrip(f)
 		button.bagID = bag
 		K.CreateGradientBackground(button, 0.9)
 		K.CreateBorder(button)
+		K.StyleButtonStates(button, 2)
 
 		local icon = button:CreateTexture(nil, "ARTWORK")
 		button.Icon = icon
@@ -346,7 +347,7 @@ local function SetQualityBorder(button, quality)
 	local color = quality and quality > 1 and C_Item and C_Item.GetItemQualityColor and { C_Item.GetItemQualityColor(quality) }
 	if color and color[1] then
 		button.__q = { r = color[1], g = color[2], b = color[3] }
-		button.KKUI_Border:SetVertexColor(color[1], color[2], color[3], 1)
+		K.SetBorderColor(button.KKUI_Border, color[1], color[2], color[3], 1)
 	else
 		button.__q = nil
 		K.ResetBorderColor(button.KKUI_Border)

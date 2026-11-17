@@ -142,7 +142,7 @@ local STEPS = {
 				if K.InstallChat then
 					K.InstallChat()
 				end
-				chatDone:SetText(CHECK .. " |cff4EBD87" .. L["Applied"] .. "|r")
+				chatDone:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
 			end)
 			chat:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, -20)
 			chatDone:SetPoint("LEFT", chat, "RIGHT", 10, 0)
@@ -150,7 +150,7 @@ local STEPS = {
 			local layoutDone = Header(panel, 12, "", gold)
 			local layout = Button(panel, 150, L["Apply UI Layout"], function()
 				K.ResetMovers()
-				layoutDone:SetText(CHECK .. " |cff4EBD87" .. L["Applied"] .. "|r")
+				layoutDone:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
 			end)
 			layout:SetPoint("TOPLEFT", chat, "BOTTOMLEFT", 0, -12)
 			layoutDone:SetPoint("LEFT", layout, "RIGHT", 10, 0)
@@ -188,7 +188,7 @@ local STEPS = {
 						pcall(SetCVar, cb.tweak.cvar, cb.tweak.value)
 					end
 				end
-				done:SetText(CHECK .. " |cff4EBD87" .. L["Applied"] .. "|r")
+				done:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
 			end)
 			apply:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, top - #CVAR_TWEAKS * (BOX + GAP) - 8)
 			done:SetPoint("LEFT", apply, "RIGHT", 10, 0)
@@ -287,7 +287,7 @@ function Module:BuildFrame()
 	self.frame = f
 	self.panels = {}
 
-	local title = Header(f, 17, "|cff5C8BCFKkthnxUI|r  " .. L["Setup"], nil)
+	local title = Header(f, 17, K.ColorText("accent", "KkthnxUI") .. "  " .. L["Setup"], nil)
 	title:SetPoint("TOP", f, "TOP", 0, -14)
 
 	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")

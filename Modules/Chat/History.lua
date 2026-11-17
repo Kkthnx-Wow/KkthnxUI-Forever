@@ -94,7 +94,8 @@ local function Restore(saved)
 				if frame and not dividers[frame] then
 					dividers[frame] = true
 					frame:AddMessage(" ")
-					frame:AddMessage("|cff669dff" .. (K.Title or "KkthnxUI") .. ":|r previous chat", 0.6, 0.6, 0.6)
+					local muted = K.Colors.muted
+					frame:AddMessage(K.ColorText("accent", (K.Title or "KkthnxUI") .. ":") .. " previous chat", muted[1], muted[2], muted[3])
 				end
 				if frame then
 					frame:AddMessage(line.text)

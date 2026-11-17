@@ -8,6 +8,7 @@
 	<Script file="Core\Locales.lua" />
 	<Include file="Locales\Load_Locales.xml" />
 	<Script file="Core\API.lua" />
+	<Script file="Core\Palette.lua" />
 	<Script file="Config\Defaults.lua" />
 	<Script file="Core\Config.lua" />
 	<Script file="Core\Media.lua" />

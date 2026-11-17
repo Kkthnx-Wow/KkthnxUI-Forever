@@ -75,7 +75,7 @@ local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
 
 local SPARK = "Interface\\CastingBar\\UI-CastingBar-Spark"
 local REPORT_COOLDOWN = 10
-local INFO_COLOR = "|cff669dff"
+local INFO_COLOR = K.ColorHex("info")
 local HEADER = { 0.9, 0.8, 0.5 }
 
 local function BarTexture()
@@ -640,7 +640,7 @@ local function AddExperienceTooltip()
 	if not xpState.available then
 		return false
 	end
-	_G.GameTooltip:AddDoubleLine("|cff0070ff" .. (_G.COMBAT_XP_GAIN or "Experience") .. "|r", format("%s %d", _G.LEVEL or "Level", UnitLevel("player")))
+	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", _G.COMBAT_XP_GAIN or "Experience"), format("%s %d", _G.LEVEL or "Level", UnitLevel("player")))
 	_G.GameTooltip:AddLine(" ")
 	_G.GameTooltip:AddDoubleLine(L["XP"], format("%s - %s (%.1f%%)", K.ShortValue(xpState.cur), K.ShortValue(xpState.max), xpState.percent or 0), 1, 1, 1)
 	AddRemainingLine(xpState)
@@ -658,7 +658,7 @@ local function AddReputationTooltip(addSpacing)
 	if addSpacing then
 		AddTooltipDivider()
 	end
-	_G.GameTooltip:AddDoubleLine("|cff00bdfc" .. (repState.name or "") .. "|r", repState.label or "", 1, 1, 1)
+	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", repState.name or ""), repState.label or "", 1, 1, 1)
 	_G.GameTooltip:AddLine(" ")
 	if repState.capped then
 		_G.GameTooltip:AddLine(repState.display, 1, 1, 1, true)
@@ -680,7 +680,7 @@ local function AddHonorTooltip(addSpacing)
 		AddTooltipDivider()
 	end
 	local levelText = (_G.LEVEL or "Level") .. " " .. (honorState.level or 0)
-	_G.GameTooltip:AddDoubleLine("|cff00bdfc" .. (_G.HONOR or "Honor") .. "|r", levelText)
+	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", _G.HONOR or "Honor"), levelText)
 	_G.GameTooltip:AddLine(" ")
 	_G.GameTooltip:AddDoubleLine(L["Honor XP"], format("%s - %s (%.1f%%)", K.ShortValue(honorState.cur), K.ShortValue(honorState.max), honorState.percent or 0), 1, 1, 1)
 	AddRemainingLine(honorState)
@@ -695,7 +695,7 @@ local function AddAzeriteTooltip(addSpacing)
 		AddTooltipDivider()
 	end
 	local levelText = (_G.LEVEL or "Level") .. " " .. (azeriteState.level or 0)
-	_G.GameTooltip:AddDoubleLine("|cff00bdfc" .. (_G.AZERITE_POWER or "Azerite") .. "|r", levelText)
+	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", _G.AZERITE_POWER or "Azerite"), levelText)
 	_G.GameTooltip:AddLine(" ")
 	_G.GameTooltip:AddDoubleLine(L["XP"], format("%s - %s (%.1f%%)", K.ShortValue(azeriteState.cur), K.ShortValue(azeriteState.max), azeriteState.percent or 0), 1, 1, 1)
 	AddRemainingLine(azeriteState)

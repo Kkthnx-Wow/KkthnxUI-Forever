@@ -25,16 +25,17 @@ C.Media = {
 		Combat = _G.DAMAGE_TEXT_FONT or STANDARD_TEXT_FONT,
 		Blank = media .. "Fonts\\Invisible.ttf",
 	},
-	Borders = {
-		KkthnxUI = media .. "Border\\KkthnxUI\\Border.tga",
-		KkthnxUI_Pixel = media .. "Border\\KkthnxUI_Pixel\\Border.tga",
-		KkthnxUI_Blank = media .. "Border\\KkthnxUI_Blank\\Border.tga",
-		AzeriteUI = media .. "Border\\AzeriteUI\\Border.tga",
-	},
 	-- Every bar texture we actually ship. Most of these sat in Media/Statusbars
 	-- unlisted, so they were on disk but could never be picked.
 	Statusbars = {
 		KkthnxUI = media .. "Statusbars\\Statusbar",
+		-- Blizzard's cooldown manager bar, as an atlas. Grey so class and health
+		-- colours tint it like any of our files. The player frame's health fill
+		-- (UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health-Status) looks close but
+		-- has a transparent margin and rounded corners inside its atlas, so it
+		-- never reached the edges of a bar, and a status bar cannot be told to
+		-- crop or overhang its fill. This one runs edge to edge.
+		["KkthnxUI Forever"] = "UI-HUD-CoolDownManager-Bar",
 		AltzUI = media .. "Statusbars\\AltzUI.tga",
 		AsphyxiaUI = media .. "Statusbars\\AsphyxiaUI.tga",
 		AzeriteUI = media .. "Statusbars\\AzeriteUI.tga",
@@ -65,6 +66,22 @@ C.Media = {
 
 local statusbars = C.Media.Statusbars
 local fonts = C.Media.Fonts
+
+-- Bar textures that are atlas names rather than files. A StatusBar takes either
+-- through SetStatusBarTexture, but a plain Texture needs SetAtlas for these, and
+-- they are never handed to other addons as a file path.
+K.StatusbarAtlases = {
+	["UI-HUD-CoolDownManager-Bar"] = true,
+}
+
+-- Put a bar texture from the list above on a plain Texture region.
+function K.SetTextureAsset(texture, asset)
+	if K.StatusbarAtlases[asset] then
+		texture:SetAtlas(asset, false)
+	else
+		texture:SetTexture(asset)
+	end
+end
 
 -- Resolve a statusbar texture by name, falling back to LSM then our default.
 function K.GetTexture(name)
@@ -120,7 +137,10 @@ function K.SyncSharedMedia()
 	for _, entry in pairs(SHARED_TYPES) do
 		local mediatype, tbl = entry[1], entry[2]
 		for name, path in pairs(tbl) do
-			LSM:Register(mediatype, name, path)
+			-- An atlas name is not a file, and another addon would draw it blank.
+			if not (mediatype == "statusbar" and K.StatusbarAtlases[path]) then
+				LSM:Register(mediatype, name, path)
+			end
 		end
 	end
 

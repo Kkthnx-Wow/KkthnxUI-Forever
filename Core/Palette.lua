@@ -1,0 +1,86 @@
+--[[-----------------------------------------------------------------------------
+	Addon: KkthnxUI
+	File: Core/Palette.lua
+	Purpose:
+		The one palette every colour the UI draws comes from, and helpers to
+		write text in it. Loaded right after Core/API.lua so every later file,
+		including ones that build coloured strings while they load, can use it.
+-----------------------------------------------------------------------------]]
+
+local K = KkthnxUI[1]
+
+local format = string.format
+local type = type
+local setmetatable = setmetatable
+
+-- ---------------------------------------------------------------------------
+-- Palette ("Steel")
+-- ---------------------------------------------------------------------------
+-- Every colour the UI draws itself comes from these fourteen. Game data keeps
+-- its own colours (class, item quality, reaction, level difficulty), everything
+-- else picks a token by what it means, not by how it looks:
+--
+--   surfaces  bg        the backdrop behind everything
+--             panel     a panel or tooltip body
+--             raised    a control sitting on a panel (button, box)
+--             line      hairlines and dividers
+--   text      text      body text
+--             secondary softer body text
+--             muted     labels, hints, descriptions
+--             disabled  greyed out or unavailable
+--   meaning   accent    the theme colour: headings, focus, selection
+--             highlight a value worth reading first (item level, gold)
+--             positive  good, done, friendly, on
+--             warning   caution, changed, needs attention
+--             negative  danger, error, hostile, off
+--             info      clickable hints and information
+--
+-- The older names below the tokens point at the same tables, so a retune here
+-- reaches every call site.
+local P = {
+	bg = { 0.059, 0.075, 0.094 }, -- #0F1318
+	panel = { 0.090, 0.114, 0.149 }, -- #171D26
+	raised = { 0.122, 0.153, 0.200 }, -- #1F2733
+	line = { 0.169, 0.212, 0.282 }, -- #2B3648
+	text = { 0.925, 0.933, 0.949 }, -- #ECEEF2
+	secondary = { 0.773, 0.835, 0.910 }, -- #C5D5E8
+	muted = { 0.620, 0.655, 0.710 }, -- #9EA7B5
+	disabled = { 0.451, 0.478, 0.529 }, -- #737A87
+	accent = { 0.361, 0.545, 0.812 }, -- #5C8BCF
+	highlight = { 0.953, 0.690, 0.263 }, -- #F3B043
+	positive = { 0.306, 0.741, 0.529 }, -- #4EBD87
+	warning = { 0.902, 0.502, 0.235 }, -- #E6803C
+	negative = { 0.898, 0.325, 0.325 }, -- #E55353
+	info = { 0.600, 0.800, 1.000 }, -- #99CCFF
+}
+
+K.Colors = P
+P.gold = P.highlight
+P.silver = P.secondary
+P.voidDark = P.bg
+P.borderSubtle = P.line
+P.borderFocus = { 0.259, 0.329, 0.439 } -- #425470, a line that has focus
+P.crimson = P.negative
+P.jade = P.positive
+P.ember = P.warning
+P.offWhite = P.text
+
+-- "|cffRRGGBB" for a token (or any colour table), for text built with markup.
+-- Built once per colour and kept, since tooltips ask for these on every show.
+local hexCache = setmetatable({}, { __mode = "k" })
+function K.ColorHex(color)
+	if type(color) == "string" then
+		color = P[color]
+	end
+	local hex = hexCache[color]
+	if not hex then
+		hex = format("|cff%02x%02x%02x", color[1] * 255 + 0.5, color[2] * 255 + 0.5, color[3] * 255 + 0.5)
+		hexCache[color] = hex
+	end
+	return hex
+end
+
+-- Wrap text in a token's colour.
+function K.ColorText(color, text)
+	return K.ColorHex(color) .. text .. "|r"
+end

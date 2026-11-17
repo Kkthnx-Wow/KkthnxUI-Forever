@@ -119,7 +119,7 @@ local function ShowGoldTooltip(anchor)
 
 	if db.warband and db.warband.gold and db.warband.gold > 0 then
 		GameTooltip:AddLine(" ")
-		GameTooltip:AddDoubleLine("|cffffcc80" .. (L["Warband"]) .. "|r", GetCoinTextureString(db.warband.gold), 1, 1, 1, 1, 1, 1)
+		GameTooltip:AddDoubleLine(K.ColorText("highlight", L["Warband"]), GetCoinTextureString(db.warband.gold), 1, 1, 1, 1, 1, 1)
 		total = total + db.warband.gold
 	end
 
@@ -158,8 +158,8 @@ end
 local function ShowWarbandHint(self)
 	GameTooltip:SetOwner(self, "ANCHOR_TOP")
 	GameTooltip:AddLine(L["Warband Bank"], 1, 1, 1)
-	GameTooltip:AddLine(L["Left-click to deposit"], 0.7, 0.85, 1)
-	GameTooltip:AddLine(L["Right-click to withdraw"], 0.7, 0.85, 1)
+	GameTooltip:AddLine(L["Left-click to deposit"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+	GameTooltip:AddLine(L["Right-click to withdraw"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
 	GameTooltip:Show()
 end
 
@@ -203,7 +203,7 @@ function Module:UpdateWarbandMoney(f)
 	end
 	if self.bankType == ACCOUNT and C_Bank and C_Bank.FetchDepositedMoney then
 		local amount = C_Bank.FetchDepositedMoney(ACCOUNT) or 0
-		f.WarbandMoney.Text:SetText("|cffffcc80" .. L["Warband"] .. ":|r " .. GetCoinTextureString(amount))
+		f.WarbandMoney.Text:SetText(K.ColorText("highlight", L["Warband"] .. ":") .. " " .. GetCoinTextureString(amount))
 		f.WarbandMoney:Show()
 	else
 		f.WarbandMoney:Hide()

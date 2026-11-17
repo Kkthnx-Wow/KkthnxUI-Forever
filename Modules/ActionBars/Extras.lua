@@ -123,15 +123,9 @@ function Module:StyleZoneAbility()
 			button:SetNormalTexture(0)
 		end
 
-		-- Keep the hover inside our border instead of the oversized stock square.
-		local highlight = button.GetHighlightTexture and button:GetHighlightTexture()
-		if highlight then
-			highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-			highlight:ClearAllPoints()
-			highlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-			highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-			highlight:SetBlendMode("ADD")
-		end
+		-- The border set's hover, pressed and checked looks, the same as every
+		-- other square button. Re-applied per update for the same pool reason.
+		K.StyleButtonStates(button, 1)
 
 		-- Refresh re-sets the icon texture, so re-crop and re-anchor it to sit flush.
 		if button.Icon then
@@ -209,12 +203,19 @@ function Module:StyleVehicleLeave()
 		pushed:SetTexCoord(0.140625, 0.859375, 0.140625, 0.859375)
 		pushed:SetAllPoints(button)
 	end
+	-- Hover only. Its pushed texture is the icon art itself, so the square
+	-- pressed shadow would blank the button while held.
 	local highlight = button:GetHighlightTexture()
 	if highlight then
-		highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-		highlight:SetAllPoints(button)
+		highlight:SetTexture(K.GetBorderMedia("ButtonHighlight"))
+		highlight:SetTexCoord(0, 1, 0, 1)
+		highlight:ClearAllPoints()
+		highlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+		highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 		highlight:SetBlendMode("ADD")
+		highlight:SetVertexColor(1, 1, 1, 0.5)
 	end
+	K.AddBorderHover(button, 1, 1, 1, 0.5)
 
 	if not button.__kkuiVehicle then
 		button.__kkuiVehicle = true

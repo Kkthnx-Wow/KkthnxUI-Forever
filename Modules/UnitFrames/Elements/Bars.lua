@@ -62,7 +62,7 @@ local BACKDROP_ALPHA = 0.9
 
 local function AddBackdropTint(bar)
 	local tint = bar:CreateTexture(nil, "BACKGROUND", nil, -6)
-	tint:SetTexture(Module.Texture())
+	K.SetTextureAsset(tint, Module.Texture())
 	tint:SetAllPoints()
 	tint:SetVertexColor(0.2, 0.2, 0.2, BACKDROP_ALPHA)
 	K.DisablePixelSnap(tint)
@@ -78,7 +78,10 @@ local function ShadeBar(bar)
 		return
 	end
 	local texture = bar:GetStatusBarTexture()
-	if texture:GetAtlas() then
+	-- Blizzard's own power atlases carry their colour in the art. Our atlas bar
+	-- texture is grey and coloured like a file, so it is shaded as normal.
+	local atlas = texture:GetAtlas()
+	if atlas and not K.StatusbarAtlases[atlas] then
 		return
 	end
 
@@ -200,8 +203,7 @@ function Module.RefreshHealthBorder(self)
 	end
 
 	if color then
-		border.__customColor = true
-		border:SetVertexColor(color:GetRGB())
+		K.SetBorderColor(border, color:GetRGB())
 	else
 		K.ResetBorderColor(border)
 	end

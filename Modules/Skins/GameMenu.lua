@@ -101,7 +101,7 @@ local function EnsureButton(frame)
 		return kkuiButton
 	end
 	local button = CreateFrame("Button", "KKUI_GameMenuButton", frame, "UIPanelButtonTemplate")
-	button:SetText("|cff5C8BCFKkthnxUI|r")
+	button:SetText(K.ColorText("accent", "KkthnxUI"))
 	StyleMenuButton(button)
 	button.__kkuiStyled = true
 	button:SetScript("OnClick", function()

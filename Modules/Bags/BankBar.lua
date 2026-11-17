@@ -57,6 +57,7 @@ local function MakeBuyButton(parent)
 	button:SetSize(SLOT, SLOT)
 	K.CreateGradientBackground(button, 0.9)
 	K.CreateBorder(button)
+	K.StyleButtonStates(button, 1)
 
 	local plus = button:CreateFontString(nil, "OVERLAY")
 	K.SetFont(plus, 20, K.FontOutlineStyle())
@@ -65,7 +66,7 @@ local function MakeBuyButton(parent)
 	plus:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 
 	button:HookScript("OnEnter", function(self)
-		self.KKUI_Border:SetVertexColor(1, 1, 1, 1)
+		K.SetBorderColor(self.KKUI_Border, 1, 1, 1, 1)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText(L["Buy Bank Bag Slot"], 1, 1, 1)
 		local data = C_Bank.FetchNextPurchasableBankTabData(CHARACTER)
@@ -88,7 +89,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local function SlotOnEnter(self)
-	self.KKUI_Border:SetVertexColor(1, 1, 1, 1)
+	K.SetBorderColor(self.KKUI_Border, 1, 1, 1, 1)
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 	if not self.bought then
 		GameTooltip:SetText(_G.BANK_BAG_PURCHASE or L["Buy Bank Bag Slot"], 1, 1, 1)
@@ -118,6 +119,7 @@ local function AcquireSlot(bar, index)
 		button:SetSize(SLOT, SLOT)
 		K.CreateGradientBackground(button, 0.9)
 		K.CreateBorder(button)
+		K.StyleButtonStates(button, 2)
 		local icon = button:CreateTexture(nil, "ARTWORK")
 		icon:SetPoint("TOPLEFT", 2, -2)
 		icon:SetPoint("BOTTOMRIGHT", -2, 2)
@@ -159,7 +161,7 @@ local function UpdateSlot(button, slot, bought)
 		if quality and not IsSecret(quality) and quality > 1 then
 			local r, g, b = C_Item.GetItemQualityColor(quality)
 			if r then
-				button.KKUI_Border:SetVertexColor(r, g, b, 1)
+				K.SetBorderColor(button.KKUI_Border, r, g, b, 1)
 			end
 		end
 	else

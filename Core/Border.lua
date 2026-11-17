@@ -28,16 +28,59 @@ function K.GetBorder(frame)
 	return frame[BORDER_KEY] or offFrame[frame]
 end
 
-local function GetDefaultStyle()
-	return (C.General and C.General.BorderStyle) or "KkthnxUI"
+-- Every border style is a folder holding the same set of files:
+--   Border.tga           the eight cell border
+--   Highlight.tga        laid out like Border.tga, its band in white with a
+--                        soft halo, drawn ADD over the border on hover
+--   ButtonHighlight.tga  single squares laid over a square button's icon as
+--   ButtonPushed.tga     its own highlight, pushed and checked textures
+--   ButtonChecked.tga
+--
+-- gold is Forever's own window trim (about RGB 130, 96, 52 in game) divided
+-- by how bright that style's band reads on average, so the tinted band lands
+-- on the trim. A band too dark to reach it gets the same hue at full
+-- strength. Blank has no band, so its gold only shows on the hover glow.
+local STYLES = {
+	KkthnxUI = { gold = { 0.96, 0.709, 0.384, 1 } }, -- band 0.53
+	KkthnxUI_Pixel = { gold = { 0.586, 0.433, 0.234, 1 } }, -- band 0.87
+	AzeriteUI = { gold = { 1, 0.738, 0.4, 1 } }, -- band 0.45
+	KkthnxUI_Blank = { gold = { 0.586, 0.433, 0.234, 1 } },
+}
+
+-- The style is read when it is used, not when this file loads, because the
+-- profile is only read in on ADDON_LOADED. A style a profile names that we no
+-- longer ship falls back to the default instead of drawing nothing.
+local function GetStyle()
+	local style = C.General and C.General.BorderStyle
+	if not STYLES[style] then
+		style = "KkthnxUI"
+	end
+	return style
 end
 
-local function GetDefaultSize()
-	return GetDefaultStyle() == "KkthnxUI" and 12 or 10
+-- Path to one file of the active style's set. A style change asks for a
+-- reload, so frames never mix two sets.
+function K.GetBorderMedia(name)
+	return K.MediaFolder .. "Border\\" .. GetStyle() .. "\\" .. name .. ".tga"
 end
 
-K.BorderSize = GetDefaultSize()
+-- Every style draws at 12. (Older code meant the others to be 10, but it read
+-- the style before the profile loaded, so they always drew at 12, and that is
+-- the look they have.)
+K.BorderSize = 12
 K.BorderRegistry = {}
+
+local FALLBACK = { 1, 1, 1, 1 }
+
+-- The colour every border rests at. Read on each call, never cached, because
+-- the options window replaces these tables when a setting changes.
+function K.GetBorderColor()
+	local general = C.General
+	if general and general.ForeverGold then
+		return STYLES[GetStyle()].gold
+	end
+	return (general and general.BorderColor) or FALLBACK
+end
 
 -- ---------------------------------------------------------------------------
 -- Tiling math
@@ -180,6 +223,7 @@ AddProxy("SetShown")
 AddProxy("SetAlpha")
 AddProxy("SetIgnoreParentAlpha")
 AddProxy("SetDrawLayer")
+AddProxy("SetBlendMode")
 
 function Border:IsObjectType(t)
 	return t == "Border"
@@ -232,13 +276,138 @@ function K.CreateBorder(frame, drawLayer, subLevel, keepOffFrame)
 		frame[BORDER_KEY] = border
 	end
 
-	local style = GetDefaultStyle()
 	border:SetOffset(-4)
 	border:SetSize(K.BorderSize)
-	border:SetTexture(K.MediaFolder .. "Border\\" .. style .. "\\Border.tga")
+	border:SetTexture(K.GetBorderMedia("Border"))
+	-- Every border starts at the configured colour. Without this a border made
+	-- after the login refresh (a tooltip, a bag, a skinned window opened later)
+	-- showed the bare texture until the next colour change.
+	local color = K.GetBorderColor()
+	border:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
 
 	K.BorderRegistry[#K.BorderRegistry + 1] = border
 	return border
+end
+
+-- A highlight that is the border itself lighting up. Highlight.tga is laid out
+-- exactly like Border.tga and holds the same band in white with a soft halo.
+-- It is drawn ADD as a second border over the real one, so it follows any
+-- frame size and any style. It lives on its own child frame because a frame
+-- carries one border, and it keeps its own tint when the border colour is
+-- refreshed. Returns the frame to Show and Hide.
+function K.CreateHighlightBorder(frame, r, g, b, a)
+	local host = CreateFrame("Frame", nil, frame)
+	host:SetAllPoints(frame)
+	host:SetFrameLevel(frame:GetFrameLevel() + 3)
+
+	local glow = K.CreateBorder(host, "OVERLAY", 7)
+	glow:SetTexture(K.GetBorderMedia("Highlight"))
+	glow:SetBlendMode("ADD")
+	K.SetBorderColor(glow, r or 1, g or 1, b or 1, a or 0.5)
+
+	host.Glow = glow
+	host:Hide()
+	return host
+end
+
+-- The square button states from the border set, put on a button as its own
+-- highlight, pushed and checked textures. The game shows and hides those
+-- itself, so this is safe on secure action buttons in combat. They sit on
+-- the icon (inset by the same amount) and the rail draws over their edge, so
+-- each glow comes out from under the border. Checked is tinted gold. At a
+-- border size of 12 every style's band ends within about a pixel of the
+-- frame edge, so one inset fits them all.
+local function StateTexture(texture, file, blend, inset, r, g, b, a)
+	texture:SetTexture(file)
+	texture:SetTexCoord(0, 1, 0, 1)
+	texture:SetDesaturated(false)
+	texture:SetBlendMode(blend)
+	texture:SetVertexColor(r, g, b, a)
+	texture:SetAlpha(1)
+	texture:ClearAllPoints()
+	texture:SetPoint("TOPLEFT", texture:GetParent(), "TOPLEFT", inset, -inset)
+	texture:SetPoint("BOTTOMRIGHT", texture:GetParent(), "BOTTOMRIGHT", -inset, inset)
+end
+
+-- A button we built ourselves has no state textures yet. Setting a file makes
+-- the game create the texture, which is then styled like any other.
+local function GetState(button, kind, file)
+	local get, set = button["Get" .. kind .. "Texture"], button["Set" .. kind .. "Texture"]
+	if not get then
+		return
+	end
+	local texture = get(button)
+	if not texture and set then
+		set(button, file)
+		texture = get(button)
+	end
+	return texture
+end
+
+function K.StyleButtonStates(button, inset)
+	inset = inset or 1
+	-- The border itself lights on hover too. The inner glow alone is only a
+	-- pixel or two wide on a small button and the border covers most of it.
+	K.AddBorderHover(button, 1, 1, 1, 0.5)
+	local file = K.GetBorderMedia("ButtonHighlight")
+	local highlight = GetState(button, "Highlight", file)
+	if highlight then
+		StateTexture(highlight, file, "ADD", inset, 1, 1, 1, 0.5)
+	end
+	-- Pushed and checked go just above the icon (icons sit at ARTWORK or below)
+	-- and under the border and text on OVERLAY. Highlight has its own layer.
+	file = K.GetBorderMedia("ButtonPushed")
+	local pushed = GetState(button, "Pushed", file)
+	if pushed then
+		StateTexture(pushed, file, "BLEND", inset, 1, 1, 1, 1)
+		pushed:SetDrawLayer("ARTWORK", 7)
+	end
+	file = K.GetBorderMedia("ButtonChecked")
+	local checked = GetState(button, "Checked", file)
+	if checked then
+		StateTexture(checked, file, "ADD", inset, 0.965, 0.769, 0.259, 0.9)
+		checked:SetDrawLayer("ARTWORK", 7)
+	end
+end
+
+-- Light a control's border while the mouse is over it, for controls that are
+-- not square icon buttons (checkboxes, dropdowns, swatches, sliders, edit
+-- boxes). hoverFrame is what the mouse is over when that is not the bordered
+-- frame itself, such as a slider over its track. A disabled control does not
+-- light. Built once per frame.
+function K.AddBorderHover(frame, r, g, b, a, hoverFrame)
+	if frame.KKUI_HoverGlow then
+		return frame.KKUI_HoverGlow
+	end
+	hoverFrame = hoverFrame or frame
+	local glow = K.CreateHighlightBorder(frame, r, g, b, a)
+	frame.KKUI_HoverGlow = glow
+	hoverFrame:HookScript("OnEnter", function(self)
+		if self.IsEnabled and not self:IsEnabled() then
+			return
+		end
+		glow:Show()
+	end)
+	hoverFrame:HookScript("OnLeave", function()
+		glow:Hide()
+	end)
+	if hoverFrame.HasScript and hoverFrame:HasScript("OnDisable") then
+		hoverFrame:HookScript("OnDisable", function()
+			glow:Hide()
+		end)
+	end
+	return glow
+end
+
+-- Textures that are drawn in the border colour without being a border (the
+-- dropdown arrow). They follow colour changes like the borders do, and a
+-- texture can step out of that for a moment by setting __customColor.
+K.BorderTinted = setmetatable({}, { __mode = "k" })
+
+function K.TintWithBorder(texture)
+	K.BorderTinted[texture] = true
+	local color = K.GetBorderColor()
+	texture:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
 end
 
 -- A soft outer shadow: a backdrop frame sitting a few pixels
@@ -285,6 +454,18 @@ function K.CreateBackdrop(frame, colorTable)
 	return frame
 end
 
+-- Give a border a colour of its own (quality, threat, hover, dispel school).
+-- It is marked so a change of the configured colour leaves it alone, until
+-- K.ResetBorderColor hands it back. Any colour that is not the configured one
+-- goes through here, or the next refresh paints over it.
+function K.SetBorderColor(border, r, g, b, a)
+	if not border then
+		return
+	end
+	border.__customColor = true
+	border:SetVertexColor(r, g, b, a or 1)
+end
+
 -- Put one border back to the configured colour. Used when something that
 -- temporarily owned the colour (threat, dispel school) lets go of it.
 function K.ResetBorderColor(border)
@@ -292,16 +473,21 @@ function K.ResetBorderColor(border)
 		return
 	end
 	border.__customColor = nil
-	local color = (C.General and C.General.BorderColor) or { 1, 1, 1, 1 }
+	local color = K.GetBorderColor()
 	border:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
 end
 
 -- Recolor every registered border, used by the config GUI on color changes.
 function K.RefreshBorderColors()
-	local color = (C.General and C.General.BorderColor) or { 1, 1, 1 }
+	local color = K.GetBorderColor()
 	for _, border in ipairs(K.BorderRegistry) do
 		if not border.__customColor then
 			border:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
+		end
+	end
+	for texture in pairs(K.BorderTinted) do
+		if not texture.__customColor then
+			texture:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
 		end
 	end
 end

@@ -163,7 +163,7 @@ local function AddMemoryLines(tooltip)
 		local entry = list[i]
 		tooltip:AddDoubleLine(entry.name, format("%.2f mb", entry.mem / 1024), 1, 1, 1, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3])
 	end
-	tooltip:AddDoubleLine(_G.TOTAL or "Total", format("%.2f mb", total / 1024), 1, 0.82, 0, 1, 1, 1)
+	tooltip:AddDoubleLine(_G.TOTAL or "Total", format("%.2f mb", total / 1024), K.Colors.highlight[1], K.Colors.highlight[2], K.Colors.highlight[3], 1, 1, 1)
 end
 
 function Module:PerformanceTooltip(anchor)
@@ -192,7 +192,7 @@ function Module:PerformanceTooltip(anchor)
 	end
 
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine("|cff669dffLeft Click|r " .. L["Collect garbage"], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	GameTooltip:AddLine(K.ColorText("info", "Left Click") .. " " .. L["Collect garbage"], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 	GameTooltip:Show()
 end
 

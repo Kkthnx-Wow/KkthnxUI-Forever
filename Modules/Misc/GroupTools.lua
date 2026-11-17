@@ -91,7 +91,7 @@ local function SetTip(button, title, line)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText(title, 1, 1, 1)
 		if line then
-			GameTooltip:AddLine(line, 0.7, 0.85, 1, true)
+			GameTooltip:AddLine(line, K.Colors.info[1], K.Colors.info[2], K.Colors.info[3], true)
 		end
 		GameTooltip:Show()
 	end)
@@ -125,9 +125,10 @@ local function IconButton(parent, size, index, secure)
 	button:SetSize(size, size)
 	K.CreateGradientBackground(button, 0.9)
 	K.CreateBorder(button)
+	K.StyleButtonStates(button, 1)
 	button:HookScript("OnEnter", function(self)
 		if self.KKUI_Border then
-			self.KKUI_Border:SetVertexColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3], 1)
+			K.SetBorderColor(self.KKUI_Border, K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3], 1)
 		end
 	end)
 	button:HookScript("OnLeave", function(self)
@@ -472,7 +473,8 @@ function Module:UpdateLeaderState()
 	local canLead = CanLead()
 	for _, button in ipairs(self.leaderButtons) do
 		button:SetEnabled(canLead)
-		button.Text:SetTextColor(canLead and 1 or 0.5, canLead and 1 or 0.5, canLead and 1 or 0.5)
+		local c = canLead and K.Colors.text or K.Colors.disabled
+		button.Text:SetTextColor(c[1], c[2], c[3])
 	end
 end
 

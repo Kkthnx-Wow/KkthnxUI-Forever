@@ -133,7 +133,7 @@ function Module:UpdateWeaponEnchants()
 				if quality and quality > 1 then
 					local r, g, b = GetItemQualityColor(quality)
 					if button.KKUI_Border then
-						button.KKUI_Border:SetVertexColor(r, g, b)
+						K.SetBorderColor(button.KKUI_Border, r, g, b)
 					end
 				elseif button.KKUI_Border then
 					K.ResetBorderColor(button.KKUI_Border)

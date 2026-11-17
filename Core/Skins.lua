@@ -12,28 +12,9 @@ local K = KkthnxUI[1]
 
 local _G = _G
 
--- Shared palette, built around the #5C8BCF steel-blue theme.
-local accent = { 0.361, 0.545, 0.812 } -- #5C8BCF main accent
-local gold = { 0.953, 0.690, 0.263 } -- #F3B043 warm gold
-K.Colors = {
-	accent = accent,
-	gold = gold,
-	silver = { 0.773, 0.835, 0.910 }, -- #C5D5E8
-	voidDark = { 0.059, 0.075, 0.094 }, -- #0F1318 main backdrop
-	panel = { 0.090, 0.114, 0.149 }, -- #171D26 inner panels
-	borderSubtle = { 0.169, 0.212, 0.282 }, -- #2B3648
-	borderFocus = { 0.259, 0.329, 0.439 }, -- #425470
-	crimson = { 0.898, 0.325, 0.325 }, -- #E55353 alert
-	jade = { 0.306, 0.741, 0.529 }, -- #4EBD87 success
-	ember = { 0.902, 0.502, 0.235 }, -- #E6803C caution, the step between gold and crimson
-	info = { 0.600, 0.800, 1.000 }, -- #99CCFF informational text, tooltip headings and hints
-	offWhite = { 0.925, 0.933, 0.949 }, -- #ECEEF2 body text, softer than pure white against the dark panels
-	-- Two muted tiers for secondary and inactive text. Both carry a little of the
-	-- theme blue rather than being flat grey, which is what keeps a hint or a greyed
-	-- label sitting in the same family as everything around it.
-	muted = { 0.620, 0.655, 0.710 }, -- #9EA7B5 hints, descriptions, secondary lines
-	disabled = { 0.451, 0.478, 0.529 }, -- #737A87 greyed out or unavailable
-}
+-- The palette lives in Core/Palette.lua, loaded before this file.
+local accent = K.Colors.accent
+local gold = K.Colors.highlight
 
 -- ---------------------------------------------------------------------------
 -- Shared gradient recipes
@@ -254,6 +235,11 @@ function K.SkinButton(button, emphasize)
 
 	local fs = button:GetFontString()
 	local dim = { 0.45, 0.47, 0.50 }
+	-- The border lights up on hover, in the same colour the border takes.
+	local glow = K.CreateHighlightBorder(button, hoverBorder[1], hoverBorder[2], hoverBorder[3], 0.45)
+	-- Marked as this button's hover glow, so K.AddBorderHover (from the square
+	-- button states) does not add a second one.
+	button.KKUI_HoverGlow = glow
 
 	-- A disabled button reads as grey and does not react to the mouse.
 	local function RestText(self)
@@ -272,13 +258,19 @@ function K.SkinButton(button, emphasize)
 		end
 		K.ApplyGradient(bg, "buttonHover")
 		if self.KKUI_Border then
-			self.KKUI_Border:SetVertexColor(hoverBorder[1], hoverBorder[2], hoverBorder[3], 1)
+			K.SetBorderColor(self.KKUI_Border, hoverBorder[1], hoverBorder[2], hoverBorder[3], 1)
+		end
+		if glow then
+			glow:Show()
 		end
 		if fs then
 			fs:SetTextColor(hoverColor[1], hoverColor[2], hoverColor[3])
 		end
 	end)
 	button:HookScript("OnLeave", function(self)
+		if glow then
+			glow:Hide()
+		end
 		K.ApplyGradient(bg, "buttonRest")
 		if self.KKUI_Border then
 			K.ResetBorderColor(self.KKUI_Border)
@@ -287,6 +279,9 @@ function K.SkinButton(button, emphasize)
 	end)
 	button:HookScript("OnEnable", RestText)
 	button:HookScript("OnDisable", function(self)
+		if glow then
+			glow:Hide()
+		end
 		K.ApplyGradient(bg, "buttonRest")
 		RestText(self)
 	end)
@@ -315,6 +310,7 @@ function K.SkinCheckBox(check)
 	-- nested inside the frame.
 	K.CreateBackground(check, 0.09, 0.114, 0.149, 0.9)
 	K.CreateBorder(check)
+	K.AddBorderHover(check, accent[1], accent[2], accent[3], 0.6)
 
 	-- Highlight fills the whole box so hover reads clearly.
 	local hl = check:GetHighlightTexture()
@@ -330,7 +326,7 @@ function K.SkinCheckBox(check)
 	local checked = check:GetCheckedTexture()
 	if checked then
 		checked:SetAtlas("common-icon-checkmark", true)
-		checked:SetVertexColor(0.306, 0.741, 0.529, 1) -- #4EBD87 jade
+		checked:SetVertexColor(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3], 1)
 		checked:SetDrawLayer("OVERLAY", 7)
 		checked:ClearAllPoints()
 		checked:SetPoint("CENTER", check, "CENTER", 2, 2)
@@ -386,8 +382,8 @@ function K.SkinCloseButton(button)
 	end)
 	button:HookScript("OnLeave", function()
 		K.ApplyGradient(bg, "close")
-		a:SetColorTexture(0.953, 0.69, 0.263)
-		b:SetColorTexture(0.953, 0.69, 0.263)
+		a:SetColorTexture(gold[1], gold[2], gold[3])
+		b:SetColorTexture(gold[1], gold[2], gold[3])
 	end)
 	return button
 end
@@ -478,6 +474,7 @@ function K.SkinEditBox(edit)
 
 	K.CreateBackground(edit, 0.1, 0.1, 0.1, 0.85)
 	K.CreateBorder(edit)
+	K.AddBorderHover(edit, accent[1], accent[2], accent[3], 0.6)
 	return edit
 end
 

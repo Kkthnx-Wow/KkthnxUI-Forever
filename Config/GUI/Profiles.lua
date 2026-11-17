@@ -57,9 +57,9 @@ function GUI.CustomPanels.Profiles(parent)
 	Refresh = function()
 		local active = K:GetActiveProfileName()
 		local pending = K:GetPendingProfileName()
-		local text = L["Active profile"] .. ": |cff5C8BCF" .. active .. "|r"
+		local text = L["Active profile"] .. ": " .. K.ColorText("accent", active)
 		if pending ~= active then
-			text = text .. "   " .. L["After reload"] .. ": |cff5C8BCF" .. pending .. "|r"
+			text = text .. "   " .. L["After reload"] .. ": " .. K.ColorText("accent", pending)
 		end
 		current:SetText(text)
 		ClearRows()

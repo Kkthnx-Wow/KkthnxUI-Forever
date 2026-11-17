@@ -191,7 +191,7 @@ local function BuildCard(host, section, category)
 			if control.reload and control.path then
 				local mark = card:CreateFontString(nil, "OVERLAY")
 				K.SetFont(mark, 10)
-				mark:SetTextColor(1, 0.5, 0.1)
+				mark:SetTextColor(K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3])
 				mark:SetText(L["needs reload"])
 				mark:SetShown(GUI.pendingReload[control] == true)
 				GUI.reloadMarks[control] = mark
@@ -503,7 +503,7 @@ local function BuildWindow()
 	local header = window:CreateFontString(nil, "OVERLAY")
 	K.SetFont(header, 18, "OUTLINE")
 	header:SetPoint("TOP", 0, -14)
-	header:SetText("|cff5C8BCFKkthnxUI|r  " .. K.Version)
+	header:SetText(K.ColorText("accent", "KkthnxUI") .. "  " .. K.Version)
 
 	local close = CreateFrame("Button", nil, window, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", -6, -6)
@@ -619,9 +619,17 @@ local function BuildWindow()
 			end
 			local btn = buttons[key]
 			if btn then
-				btn.KKUI_Background:SetVertexColor(active and 0.2 or 0.16, active and 0.35 or 0.16, active and 0.6 or 0.16, active and 0.9 or 0.5)
+				-- The open page sits on a darkened accent with info coloured text,
+				-- the rest on the raised colour with secondary text.
+				local P = K.Colors
+				if active then
+					btn.KKUI_Background:SetVertexColor(P.accent[1] * 0.55, P.accent[2] * 0.6, P.accent[3] * 0.75, 0.9)
+					btn.Text:SetTextColor(P.info[1], P.info[2], P.info[3])
+				else
+					btn.KKUI_Background:SetVertexColor(P.raised[1], P.raised[2], P.raised[3], 0.5)
+					btn.Text:SetTextColor(P.secondary[1], P.secondary[2], P.secondary[3])
+				end
 				btn.Accent:SetShown(active)
-				btn.Text:SetTextColor(active and 0.4 or 0.85, active and 0.6 or 0.85, active and 1 or 0.85)
 			end
 		end
 		contentTitle:SetText(GUI.categoryTitles[name] or "")
@@ -823,7 +831,7 @@ local function BuildWindow()
 		row:SetScript("OnEnter", function(self)
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 			GameTooltip:SetText(self.entry.label, 1, 1, 1)
-			GameTooltip:AddLine(self.fullWhere or "", 0.7, 0.8, 1)
+			GameTooltip:AddLine(self.fullWhere or "", K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 			GameTooltip:Show()
 		end)
 		row:SetScript("OnLeave", GameTooltip_Hide)
@@ -927,7 +935,7 @@ local function BuildWindow()
 
 	-- A glow that pulses on the reload button once a setting needs a reload.
 	reloadGlow = reload:CreateTexture(nil, "BACKGROUND")
-	reloadGlow:SetColorTexture(1, 0.5, 0.1, 0.35)
+	reloadGlow:SetColorTexture(K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3], 0.35)
 	reloadGlow:SetPoint("TOPLEFT", -3, 3)
 	reloadGlow:SetPoint("BOTTOMRIGHT", 3, -3)
 	reloadGlow:Hide()
@@ -971,7 +979,7 @@ local function BuildWindow()
 	legendButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText(L["Changed settings"], 1, 1, 1)
-		GameTooltip:AddLine(L["Click to list every setting that is not at its default."], 0.8, 0.8, 0.8, true)
+		GameTooltip:AddLine(L["Click to list every setting that is not at its default."], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3], true)
 		GameTooltip:Show()
 	end)
 	legendButton:SetScript("OnLeave", GameTooltip_Hide)
@@ -1028,7 +1036,7 @@ end
 -- changes.
 function GUI.MarkReload()
 	if reloadHint then
-		reloadHint:SetTextColor(1, 0.5, 0.1)
+		reloadHint:SetTextColor(K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3])
 		local count = GUI.pendingCount
 		reloadHint:SetText(count == 1 and L["1 change needs a reload to apply."] or string.format(L["%d changes need a reload to apply."], count))
 	end

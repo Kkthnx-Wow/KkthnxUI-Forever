@@ -93,12 +93,12 @@ function Module:TimeTooltip(anchor)
 				shownHeader = true
 			end
 			local r, g, b = extended and 0.3 or 1, 1, extended and 0.3 or 1
-			GameTooltip:AddDoubleLine(format("%s|cffaaaaaa %s|r", name, diffName or ""), SecondsToTime(reset or 0, true, nil, 3), 1, 1, 1, r, g, b)
+			GameTooltip:AddDoubleLine(name .. " " .. K.ColorText("muted", diffName or ""), SecondsToTime(reset or 0, true, nil, 3), 1, 1, 1, r, g, b)
 		end
 	end
 
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine("|cff669dffLeft Click|r Calendar   |cff669dffRight Click|r Stopwatch", K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	GameTooltip:AddLine(K.ColorText("info", "Left Click") .. " Calendar   " .. K.ColorText("info", "Right Click") .. " Stopwatch", K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 	GameTooltip:Show()
 end
 
@@ -157,7 +157,7 @@ function Module:CreateClock()
 		local str, pending = TimeText()
 		text:SetText(str)
 		if pending then
-			text:SetTextColor(1, 0.2, 0.2)
+			text:SetTextColor(K.Colors.negative[1], K.Colors.negative[2], K.Colors.negative[3])
 		else
 			text:SetTextColor(K.Colors.offWhite[1], K.Colors.offWhite[2], K.Colors.offWhite[3])
 		end

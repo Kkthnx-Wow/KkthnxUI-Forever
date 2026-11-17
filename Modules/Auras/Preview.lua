@@ -71,7 +71,7 @@ local function FillBlock(store, holder, count, size, perRow, spacing, tints)
 		if tints and icon.KKUI_Border then
 			local slot = ((i - 1) % #tints) + 1
 			local tint = tints[slot]
-			icon.KKUI_Border:SetVertexColor(tint[1], tint[2], tint[3])
+			K.SetBorderColor(icon.KKUI_Border, tint[1], tint[2], tint[3])
 			icon.Badge:SetAtlas(DISPEL_ATLASES[slot])
 			icon.Badge:Show()
 		else

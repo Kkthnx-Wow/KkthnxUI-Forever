@@ -57,7 +57,15 @@ K.MediaFolder = "Interface\\AddOns\\KkthnxUI\\Media\\"
 -- Printing
 -- ---------------------------------------------------------------------------
 
-local titleTag = "|cff5C8BCFKkthnxUI|r: "
+-- The "KkthnxUI:" chat prefix, built on first use because the palette
+-- (Core/Palette.lua) loads after this file.
+local titleTag
+local function TitleTag()
+	if not titleTag then
+		titleTag = K.ColorText("accent", "KkthnxUI") .. ": "
+	end
+	return titleTag
+end
 
 -- Chat output goes through the default chat frame and not the global print. The
 -- global one is handled on the C side and taints the chat frame, and a tainted
@@ -86,9 +94,9 @@ end
 function K.Print(...)
 	-- A single argument is a finished message, only several are a format string.
 	if select("#", ...) > 1 then
-		K.PrintRaw(titleTag .. format(...))
+		K.PrintRaw(TitleTag() .. format(...))
 	else
-		K.PrintRaw(titleTag .. tostring((...)))
+		K.PrintRaw(TitleTag() .. tostring((...)))
 	end
 end
 

@@ -13,31 +13,24 @@ local Module = K:GetModule("ActionBars")
 
 local _G = _G
 
--- Clean up the pushed, hover, and checked textures so a button's interaction
--- states read the same everywhere: a soft square glow, gold on press, and a
--- gold outline while checked (active stance, toggled-on pet ability). Shared by
--- the LAB buttons and the stock buttons we reuse so both look identical.
+-- The border set's button states, so every button reads the same: a soft
+-- inner glow on hover, an inner shadow while pressed, and a gold inner ring
+-- while checked (active stance, toggled-on pet ability). Shared by the LAB
+-- buttons and the stock buttons we reuse. The icon is inset 1, so are these.
 function Module:StyleInteractionTextures(button)
-	local pushed = button.GetPushedTexture and button:GetPushedTexture()
-	if pushed then
-		pushed:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-		pushed:SetDesaturated(true)
-		pushed:SetVertexColor(0.965, 0.769, 0.259)
-		pushed:SetAllPoints(button)
-		pushed:SetBlendMode("ADD")
+	K.StyleButtonStates(button, 1)
+end
+
+-- Hover also lights the rail itself, on top of the inner glow. The glow is a
+-- plain child frame, so showing it from these hooks is fine in combat on a
+-- secure button. Built once per button.
+local glowOf = setmetatable({}, { __mode = "k" })
+
+function Module:AttachBorderGlow(button)
+	if glowOf[button] then
+		return
 	end
-	local highlight = button.GetHighlightTexture and button:GetHighlightTexture()
-	if highlight then
-		highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-		highlight:SetAllPoints(button)
-		highlight:SetBlendMode("ADD")
-	end
-	local checked = button.GetCheckedTexture and button:GetCheckedTexture()
-	if checked then
-		checked:SetTexture("Interface\\Buttons\\CheckButtonHilight")
-		checked:SetAllPoints(button)
-		checked:SetBlendMode("ADD")
-	end
+	glowOf[button] = K.AddBorderHover(button, 1, 1, 1, 0.5)
 end
 
 -- Pet autocast ring. Blizzard's overlay is a fixed 28px frame with corner art
@@ -118,6 +111,7 @@ function Module:StyleAuxButton(button)
 	self:SkinAutoCast(button)
 
 	K.CreateBorder(button)
+	self:AttachBorderGlow(button)
 
 	local hotkey = button.HotKey or (name and _G[name .. "HotKey"])
 	if hotkey then
@@ -219,6 +213,7 @@ function Module:StyleButton(button)
 	self:StyleInteractionTextures(button)
 
 	K.CreateBorder(button)
+	self:AttachBorderGlow(button)
 
 	-- Shorten the hotkey text and keep it shortened on rebind.
 	Module:StyleHotKey(button)

@@ -60,7 +60,7 @@ local function QualityColor(quality)
 			return r, g, b
 		end
 	end
-	local c = C.General.BorderColor
+	local c = K.GetBorderColor()
 	return c[1], c[2], c[3]
 end
 
@@ -228,7 +228,7 @@ function Module:LOOT_OPENED(_, autoLoot)
 			slot.icon:SetTexture(texture)
 			slot.name:SetText(item or "")
 			slot.name:SetTextColor(r, g, b)
-			slot.iconFrame.KKUI_Border:SetVertexColor(r, g, b)
+			K.SetBorderColor(slot.iconFrame.KKUI_Border, r, g, b)
 
 			slot.count:SetShown(quantity and quantity > 1)
 			slot.count:SetText(quantity and quantity > 1 and quantity or "")
@@ -237,7 +237,7 @@ function Module:LOOT_OPENED(_, autoLoot)
 			-- keep the quality edge.
 			slot.quest:SetShown(questID and not isActive and true or false)
 			if questID or isQuestItem then
-				slot.iconFrame.KKUI_Border:SetVertexColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+				K.SetBorderColor(slot.iconFrame.KKUI_Border, K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 			end
 
 			widest = max(widest, slot.name:GetStringWidth())
@@ -253,7 +253,7 @@ function Module:LOOT_OPENED(_, autoLoot)
 		local slot = frame.slots[1] or CreateSlot(1)
 		local r, g, b = QualityColor(0)
 		slot.icon:SetTexture(BAG_ICON)
-		slot.iconFrame.KKUI_Border:SetVertexColor(r, g, b)
+		K.SetBorderColor(slot.iconFrame.KKUI_Border, r, g, b)
 		slot.name:SetText(L["Nothing to loot"] or "Nothing to loot")
 		slot.name:SetTextColor(r, g, b)
 		slot.count:Hide()
@@ -269,7 +269,7 @@ function Module:LOOT_OPENED(_, autoLoot)
 	-- Light the window edge to the best quality in the pile.
 	if frame.KKUI_Border then
 		local r, g, b = QualityColor(best)
-		frame.KKUI_Border:SetVertexColor(r, g, b)
+		K.SetBorderColor(frame.KKUI_Border, r, g, b)
 	end
 end
 

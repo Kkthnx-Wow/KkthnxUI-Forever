@@ -173,7 +173,7 @@ function Module:SetupTargetPower()
 		-- Match the nameplate look: a soft shadow rather than the hard border.
 		K.CreateShadow(bar, 3)
 		local fill = bar:CreateTexture(nil, "ARTWORK")
-		fill:SetTexture(K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI"))
+		K.SetTextureAsset(fill, K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI"))
 		fill:SetPoint("TOPLEFT", bar, "TOPLEFT", 1, -1)
 		fill:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -1, 1)
 		bar.Fill = fill

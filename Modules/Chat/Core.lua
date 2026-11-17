@@ -408,7 +408,7 @@ local function LinkURLs(text)
 		return text
 	end
 	for _, pattern in ipairs(URL_PATTERNS) do
-		text = text:gsub(pattern, "|cff00ccff|Hkkurl:%1|h[%1]|h|r")
+		text = text:gsub(pattern, K.ColorHex("info") .. "|Hkkurl:%1|h[%1]|h|r")
 	end
 	return text
 end

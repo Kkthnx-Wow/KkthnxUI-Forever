@@ -197,8 +197,12 @@ local function CreateBar(self, opts)
 	end
 
 	if opts.latency and db.ShowLatency then
-		local safe = cast:CreateTexture(nil, "OVERLAY")
-		safe:SetColorTexture(FAIL_COLOR[1], FAIL_COLOR[2], FAIL_COLOR[3], 0.6)
+		-- Drawn with the bar's own texture so it reads as part of the bar, not a
+		-- flat block, and kept under the overlay layer so the timer stays readable.
+		local safe = cast:CreateTexture(nil, "ARTWORK", nil, 2)
+		K.SetTextureAsset(safe, Module.Texture())
+		local red = K.Colors.negative
+		safe:SetVertexColor(red[1], red[2], red[3], 0.75)
 		cast.SafeZone = safe
 	end
 

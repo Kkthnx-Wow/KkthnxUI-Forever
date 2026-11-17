@@ -57,7 +57,7 @@ local function QualityColor(quality)
 			return r, g, b, true
 		end
 	end
-	local c = C.General.BorderColor
+	local c = K.GetBorderColor()
 	return c[1], c[2], c[3], false
 end
 
@@ -122,6 +122,8 @@ local function Skin(button)
 
 	K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
 	K.CreateBorder(button)
+	-- The border set's hover, pressed and checked looks, on the icon.
+	K.StyleButtonStates(button, 1)
 
 	if button.Count then
 		button.Count:ClearAllPoints()
@@ -396,7 +398,7 @@ function Module:UpdateSlot(button, bag, slot)
 		if button.KKUI_Quality then
 			button.KKUI_Quality:Hide()
 		end
-		local c = C.General.BorderColor
+		local c = K.GetBorderColor()
 		SetBorder(button, c[1], c[2], c[3], false)
 		if button.Cooldown then
 			CooldownFrame_Set(button.Cooldown, 0, 0, 0)
@@ -520,7 +522,7 @@ function Module:UpdateSlot(button, bag, slot)
 			if cur and maxLevel and not IsSecret(cur) and not IsSecret(maxLevel) and maxLevel > 0 then
 				text = cur .. "/" .. maxLevel
 				if cur >= maxLevel then
-					button.KKUI_Upgrade:SetTextColor(0.1, 1, 0.1)
+					button.KKUI_Upgrade:SetTextColor(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3])
 				else
 					button.KKUI_Upgrade:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 				end

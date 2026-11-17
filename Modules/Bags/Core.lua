@@ -533,6 +533,9 @@ function Module:CreateContainer(name, title, bags, perRow)
 		local button = CreateFrame("Button", name .. suffix, f)
 		button:SetSize(22, 22)
 		K.SkinButton(button)
+		-- The icon covers the button's fill, so the square states carry the hover
+		-- and press, the same as an action button.
+		K.StyleButtonStates(button, 1)
 		local icon = button:CreateTexture(nil, "ARTWORK")
 		-- Fill the button, leaving 1px for the border. An atlas carries its own
 		-- coords, so only trim the transparent edge off a plain texture.

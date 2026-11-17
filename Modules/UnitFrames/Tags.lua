@@ -48,7 +48,7 @@ oUF.Tags.Methods["kkui:namecolor"] = function(unit)
 	end
 
 	if not UnitIsConnected(unit) then
-		return "|cff909090"
+		return K.ColorHex("disabled")
 	end
 
 	local color
@@ -135,9 +135,9 @@ oUF.Tags.Methods["kkui:afkdnd"] = function(unit)
 	end
 
 	if afk then
-		return " |cff999999" .. (CHAT_FLAG_AFK or "<AFK>") .. "|r"
+		return " " .. K.ColorText("muted", CHAT_FLAG_AFK or "<AFK>")
 	elseif dnd then
-		return " |cff999999" .. (CHAT_FLAG_DND or "<DND>") .. "|r"
+		return " " .. K.ColorText("muted", CHAT_FLAG_DND or "<DND>")
 	end
 	return ""
 end

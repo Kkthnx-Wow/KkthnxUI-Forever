@@ -24,7 +24,7 @@
 			slots        - list of { key, filter (string), sortMethod, cancel }
 -----------------------------------------------------------------------------]]
 
-local K, C = KkthnxUI[1], KkthnxUI[2]
+local K = KkthnxUI[1]
 
 local CreateFrame = CreateFrame
 local CreateColor = CreateColor
@@ -204,7 +204,7 @@ local function MakeInitializer(opts)
 				-- Bordered buttons: tint our own eight border segments. Untyped
 				-- debuffs fall back to the normal border colour, not red.
 				local segments = { border.TOPLEFT, border.TOPRIGHT, border.BOTTOMLEFT, border.BOTTOMRIGHT, border.TOP, border.BOTTOM, border.LEFT, border.RIGHT }
-				local base = (C.General and C.General.BorderColor) or { 1, 1, 1 }
+				local base = K.GetBorderColor()
 				local dispelOpts = {
 					style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
 					showWhenHarmful = true,

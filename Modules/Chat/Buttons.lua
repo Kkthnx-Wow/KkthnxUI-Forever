@@ -83,7 +83,7 @@ local function MakeButton(parent, texture, tooltip, onClick, texCoord, opts)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText(tooltip, 1, 1, 1)
 		if opts.subtext then
-			GameTooltip:AddLine(opts.subtext, 1, 0.82, 0, true)
+			GameTooltip:AddLine(opts.subtext, K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3], true)
 		end
 		GameTooltip:Show()
 	end)

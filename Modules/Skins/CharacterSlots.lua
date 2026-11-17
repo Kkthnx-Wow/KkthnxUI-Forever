@@ -168,8 +168,7 @@ local function Refresh(slot)
 	local level = slot.KKUI_ItemLevel
 	if not link or IsSecret(link) then
 		if border then
-			local c = C.General.BorderColor
-			border:SetVertexColor(c[1], c[2], c[3], 1)
+			K.ResetBorderColor(border)
 		end
 		if level then
 			level:SetText("")
@@ -184,10 +183,9 @@ local function Refresh(slot)
 	end
 	if border then
 		if r then
-			border:SetVertexColor(r, g, b, 1)
+			K.SetBorderColor(border, r, g, b, 1)
 		else
-			local c = C.General.BorderColor
-			border:SetVertexColor(c[1], c[2], c[3], 1)
+			K.ResetBorderColor(border)
 		end
 	end
 

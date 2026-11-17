@@ -55,7 +55,7 @@ local function Announce(unit)
 	if color then
 		name = format("|c%s%s|r", color.colorStr, name)
 	end
-	alert:Flash(format("%s %s |cffff2020%s|r", SKULL, name, L["DIED!"]), 1, 1, 1)
+	alert:Flash(format("%s %s %s", SKULL, name, K.ColorText("negative", L["DIED!"])), 1, 1, 1)
 end
 
 -- Look at one member. With announce set, a unit that has just gone down is

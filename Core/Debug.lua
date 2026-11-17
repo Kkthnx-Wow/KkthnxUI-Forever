@@ -387,7 +387,7 @@ local function List()
 	for _, name in ipairs(names) do
 		local stream = streams[name]
 		K.PrintRaw(format(
-			"  |cff%s%s|r  %s  |cff9EA7B5%s|r",
+			"  |cff%s%s|r  %s  " .. K.ColorHex("muted") .. "%s|r",
 			stream.enabled and "4CD97B" or "737A87",
 			name,
 			stream.enabled and L["on"] or L["off"],
@@ -403,7 +403,7 @@ local function List()
 		end
 		sort(cmds)
 		for _, name in ipairs(cmds) do
-			K.PrintRaw(format("  |cff5C8BCF%s|r  |cff9EA7B5%s|r", name, commands[name].description))
+			K.PrintRaw(format("  %s  %s", K.ColorText("accent", name), K.ColorText("muted", commands[name].description)))
 		end
 	end
 end
