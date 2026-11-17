@@ -99,7 +99,12 @@ oUF.Tags.Methods["kkui:nplevel"] = function(unit)
 		return ""
 	end
 	if level <= 0 then
-		return "|cffff4040??|r "
+		return K.ColorText("negative", "??") .. " "
+	end
+	-- Coloured by difficulty against your level, the same as the unit frames.
+	local color = GetCreatureDifficultyColor and GetCreatureDifficultyColor(level)
+	if color then
+		return K.RGBToHex(color.r, color.g, color.b) .. level .. "|r "
 	end
 	return level .. " "
 end
@@ -252,9 +257,20 @@ local function QuestProgress(unit)
 			if not IsSecret(line.leftText) then
 				ownerIsPlayer = line.leftText == K.Name
 			end
-		elseif t == LT.QuestObjective then
+		elseif t == LT.QuestObjective and (ownerIsPlayer or C.Nameplate.QuestShowParty) then
+			-- The line says itself whether it is done. Trust that when it is there,
+			-- so an objective with no count ("Find the camp") still marks the unit.
+			-- Without it, only a count or percent short of its goal counts.
+			local done = line.completed
 			local text = line.leftText
-			if text and not IsSecret(text) and (ownerIsPlayer or C.Nameplate.QuestShowParty) then
+			if text ~= nil and IsSecret(text) then
+				text = nil
+			end
+			if done ~= nil and not IsSecret(done) then
+				if not done then
+					return text and FormatProgress(text) or "", not ownerIsPlayer
+				end
+			elseif text then
 				local progress = FormatProgress(text)
 				if progress then
 					return progress, not ownerIsPlayer
@@ -352,13 +368,18 @@ local function UpdateQuest(self, force)
 		return
 	end
 
-	-- Grey a party member's quest, full colour for your own.
+	-- Grey a party member's quest, full colour for your own. The count follows
+	-- the icon so the pair always reads as one marker.
+	local textColor = fromParty and K.Colors.muted or K.Colors.highlight
 	if fromParty then
 		icon:SetDesaturated(true)
 		icon:SetVertexColor(0.7, 0.7, 0.7)
 	else
 		icon:SetDesaturated(false)
 		icon:SetVertexColor(1, 1, 1)
+	end
+	if self.QuestCount then
+		self.QuestCount:SetTextColor(textColor[1], textColor[2], textColor[3])
 	end
 	icon:Show()
 
@@ -371,6 +392,18 @@ local function UpdateQuest(self, force)
 		end
 		self.QuestCount:SetText(show and progress or "")
 	end
+end
+
+-- The name over the bar, laid out like a unit frame name: centred on a dark
+-- strip that spans the bar and sits just above it. The text may run a little
+-- wider than the bar, but not without limit, or a long name spreads over the
+-- plate beside it. Used at build and whenever a plate leaves name-only mode,
+-- so a recycled plate always gets both edges back.
+local function AnchorBarName(self)
+	local strip = self.NameStrip and self.NameStrip.Holder
+	self.Name:ClearAllPoints()
+	self.Name:SetPoint("LEFT", strip or self.Health, "LEFT", -24, 0)
+	self.Name:SetPoint("RIGHT", strip or self.Health, "RIGHT", 24, 0)
 end
 
 -- Friendly units in name-only mode drop the bars and show just the name over a
@@ -405,6 +438,10 @@ local function UpdateNameOnly(self)
 	if self.HealthText then
 		self.HealthText:SetShown(not friendly)
 	end
+	-- The name strip belongs to the bar, so it goes with it.
+	if self.NameStrip then
+		self.NameStrip:SetShown(not friendly)
+	end
 	if self.NameShadow then
 		self.NameShadow:SetShown(friendly)
 	end
@@ -433,11 +470,11 @@ local function UpdateNameOnly(self)
 	-- rewritten when the state actually changed.
 	if self.__nameAnchored ~= friendly then
 		self.__nameAnchored = friendly
-		self.Name:ClearAllPoints()
 		if friendly then
+			self.Name:ClearAllPoints()
 			self.Name:SetPoint("CENTER", self, "CENTER", 0, 0)
 		else
-			self.Name:SetPoint("BOTTOM", self.Health, "TOP", 0, 4)
+			AnchorBarName(self)
 		end
 	end
 end
@@ -496,6 +533,13 @@ end
 -- Unitless oUF events, fired on every plate. The target highlight has to react
 -- to target changes on its own, otherwise the old plate keeps the accent and the
 -- new one never gets it until its health happens to tick (the "stuck" border).
+-- The old focus loses its colour and the new one gains it.
+local function OnFocusChanged(self)
+	if self.unit and self.Health then
+		self.Health:ForceUpdate()
+	end
+end
+
 local function OnTargetChanged(self)
 	UpdateTargetHighlight(self)
 	-- Progress text can be target-only, so refresh it when the target changes.
@@ -604,6 +648,17 @@ local function CustomHealthColor(health, unit)
 		return
 	end
 
+	-- Your focus, so a crowd control or interrupt target is easy to find again.
+	-- Below the custom list, which the player set per mob, and above the rest.
+	if C.Nameplate.FocusHighlight then
+		local isFocus = UnitIsUnit(unit, "focus")
+		if not IsSecret(isFocus) and isFocus then
+			local c = C.Nameplate.FocusColor
+			health:SetStatusBarColor(c[1], c[2], c[3])
+			return
+		end
+	end
+
 	local isPlayer = UnitIsPlayer(unit)
 	if IsSecret(isPlayer) or isPlayer then
 		return
@@ -699,29 +754,38 @@ local function BuildHealth(self)
 	K.CreateShadow(health)
 	self.KKUI_Shadow = health.KKUI_Shadow
 
-	-- Health percent, right aligned on the bar.
+	-- Health value, centred on the bar like the unit frames.
 	if db.ShowHealthText then
 		local hp = health:CreateFontString(nil, "OVERLAY")
 		K.SetFont(hp, db.NameSize - 1, K.FontOutlineStyle())
-		hp:SetPoint("RIGHT", health, "RIGHT", -2, 0)
+		hp:SetPoint("CENTER", health, "CENTER", 0, 0)
+		hp:SetJustifyH("CENTER")
 		self:Tag(hp, "[kkui:nphealth]")
 		self.HealthText = hp
 	end
 end
 
 local function BuildName(self)
+	-- The strip, the same colour and alpha the unit frame name strips use.
+	local size = C.Nameplate.NameSize
+	local strip = K.CreateTextShade(self, "BACKGROUND", -2)
+	strip.Holder:SetPoint("LEFT", self.Health, "LEFT", 0, 0)
+	strip.Holder:SetPoint("RIGHT", self.Health, "RIGHT", 0, 0)
+	strip.Holder:SetPoint("BOTTOM", self.Health, "TOP", 0, 1)
+	strip.Holder:SetHeight(size + 6)
+	strip:SetColor(K.StripColor[1], K.StripColor[2], K.StripColor[3], K.GradientAlpha.strip)
+	strip:Show()
+	self.NameStrip = strip
+
 	local name = self:CreateFontString(nil, "OVERLAY")
-	K.SetFont(name, C.Nameplate.NameSize, K.FontOutlineStyle())
-	-- Allowed to run a little wider than the bar, but not without limit. A long
-	-- name used to spread across the whole screen row and over the plate beside it.
-	name:SetPoint("BOTTOMLEFT", self.Health, "TOPLEFT", -24, 4)
-	name:SetPoint("BOTTOMRIGHT", self.Health, "TOPRIGHT", 24, 4)
+	K.SetFont(name, size, K.FontOutlineStyle())
+	self.Name = name
+	AnchorBarName(self)
 	name:SetWordWrap(false)
 	name:SetJustifyH("CENTER")
 	-- Colour through the tag system so it updates on name/faction events, not
 	-- only when the health bar happens to recolour (which needed a target/click).
 	self:Tag(name, "[kkui:nplevel][kkui:npnamecolor][kkui:name]")
-	self.Name = name
 
 	-- Name-only highlights: a hover shade and a target shade framing the name text
 	-- (they only show in name-only mode, driven from the update handlers). These
@@ -878,11 +942,22 @@ local function BuildCastbar(self)
 	self.Castbar = cast
 end
 
+-- How many debuffs fit across the plate, and how many rows that makes. A single
+-- row of the maximum ran past the right edge of the plate whenever the icons were
+-- wider than the bar, so extra icons wrap upward instead.
+local function DebuffGrid(db)
+	local step = db.AuraSize + db.AuraSpacing
+	local perRow = floor((db.Width + db.AuraSpacing) / step)
+	perRow = math.max(1, math.min(db.MaxAuras, perRow))
+	return perRow, math.ceil(db.MaxAuras / perRow)
+end
+
 local function BuildDebuffs(self)
 	if not C.Nameplate.ShowDebuffs then
 		return
 	end
 	local db = C.Nameplate
+	local perRow = DebuffGrid(db)
 	local filter = db.OnlyMyDebuffs and "HARMFUL|PLAYER" or "HARMFUL"
 	-- Built on the CustomAuraContainer intrinsic (12.1 blocks reading enemy auras
 	-- from tainted code). Sits clear above the name and class-resource bar.
@@ -890,7 +965,7 @@ local function BuildDebuffs(self)
 		point = { "BOTTOMLEFT", self.Health, "TOPLEFT", 0, db.NameSize + 32 },
 		size = db.AuraSize,
 		spacing = db.AuraSpacing,
-		perRow = db.MaxAuras,
+		perRow = perRow,
 		anchorPoint = "BOTTOMLEFT",
 		growthH = "Right",
 		growthV = "Up",
@@ -921,7 +996,8 @@ local function BuildPrivateAuras(self)
 
 	local base = db.NameSize + 32
 	if db.ShowDebuffs then
-		base = base + db.AuraSize + db.AuraSpacing
+		local _, rows = DebuffGrid(db)
+		base = base + rows * (db.AuraSize + db.AuraSpacing)
 	end
 
 	local frame = CreateFrame("Frame", nil, self)
@@ -952,18 +1028,30 @@ local function BuildIndicators(self)
 	end
 
 	if db.ShowQuestIcon then
-		local quest = self.Health:CreateTexture(nil, "OVERLAY")
+		-- The same plain quest "!" the bags put on quest items, so a quest reads
+		-- the same everywhere. It sits just past the right end of the bar, centred
+		-- on it, where the eye already is. The name is centred on a strip wider
+		-- than its text, so hanging the marker off the name left a loose gap.
+		-- Its own holder keeps it above the bar and visible on name-only plates,
+		-- where the bar itself is hidden.
+		local holder = CreateFrame("Frame", nil, self)
+		holder:SetFrameLevel(self.Health:GetFrameLevel() + 3)
+		holder:SetSize(1, 1)
+		holder:SetPoint("LEFT", self.Health, "RIGHT", 0, 0)
+		self.QuestHolder = holder
+
+		local quest = holder:CreateTexture(nil, "OVERLAY")
 		quest:SetSize(db.NameSize + 8, db.NameSize + 8)
-		quest:SetPoint("LEFT", self.Name, "RIGHT", 2, 0)
-		quest:SetAtlas("adventureguide-microbutton-alert")
+		quest:SetPoint("LEFT", self.Health, "RIGHT", 1, 0)
+		quest:SetAtlas("QuestNormal")
 		quest:Hide()
 		self.QuestIcon = quest
 
-		-- Remaining objective count beside the marker.
-		local count = self.Health:CreateFontString(nil, "OVERLAY")
-		K.SetFont(count, db.NameSize - 1, K.FontOutlineStyle())
-		count:SetPoint("LEFT", quest, "RIGHT", 1, 0)
-		count:SetTextColor(K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+		-- Objective count beside the marker. The atlas carries side padding, so
+		-- the text tucks in toward the "!".
+		local count = holder:CreateFontString(nil, "OVERLAY")
+		K.SetFont(count, db.NameSize, K.FontOutlineStyle())
+		count:SetPoint("LEFT", quest, "RIGHT", -4, 0)
 		self.QuestCount = count
 	end
 
@@ -1001,6 +1089,9 @@ function Module.Style(self, unit)
 	-- Unitless events, fired on every plate by oUF, keep the target accent and
 	-- the quest marker current without waiting on a health tick.
 	self:RegisterEvent("PLAYER_TARGET_CHANGED", OnTargetChanged, true)
+	if C.Nameplate.FocusHighlight then
+		self:RegisterEvent("PLAYER_FOCUS_CHANGED", OnFocusChanged, true)
+	end
 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", OnMouseover, true)
 	if self.QuestIcon then
 		EnsureQuestWatcher()
