@@ -102,8 +102,8 @@ local STEPS = {
 			local logo = panel:CreateTexture(nil, "ARTWORK")
 			logo:SetSize(48, 48)
 			logo:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
-			logo:SetTexture(K.MediaFolder .. "KkthnxUI_Spell_Icon.blp")
-			logo:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			-- The Forever icon keeps its gold frame, so it is shown whole.
+			logo:SetTexture(K.MediaFolder .. "KkthnxUI_Forever_Icon.tga")
 
 			local title = Header(panel, 18, "KkthnxUI", accent)
 			title:SetPoint("LEFT", logo, "RIGHT", 10, 8)

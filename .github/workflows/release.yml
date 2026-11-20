@@ -1,6 +1,11 @@
-# Packages the addon and publishes it to GitHub Releases. CurseForge and Wago are
-# added later by putting their project ids in the TOC and their keys in the
-# repository secrets, nothing here needs to change for that.
+# Packages the addon and publishes it to GitHub Releases, and to CurseForge and
+# Wago once each is set up. Nothing here changes for that:
+#
+#   CurseForge  "## X-Curse-Project-ID: <id>" in KkthnxUI.toc, CF_API_KEY secret
+#   Wago        "## X-Wago-ID: <id>" in KkthnxUI.toc, WAGO_API_TOKEN secret
+#
+# The packager uploads -g forever builds under CurseForge's WoW Forever game
+# versions. A site whose id or key is missing is skipped, not an error.
 #
 # Runs when an annotated tag is pushed. The tag name becomes the version, so tag
 # what you want the release called.
