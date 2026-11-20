@@ -29,6 +29,9 @@ local function BuildMirrored(self, cfg, nameSize, style)
 	Build.QuestIndicator(self)
 	if style == "target" then
 		Build.PvPIndicator(self, "right")
+		if C.Unitframe.QuestieTargetIcon then
+			Build.QuestieIcon(self)
+		end
 	end
 	Build.Range(self)
 

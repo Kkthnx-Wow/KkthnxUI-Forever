@@ -307,7 +307,7 @@ end
 -- check and show the icon with no text. Returns (progress, fromParty): progress
 -- is a string ("" means icon only) or nil for no quest, fromParty flags an
 -- objective that belongs to a group member. Secret fields are checked first.
-local function QuestProgress(unit)
+local function ReadQuestTooltip(unit)
 	if not C.Nameplate.ShowQuestIcon then
 		return nil
 	end
@@ -361,6 +361,23 @@ local function QuestProgress(unit)
 	return nil
 end
 
+-- With the quest helper loaded, its icon for the unit (loot, slay, talk) takes
+-- the place of our plain marker, and it marks units the tooltip does not. It only
+-- knows your own quests, so a unit it marks is never shown as a party quest.
+local Questie = K.Questie
+
+local function QuestProgress(unit)
+	local progress, fromParty = ReadQuestTooltip(unit)
+	local icon = Questie.OwnsNameplateIcons() and Questie.UnitIcon(unit) or nil
+	if icon then
+		if not progress or fromParty then
+			progress = ""
+		end
+		fromParty = false
+	end
+	return progress, fromParty, icon
+end
+
 -- QuestProgress builds the unit's tooltip, and UpdateQuest runs from the health
 -- element, which means on every health event of every plate. The answer only moves
 -- when quest progress does, so it is kept per GUID and re-read when the epoch
@@ -403,6 +420,19 @@ local function EnsureQuestWatcher()
 	end)
 end
 
+-- The helper's objective data can settle after the game's quest events, so its own
+-- update callback refreshes the plates too.
+Questie.OnUpdate(function()
+	if not questWatcher then
+		return
+	end
+	BumpQuestEpoch()
+	if not questRefreshQueued then
+		questRefreshQueued = true
+		C_Timer.After(QUEST_REFRESH_DELAY, RefreshQuestPlates)
+	end
+end)
+
 local function CachedQuestProgress(unit, force)
 	local guid = UnitGUID(unit)
 	if not guid or IsSecret(guid) then
@@ -411,10 +441,10 @@ local function CachedQuestProgress(unit, force)
 
 	local entry = questCache[guid]
 	if entry and entry.epoch == questEpoch and not force then
-		return entry.progress or nil, entry.fromParty
+		return entry.progress or nil, entry.fromParty, entry.icon
 	end
 
-	local progress, fromParty = QuestProgress(unit)
+	local progress, fromParty, icon = QuestProgress(unit)
 	if not entry then
 		if questCacheSize >= MAX_QUEST_CACHE then
 			wipe(questCache)
@@ -427,7 +457,29 @@ local function CachedQuestProgress(unit, force)
 	entry.epoch = questEpoch
 	entry.progress = progress or false
 	entry.fromParty = fromParty
-	return progress, fromParty
+	entry.icon = icon
+	return progress, fromParty, icon
+end
+
+-- Swap between the helper's icon and our own marker, touching the texture only
+-- when it changes. The atlas has side padding the helper's art does not, so the
+-- count moves in or out with it.
+local function SetQuestArt(self, icon, texture)
+	if icon.__texture == texture then
+		return
+	end
+	icon.__texture = texture
+	if texture then
+		icon:SetTexture(texture)
+		icon:SetTexCoord(0, 1, 0, 1)
+	else
+		icon:SetAtlas("QuestNormal")
+	end
+	local count = self.QuestCount
+	if count then
+		count:ClearAllPoints()
+		count:SetPoint("LEFT", icon, "RIGHT", texture and 1 or -4, 0)
+	end
 end
 
 local function UpdateQuest(self, force)
@@ -436,9 +488,9 @@ local function UpdateQuest(self, force)
 		return
 	end
 	local unit = self.unit
-	local progress, fromParty
+	local progress, fromParty, texture
 	if unit then
-		progress, fromParty = CachedQuestProgress(unit, force)
+		progress, fromParty, texture = CachedQuestProgress(unit, force)
 	end
 	if not progress then
 		if self.QuestCount then
@@ -461,6 +513,7 @@ local function UpdateQuest(self, force)
 	if self.QuestCount then
 		self.QuestCount:SetTextColor(textColor[1], textColor[2], textColor[3])
 	end
+	SetQuestArt(self, icon, texture)
 	icon:Show()
 
 	-- Progress text: always, or only while this plate is your target.

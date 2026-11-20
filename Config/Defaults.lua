@@ -72,6 +72,7 @@ K.ConfigDefaults = {
 		RangeAlpha = 0.4, -- how faded an out-of-range unit gets
 		GroupDispelOnly = true, -- party/raid debuffs: what your raid can dispel, plus boss mechanics
 		AuraWatch = true, -- corner dots on party/raid frames for your tracked heals
+		QuestieTargetIcon = true, -- with Questie loaded, its objective icon beside the target frame
 
 		-- Text formatting shared by the units below.
 		HealthFormat = "Both", -- None, Current, Percent, Both
@@ -191,6 +192,7 @@ K.ConfigDefaults = {
 		QuestShowParty = false, -- also mark NPCs on a party member's quest (greyed)
 		QuestProgressFormat = "Completed", -- Completed (3/7) or Remaining (4)
 		QuestProgressOnTarget = false, -- only show the progress text on your target
+		QuestieIcons = true, -- with Questie loaded, show its objective icon in our marker and turn off its own plate icons
 
 		ShowClassification = true,
 		FriendlyNameOnly = true,
@@ -347,6 +349,9 @@ K.ConfigDefaults = {
 		IconSize = 32, -- height of each loot row and its icon
 		Width = 232, -- minimum window width, grown to fit the longest item name
 		UnderMouse = false, -- open the window at the cursor instead of the saved spot
+		RollFrames = true, -- compact group loot roll bars in place of the game's roll frames
+		RollWidth = 328,
+		RollHeight = 26,
 	},
 
 	-- Tint already-known collectibles green at vendors, AH, and guild bank.

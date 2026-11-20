@@ -330,6 +330,69 @@ function Build.QuestIndicator(self)
 	self.QuestIndicator = Icon(self.Health, 14, "TOPLEFT", self.Health, "TOPLEFT", 1, -1)
 end
 
+-- ---------------------------------------------------------------------------
+-- Quest helper objective icon
+-- ---------------------------------------------------------------------------
+-- The quest helper puts its objective icon (loot, slay, talk) on Blizzard's
+-- target frame, which ours replaces, so it ended up on a hidden frame. This shows
+-- the same icon beside our target. oUF refreshes every element of the target
+-- frame on a target change, so only quest progress needs its own events. It sits
+-- outside the health bar's left edge, which is free on the mirrored target layout.
+
+local function QuestieIconUpdate(self)
+	local element = self.KKUI_QuestieIcon
+	if not element then
+		return
+	end
+	local texture = K.Questie.UnitIcon(self.unit)
+	if texture then
+		element:SetTexture(texture)
+		element:Show()
+	else
+		element:Hide()
+	end
+end
+
+local function QuestieIconForceUpdate(element)
+	return QuestieIconUpdate(element.__owner)
+end
+
+local function QuestieIconEnable(self)
+	local element = self.KKUI_QuestieIcon
+	if not element then
+		return
+	end
+	element.__owner = self
+	element.ForceUpdate = QuestieIconForceUpdate
+	self:RegisterEvent("QUEST_LOG_UPDATE", QuestieIconUpdate, true)
+	-- The bridge keeps its listeners for the session, so each frame joins once.
+	if not element.__listening then
+		element.__listening = true
+		K.Questie.OnUpdate(function()
+			if element.__owner:IsShown() then
+				QuestieIconUpdate(element.__owner)
+			end
+		end)
+	end
+	return true
+end
+
+local function QuestieIconDisable(self)
+	local element = self.KKUI_QuestieIcon
+	if element then
+		element:Hide()
+		self:UnregisterEvent("QUEST_LOG_UPDATE", QuestieIconUpdate)
+	end
+end
+
+oUF:AddElement("KKUI_QuestieIcon", QuestieIconUpdate, QuestieIconEnable, QuestieIconDisable)
+
+function Build.QuestieIcon(self)
+	local icon = Icon(self.Health, 20, "RIGHT", self.Health, "LEFT", -4, 0)
+	icon:Hide()
+	self.KKUI_QuestieIcon = icon
+end
+
 -- Party and raid: everything a healer needs to see on a roster.
 function Build.GroupIndicators(self, cfg)
 	local health = self.Health

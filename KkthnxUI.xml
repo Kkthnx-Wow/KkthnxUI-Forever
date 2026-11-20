@@ -20,6 +20,7 @@
 	<Script file="Core\TaintScan.lua" />
 	<Script file="Core\TrackerWatch.lua" />
 	<Script file="Core\Movers.lua" />
+	<Script file="Core\Questie.lua" />
 	<Script file="Core\Core.lua" />
 
 	<!-- Config GUI -->

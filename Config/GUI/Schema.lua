@@ -532,6 +532,7 @@ GUI.schema = {
 			{ kind = "slider", label = L["Range Fade Alpha"], path = { "Unitframe", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, reload = true, dependsOn = { "Unitframe", "RangeFade" } },
 			{ kind = "check", label = L["Group Dispel Debuffs Only"], path = { "Unitframe", "GroupDispelOnly" }, reload = true, tooltip = L["On party and raid frames show only debuffs you can dispel, plus boss mechanics."] },
 			{ kind = "check", label = L["Aura Watch"], path = { "Unitframe", "AuraWatch" }, reload = true, tooltip = L["Corner dots on party and raid frames that light up for your class heals over time."] },
+			{ kind = "check", label = L["Questie Target Icon"], path = { "Unitframe", "QuestieTargetIcon" }, since = "1.0.0", reload = true, tooltip = L["With Questie loaded, show its objective icon beside the target frame when your target is part of one of your quests."] },
 
 			{ kind = "header", label = L["Text"] },
 			{ kind = "dropdown", label = L["Health Text"], path = { "Unitframe", "HealthFormat" }, options = TEXT_FORMATS, reload = true },
@@ -780,6 +781,7 @@ GUI.schema = {
 				{ text = L["Completed (3/7)"], value = "Completed" },
 				{ text = L["Remaining (4)"], value = "Remaining" },
 			} },
+			{ kind = "check", label = L["Questie Icons"], path = { "Nameplate", "QuestieIcons" }, since = "1.0.0", reload = true, dependsOn = { "Nameplate", "ShowQuestIcon" }, tooltip = L["With Questie loaded, the marker shows Questie's objective icon (loot, slay, talk) and also marks units Questie knows about. Questie's own nameplate icons are turned off so they do not double up, and turned back on if you switch this off."] },
 			{ kind = "check", label = L["Elite / Rare / Boss Icon"], path = { "Nameplate", "ShowClassification" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
 			{ kind = "check", label = L["Friendly Name Only"], path = { "Nameplate", "FriendlyNameOnly" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Hide the health bar on friendly units, showing just the name."] },
 			{ kind = "check", label = L["Friendly NPC Names"], path = { "Nameplate", "ShowFriendlyNPCs" }, since = "1.0.0-beta7", dependsOn = { "Nameplate", "Enable" }, apply = function()
@@ -918,6 +920,9 @@ GUI.schema = {
 			{ kind = "slider", label = L["Row Height"], path = { "Loot", "IconSize" }, min = 24, max = 44, step = 2, reload = true, dependsOn = { "Loot", "Enable" } },
 			{ kind = "slider", label = L["Minimum Width"], path = { "Loot", "Width" }, min = 180, max = 360, step = 4, reload = true, dependsOn = { "Loot", "Enable" } },
 			{ kind = "check", label = L["Open At Cursor"], path = { "Loot", "UnderMouse" }, dependsOn = { "Loot", "Enable" }, tooltip = L["Open the loot window at the mouse instead of the saved spot."] },
+			{ kind = "check", label = L["Compact Loot Rolls"], path = { "Loot", "RollFrames" }, since = "1.0.0", reload = true, tooltip = L["Show group loot rolls as slim bars with Need, Greed and Pass on the right and the time left as the fill. Move them from Move UI."] },
+			{ kind = "slider", label = L["Roll Bar Width"], path = { "Loot", "RollWidth" }, min = 240, max = 420, step = 4, since = "1.0.0", reload = true, dependsOn = { "Loot", "RollFrames" } },
+			{ kind = "slider", label = L["Roll Bar Height"], path = { "Loot", "RollHeight" }, min = 20, max = 36, step = 2, since = "1.0.0", reload = true, dependsOn = { "Loot", "RollFrames" } },
 		},
 	},
 

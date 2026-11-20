@@ -158,7 +158,10 @@ end
 local function RepositionAllAlerts(alertContainer)
 	local relativeFrame = parentFrame
 	for _, subSystem in ipairs(alertContainer.alertFrameSubSystems) do
-		if subSystem.anchorFrame ~= _G.TalkingHeadFrame then
+		-- With our roll bars on, the game's roll container is invisible but still
+		-- sized, so it is skipped rather than leaving an empty gap in the column.
+		local skip = subSystem.anchorFrame == _G.TalkingHeadFrame or (K.LootRollActive and subSystem.anchorFrame == GroupLootContainer)
+		if not skip then
 			local resultFrame = AdjustFor(subSystem, relativeFrame)
 			if not resultFrame or not resultFrame.IsInDefaultPosition or resultFrame:IsInDefaultPosition() then
 				relativeFrame = resultFrame

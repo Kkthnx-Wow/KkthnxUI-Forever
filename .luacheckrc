@@ -127,6 +127,7 @@ stds.wow = {
 			"FCF_SetChatWindowFontSize", "ScrollFrameTemplate_OnMouseWheel", "SELECTED_DOCK_FRAME",
 			"ScrollingEdit_OnTextChanged", "ScrollingEdit_OnCursorChanged", "ScrollingEdit_OnUpdate",
 			"GetPlayerInfoByGUID", "GameFontNormal",
+			"GetLootRollItemInfo", "GetLootRollItemLink", "GetLootRollTimeLeft", "GetActiveLootRollIDs", "RollOnLoot", "C_Loot",
 	},
 	globals = {
 		"KkthnxUI", "KkthnxUIDB",
