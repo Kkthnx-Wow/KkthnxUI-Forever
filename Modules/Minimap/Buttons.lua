@@ -328,11 +328,19 @@ function Module:CollectButtons()
 			OpenPanel()
 		end
 	end)
+	-- Hover is read ten times a second, which is plenty for a 1.5s idle timer.
+	local sinceCheck = 0
 	panel:SetScript("OnUpdate", function(self, elapsed)
+		sinceCheck = sinceCheck + elapsed
+		if sinceCheck < 0.1 then
+			return
+		end
+		local waited = sinceCheck
+		sinceCheck = 0
 		if tab:IsMouseOver() or self:IsMouseOver() then
 			self.__idle = 0
 		else
-			self.__idle = (self.__idle or 0) + elapsed
+			self.__idle = (self.__idle or 0) + waited
 			if self.__idle > IDLE_CLOSE then
 				ClosePanel()
 			end

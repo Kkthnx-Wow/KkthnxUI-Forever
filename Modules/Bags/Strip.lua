@@ -344,13 +344,11 @@ end
 
 -- Quality colour on a button's border, or the plain border when there is none.
 local function SetQualityBorder(button, quality)
-	local color = quality and quality > 1 and C_Item and C_Item.GetItemQualityColor and { C_Item.GetItemQualityColor(quality) }
-	if color and color[1] then
-		button.__q = { r = color[1], g = color[2], b = color[3] }
-		K.SetBorderColor(button.KKUI_Border, color[1], color[2], color[3], 1)
+	if K.SetQualityBorder(button.KKUI_Border, quality) then
+		local r, g, b = K.ItemQualityColor(quality)
+		button.__q = { r = r, g = g, b = b }
 	else
 		button.__q = nil
-		K.ResetBorderColor(button.KKUI_Border)
 	end
 end
 

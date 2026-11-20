@@ -68,6 +68,9 @@ local function CollectButtons()
 	return names
 end
 
+-- The data bar builds its menu from the same list.
+Module.CollectButtons = CollectButtons
+
 local bar
 
 -- The game's micro button art is an atlas with transparent padding, so it sits
@@ -299,11 +302,7 @@ function Module:OnEnable()
 		-- keybinds still open every panel.
 		local stock = C.MicroMenu.HideStock and _G.MicroMenuContainer
 		if stock then
-			local hidden = _G.KKUI_HiddenParent
-			if not hidden then
-				hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-				hidden:Hide()
-			end
+			local hidden = K.HiddenParent
 			if InCombatLockdown() then
 				K.DeferCombat("MicroMenuStockHide", function()
 					stock:SetParent(hidden)

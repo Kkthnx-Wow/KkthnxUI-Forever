@@ -128,7 +128,7 @@ local function Render()
 	for index, key in ipairs(shown) do
 		local stat = STATS[key]
 		local c = stat.color
-		lines[index] = format("|cff%02x%02x%02x%s|r  " .. stat.fmt, c[1] * 255, c[2] * 255, c[3] * 255, stat.label, values[key] or 0)
+		lines[index] = K.RGBToHex(c) .. stat.label .. "|r  " .. format(stat.fmt, values[key] or 0)
 	end
 	frame.Text:SetText(concat(lines, "\n"))
 	frame:SetSize(frame.Text:GetStringWidth() + 4, frame.Text:GetStringHeight() + 4)

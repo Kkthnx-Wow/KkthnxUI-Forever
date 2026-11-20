@@ -150,15 +150,6 @@ function streamMixin:Log(fmt, ...)
 	end
 end
 
--- Log with the calling line attached, for anything worth tracing back.
-function streamMixin:Trace(fmt, ...)
-	if not self.enabled then
-		return
-	end
-	local text = select("#", ...) > 0 and format(fmt, ...) or fmt
-	self:Push(text .. "\n      " .. Caller(3))
-end
-
 -- Where a frame actually is, resolved. This is what the player sees, as opposed
 -- to what the anchors claim.
 --

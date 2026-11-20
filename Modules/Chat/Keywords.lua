@@ -17,12 +17,12 @@ end
 
 local ipairs = ipairs
 local gsub = string.gsub
-local format = string.format
 local lower = string.lower
 local select = select
 local Ambiguate = Ambiguate
 local upper = string.upper
 local max = math.max
+local wipe = wipe
 local GetTime = GetTime
 local PlaySound = PlaySound
 local UnitName = UnitName
@@ -54,9 +54,12 @@ local function CaseInsensitive(word)
 	-- Escape the pattern characters first. An unescaped bracket or percent sign in a
 	-- keyword is a malformed pattern, which would throw on every chat line.
 	word = gsub(word, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
-	return (gsub(word, "(%a)", function(letter)
+	word = gsub(word, "(%a)", function(letter)
 		return "[" .. upper(letter) .. lower(letter) .. "]"
-	end))
+	end)
+	-- Whole word only, so a keyword inside a longer word is left alone. Built once
+	-- here and not on every line.
+	return "%f[%w](" .. word .. ")%f[%W]"
 end
 
 -- Rebuild the watch list from your name plus the configured extras.
@@ -101,26 +104,42 @@ local function BumpMentions()
 	end
 end
 
-local function Filter(_, _, message, ...)
-	if not C.Chat.KeywordHighlight or IsSecret(message) or type(message) ~= "string" then
+-- The colour escape is rebuilt only when the colour setting changes, not on every
+-- line of every window.
+local activeHex, hexR, hexG, hexB
+
+local function CurrentHex()
+	local c = C.Chat.KeywordColor
+	local r, g, b = c[1] or 1, c[2] or 1, c[3] or 1
+	if r ~= hexR or g ~= hexG or b ~= hexB then
+		hexR, hexG, hexB = r, g, b
+		activeHex = K.RGBToHex(r, g, b)
+	end
+	return activeHex
+end
+
+-- Colour the keywords in one run of text. Handed to OutsideLinks, so item and
+-- player links are never reached into and their own colours stay intact.
+local function Highlight(segment)
+	local hex = activeHex
+	for _, pattern in ipairs(keywords) do
+		segment = gsub(segment, pattern, hex .. "%1|r")
+	end
+	return segment
+end
+
+local function Filter(_, event, message, ...)
+	if not C.Chat.KeywordHighlight or type(message) ~= "string" or IsSecret(message) then
 		return false, message, ...
 	end
 
 	-- Payload after the text: author is 1, line ID is 10 (see CHAT_MSG_SAY).
 	local author, lineID = select(1, ...), select(10, ...)
 
-	local c = C.Chat.KeywordColor
-	local hex = format("|cff%02x%02x%02x", (c[1] or 1) * 255, (c[2] or 1) * 255, (c[3] or 1) * 255)
-	local hit = false
-	for _, pattern in ipairs(keywords) do
-		-- Frontier patterns keep the match to a whole word, so a keyword inside a
-		-- longer word is left alone.
-		local replaced = gsub(message, "%f[%w](" .. pattern .. ")%f[%W]", hex .. "%1|r")
-		if replaced ~= message then
-			hit = true
-			message = replaced
-		end
-	end
+	CurrentHex()
+	local highlighted = Module.OutsideLinks(message, Highlight)
+	local hit = highlighted ~= message
+	message = highlighted
 
 	-- Blizzard runs this once per window showing the line, and the sound and the tally
 	-- belong to the line, not to each window. Your own lines are not mentions of you.
@@ -142,7 +161,10 @@ local function Filter(_, _, message, ...)
 
 	if hit then
 		-- A short sound on a mention, throttled so a burst is one chime.
-		if C.Chat.KeywordSound then
+		-- A whisper already chimes from the whisper sound, so a second one for the
+		-- same line is skipped.
+		local whisper = event == "CHAT_MSG_WHISPER" or event == "CHAT_MSG_BN_WHISPER"
+		if C.Chat.KeywordSound and not (whisper and C.Chat.WhisperSound) then
 			local now = GetTime()
 			if now - lastSound > 3 then
 				lastSound = now

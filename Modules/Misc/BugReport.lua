@@ -22,7 +22,7 @@ local UIParent = UIParent
 local GetBuildInfo = GetBuildInfo
 local GetLocale = GetLocale
 
-local ISSUES_URL = "https://github.com/Kkthnx-Wow/KkthnxUI/issues/new"
+local ISSUES_URL = "https://github.com/Kkthnx-Wow/KkthnxUI-Forever/issues/new"
 
 -- One labelled input row. Single-line boxes for short answers, a taller scrolling
 -- box for the longer ones, both skinned to match the rest of the UI. The hint is

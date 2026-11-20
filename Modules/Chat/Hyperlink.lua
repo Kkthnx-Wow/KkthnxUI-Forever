@@ -39,13 +39,19 @@ local function OnHyperlinkLeave()
 	GameTooltip:Hide()
 end
 
+-- Hook one window. Idempotent, and also called from StyleFrame so a whisper or new
+-- tab opened after login gets the tooltips too.
+function Module:HookHyperlinkFrame(frame)
+	if frame and not frame.__kkuiHyperlink then
+		frame.__kkuiHyperlink = true
+		frame:HookScript("OnHyperlinkEnter", OnHyperlinkEnter)
+		frame:HookScript("OnHyperlinkLeave", OnHyperlinkLeave)
+	end
+end
+
 function Module:EnableHyperlinkTooltips()
+	self.hyperlinkTooltips = true
 	for i = 1, NUM_FRAMES do
-		local frame = _G["ChatFrame" .. i]
-		if frame and not frame.__kkuiHyperlink then
-			frame.__kkuiHyperlink = true
-			frame:HookScript("OnHyperlinkEnter", OnHyperlinkEnter)
-			frame:HookScript("OnHyperlinkLeave", OnHyperlinkLeave)
-		end
+		self:HookHyperlinkFrame(_G["ChatFrame" .. i])
 	end
 end

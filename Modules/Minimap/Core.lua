@@ -20,19 +20,11 @@ local Minimap = _G.Minimap
 
 -- Reparent a frame offscreen only if it exists on this client. A hidden parent
 -- keeps it gone even when Blizzard tries to re-show it.
-local hiddenParent
 local function Banish(frame)
 	if not frame then
 		return
 	end
-	if not hiddenParent then
-		hiddenParent = _G.KKUI_HiddenParent
-		if not hiddenParent then
-			hiddenParent = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-			hiddenParent:Hide()
-		end
-	end
-	frame:SetParent(hiddenParent)
+	frame:SetParent(K.HiddenParent)
 	if frame.UnregisterAllEvents then
 		frame:UnregisterAllEvents()
 	end
@@ -90,101 +82,6 @@ local function HideBlizzardBits()
 	if Minimap.SetArchBlobRingAlpha then
 		Minimap:SetArchBlobRingAlpha(0)
 	end
-end
-
--- The expansion / garrison landing page button floats wherever Blizzard drops it
--- and wears whatever art the current expansion ships, so it never matches the
--- square map. We tuck it into the bottom-left corner and put a plain faction
--- symbol on it instead, so it reads the same no matter the expansion.
---
--- Two things have to be fought here, and both need a secure hook rather than a
--- one-shot fix at login:
---
---   SetLandingPageIconOffset re-points the button with SetPoint every time the
---   icon updates, so the anchor has to be re-applied.
---
---   UpdateIcon picks the art per expansion, either through UpdateIconForGarrison
---   or SetLandingPageIconFromAtlases, and both call SetAtlas on the normal,
---   pushed and highlight textures and SetSize on the button. So an atlas we set
---   once is gone the moment the player zones into a garrison, swaps covenant, or
---   the expansion overlay refreshes.
-local LANDING_SIZE = 30
-
-local function TidyLandingButton()
-	local button = _G.ExpansionLandingPageMinimapButton
-	if not button then
-		return
-	end
-
-	-- HordeSymbol and AllianceSymbol are game atlases, both 32x32, the same pair
-	-- the damage meter uses to mark the enemy team.
-	local symbol = (K.Faction == "Horde") and "HordeSymbol" or "AllianceSymbol"
-
-	local function paint(texture, r, g, b)
-		if not texture then
-			return
-		end
-		-- false so the atlas does not resize the texture out from under the
-		-- explicit anchors below.
-		texture:SetAtlas(symbol, false)
-		texture:SetAllPoints(button)
-		texture:SetVertexColor(r, g, b)
-	end
-
-	local function restyle()
-		if button.__kkuiStyling then
-			return
-		end
-		button.__kkuiStyling = true
-
-		button:SetSize(LANDING_SIZE, LANDING_SIZE)
-		button:ClearAllPoints()
-		button:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 1, 1)
-
-		paint(button:GetNormalTexture(), 1, 1, 1)
-		-- Pushed reads as a press by dimming rather than by swapping art.
-		paint(button:GetPushedTexture(), 0.7, 0.7, 0.7)
-
-		local highlight = button:GetHighlightTexture()
-		paint(highlight, 1, 1, 1)
-		if highlight then
-			highlight:SetBlendMode("ADD")
-			highlight:SetAlpha(0.35)
-		end
-
-		-- The alert pulse still plays, so keep it sized to the new icon instead
-		-- of the expansion art it was built for.
-		if button.LoopingGlow then
-			button.LoopingGlow:SetSize(LANDING_SIZE * 2, LANDING_SIZE * 2)
-		end
-
-		button.__kkuiStyling = false
-	end
-
-	restyle()
-
-	-- Optional fade, so the symbol sits quietly in the corner and only reads at
-	-- full strength when you go for it. Its own scripts rather than the map's
-	-- hover check, since the button lives outside the map bounds.
-	if C.Minimap.LandingFade then
-		local faded = C.Minimap.LandingFadeAlpha or 0.4
-		button:SetAlpha(faded)
-		button:HookScript("OnEnter", function(self)
-			self:SetAlpha(1)
-		end)
-		button:HookScript("OnLeave", function(self)
-			self:SetAlpha(faded)
-		end)
-	end
-
-	hooksecurefunc(button, "SetPoint", restyle)
-	if button.UpdateIcon then
-		hooksecurefunc(button, "UpdateIcon", restyle)
-	end
-	if button.SetLandingPageIconFromAtlases then
-		hooksecurefunc(button, "SetLandingPageIconFromAtlases", restyle)
-	end
-	button:HookScript("OnShow", restyle)
 end
 
 -- The LFG/queue eye floats at a stock spot off the minimap. Pin it to the
@@ -407,7 +304,6 @@ function Module:OnEnable()
 
 	-- Strip the leftover Blizzard clutter (calendar, clock, zone text, compass).
 	HideBlizzardBits()
-	TidyLandingButton()
 	TidyQueueStatus()
 
 	-- Datatexts, built in Location.lua and Time.lua.

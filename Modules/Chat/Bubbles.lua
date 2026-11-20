@@ -13,8 +13,10 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 
 local Module = K:GetModule("Chat")
 
+local ipairs = ipairs
 local pairs = pairs
 local wipe = wipe
+local math_max = math.max
 local GetCVarBool = GetCVarBool
 local CreateFrame = CreateFrame
 local Ambiguate = Ambiguate
@@ -28,6 +30,8 @@ local GetAllChatBubbles = C_ChatBubbles and C_ChatBubbles.GetAllChatBubbles
 -- on a loading screen so the tables cannot grow forever.
 local senderByMessage = {}
 local guidByMessage = {}
+local stashed = 0
+local MAX_STASHED = 300
 
 -- The events that spawn a bubble, paired with the cvar that has to be on for
 -- that kind to appear. No point walking the list if the bubble is disabled.
@@ -84,10 +88,7 @@ local function UpdateBubbleName(bubble, holder)
 	if guid and not IsSecret(guid) then
 		local _, class = GetPlayerInfoByGUID(guid)
 		if class and not IsSecret(class) then
-			color = K.Colors.class and K.Colors.class[class]
-			if not color and _G.RAID_CLASS_COLORS then
-				color = _G.RAID_CLASS_COLORS[class]
-			end
+			color = K.ClassColors[class]
 		end
 	end
 
@@ -125,7 +126,7 @@ local function SkinBubble(bubble)
 	backdrop:SetScale(UIParent:GetEffectiveScale())
 	backdrop:SetPoint("TOPLEFT", holder, "TOPLEFT", INSET, -INSET)
 	backdrop:SetPoint("BOTTOMRIGHT", holder, "BOTTOMRIGHT", -INSET, INSET)
-	backdrop:SetFrameLevel(math.max(0, holder:GetFrameLevel() - 1))
+	backdrop:SetFrameLevel(math_max(0, holder:GetFrameLevel() - 1))
 
 	K.CreateBackground(backdrop, 0.05, 0.05, 0.05, 0.9)
 	K.CreateBorder(backdrop)
@@ -179,6 +180,7 @@ local function OnEvent(self, event, message, sender, _, _, _, _, _, _, _, _, _, 
 	if event == "PLAYER_ENTERING_WORLD" then
 		wipe(senderByMessage)
 		wipe(guidByMessage)
+		stashed = 0
 		return
 	end
 
@@ -191,6 +193,14 @@ local function OnEvent(self, event, message, sender, _, _, _, _, _, _, _, _, _, 
 	-- gives us later. Both can be secret on Midnight, and a secret cannot key a
 	-- table, so an unreadable message simply goes unnamed.
 	if C.Chat.BubbleName and message and not IsSecret(message) and sender and not IsSecret(sender) then
+		-- A cap as well as the loading screen wipe, so a long stretch of yell spam in a
+		-- city cannot grow the tables without limit.
+		if stashed >= MAX_STASHED then
+			wipe(senderByMessage)
+			wipe(guidByMessage)
+			stashed = 0
+		end
+		stashed = stashed + 1
 		senderByMessage[message] = Ambiguate(sender, "none")
 		guidByMessage[message] = (guid and not IsSecret(guid)) and guid or nil
 	end

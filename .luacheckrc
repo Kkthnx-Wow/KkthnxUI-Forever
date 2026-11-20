@@ -10,7 +10,7 @@ self = false
 
 stds.wow = {
 	read_globals = {
-		"UIParent", "CreateFrame", "hooksecurefunc", "InCombatLockdown",
+		"UIParent", "CreateFrame", "hooksecurefunc", "InCombatLockdown", "format", "BANK", "BAGSLOT", "PowerBarColor",
 		"UnitName", "UnitClass", "UnitRace", "UnitFactionGroup", "UnitLevel",
 		"UnitPowerType",
 		"UnitGUID", "UnitHealth", "UnitHealthMax", "UnitPower", "UnitPowerMax",
@@ -46,7 +46,11 @@ stds.wow = {
 		"GetSpecializationInfoByID", "GetSpecialization", "GetSpecializationInfo",
 		"GetAverageItemLevel", "C_PaperDollInfo", "SPECIALIZATION", "STAT_AVERAGE_ITEM_LEVEL",
 		"ToggleChatColorNamesByClassGroup", "SetItemRef", "GetTime", "getmetatable",
-		"ClearOverrideBindings", "SetOverrideBindingClick", "GetBindingKey",
+		"ClearOverrideBindings", "SetOverrideBindingClick", "GetBindingKey", "GetActionInfo", "PlaceAction", "UnitIsTapDenied", "UnitPlayerControlled",
+		"GetDifficultyColor", "ScrollBoxListMixin",
+		"ERR_NOT_IN_COMBAT", "CheckInteractDistance", "UnitInRange", "UnitPlayerOrPetInParty", "UnitPlayerOrPetInRaid",
+		"BuyTrainerService", "C_Trainer", "GetMoneyString", "GetNumTrainerServices", "GetTrainerServiceCost", "GetTrainerServiceInfo", "GetTrainerServiceStepIndex",
+		"IsMounted", "UnitOnTaxi", "GetInventoryItemID", "C_ClassTalents", "C_PetInfo",
 		"C_ActionBar", "UnitHasVehicleUI", "HasOverrideActionBar", "HasVehicleActionBar", "GetPossessInfo",
 		"C_Mail", "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxItem", "HasInboxItem",
 		"TakeInboxMoney", "TakeInboxItem",

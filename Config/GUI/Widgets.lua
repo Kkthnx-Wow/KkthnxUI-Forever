@@ -82,16 +82,7 @@ end
 
 -- Copy a default before it reaches the live config, so the two never share a
 -- table and editing a colour cannot rewrite what "default" means.
-local function CopyDefault(value)
-	if type(value) ~= "table" then
-		return value
-	end
-	local copy = {}
-	for k, v in pairs(value) do
-		copy[k] = CopyDefault(v)
-	end
-	return copy
-end
+local CopyDefault = K.DeepCopy
 
 -- Render a value the way it reads in a tooltip. Colours are a table of three
 -- numbers, everything else is a plain scalar.
@@ -104,7 +95,7 @@ local function DescribeValue(control, value)
 	end
 	if type(value) == "table" then
 		if control.kind == "color" and value[1] then
-			return format("|cff%02x%02x%02x%s|r", (value[1] or 0) * 255, (value[2] or 0) * 255, (value[3] or 0) * 255, L["this colour"])
+			return K.RGBToHex(value[1] or 0, value[2] or 0, value[3] or 0) .. L["this colour"] .. "|r"
 		end
 		return nil
 	end

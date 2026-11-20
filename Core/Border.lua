@@ -82,6 +82,21 @@ function K.GetBorderColor()
 	return (general and general.BorderColor) or FALLBACK
 end
 
+-- r, g, b for an item quality above common, or the border colour for common,
+-- poor, unknown or secret ones, so an item edge never shows a bare black line.
+-- The fourth value says whether it is a quality colour.
+function K.ItemQualityColor(quality)
+	local common = Enum.ItemQuality and Enum.ItemQuality.Common or 1
+	if quality and not K.IsSecret(quality) and quality > common and C_Item and C_Item.GetItemQualityColor then
+		local r, g, b = C_Item.GetItemQualityColor(quality)
+		if r then
+			return r, g, b, true
+		end
+	end
+	local c = K.GetBorderColor()
+	return c[1], c[2], c[3], false
+end
+
 -- ---------------------------------------------------------------------------
 -- Tiling math
 -- ---------------------------------------------------------------------------
@@ -468,6 +483,21 @@ end
 
 -- Put one border back to the configured colour. Used when something that
 -- temporarily owned the colour (threat, dispel school) lets go of it.
+-- Tint a border to an item quality above common, or put it back to the
+-- configured colour. Returns whether it got a quality colour.
+function K.SetQualityBorder(border, quality)
+	if not border then
+		return false
+	end
+	local r, g, b, isQuality = K.ItemQualityColor(quality)
+	if isQuality then
+		K.SetBorderColor(border, r, g, b, 1)
+	else
+		K.ResetBorderColor(border)
+	end
+	return isQuality
+end
+
 function K.ResetBorderColor(border)
 	if not border then
 		return

@@ -65,9 +65,6 @@ function Module:RefreshBankBags()
 	if f:IsShown() then
 		self:LayoutContainer(f)
 	end
-	if self.UpdateWarbandMoney then
-		self:UpdateWarbandMoney(f)
-	end
 	if self.UpdateBankBar then
 		self:UpdateBankBar(f)
 	end
@@ -123,7 +120,6 @@ function Module:SetupBank()
 	-- Per character gold breakdown on hover of the money text.
 	if self.AttachGoldTooltip then
 		self:AttachGoldTooltip(f)
-		self:CreateWarbandMoney(f)
 	end
 
 	-- The bag slot bar, below the bank window.

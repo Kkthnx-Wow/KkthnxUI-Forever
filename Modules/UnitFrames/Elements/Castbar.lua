@@ -168,9 +168,9 @@ local function CreateBar(self, opts)
 		local spark = cast:CreateTexture(nil, "OVERLAY")
 		spark:SetTexture(C.Media.Textures.Spark)
 		spark:SetBlendMode("ADD")
-		-- Thin vertical glow, a touch taller than the bar. A wide/double-height
-		-- spark reads as a blob at the fill edge.
-		spark:SetSize(4, opts.height + 4)
+		-- A touch taller than the bar. Drawn at the texture's own width so the core
+		-- stays a crisp 2px line inside its halo.
+		spark:SetSize(16, opts.height + 4)
 		spark:SetPoint("CENTER", cast:GetStatusBarTexture(), "RIGHT", 0, 0)
 		cast.Spark = spark
 	end
@@ -331,7 +331,7 @@ function Build.TopCastbar(self, height, side)
 		local spark = cast:CreateTexture(nil, "OVERLAY")
 		spark:SetTexture(C.Media.Textures.Spark)
 		spark:SetBlendMode("ADD")
-		spark:SetSize(4, height)
+		spark:SetSize(16, height)
 		spark:SetPoint("CENTER", cast:GetStatusBarTexture(), "RIGHT", 0, 0)
 		cast.Spark = spark
 	end

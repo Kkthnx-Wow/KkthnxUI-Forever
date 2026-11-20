@@ -25,6 +25,8 @@ local UnitHealthPercent = UnitHealthPercent
 local UnitThreatSituation = UnitThreatSituation
 local GetThreatStatusColor = GetThreatStatusColor
 local UnitIsPlayer = UnitIsPlayer
+local UnitIsTapDenied = UnitIsTapDenied
+local UnitPlayerControlled = UnitPlayerControlled
 local UnitClass = UnitClass
 local UnitClassification = UnitClassification
 local C_TooltipInfo = C_TooltipInfo
@@ -92,8 +94,29 @@ oUF.Tags.Methods["kkui:npnamecolor"] = function(unit)
 end
 oUF.Tags.Events["kkui:npnamecolor"] = "UNIT_NAME_UPDATE UNIT_FACTION"
 
--- Unit level for the plate name, difficulty-coloured. Blank when secret.
+-- Whether a unit gets the name-only look: friendly, or a neutral NPC you cannot
+-- attack, such as a vendor on a yellow plate.
+local function IsNameOnlyUnit(unit)
+	if not C.Nameplate.FriendlyNameOnly or not unit then
+		return false
+	end
+	local reaction = UnitReaction(unit, "player")
+	if reaction and not IsSecret(reaction) and reaction >= 5 then
+		return true
+	end
+	if not UnitIsPlayer(unit) then
+		local attackable = UnitCanAttack("player", unit)
+		return not IsSecret(attackable) and attackable == false
+	end
+	return false
+end
+
+-- Unit level for the plate name, difficulty-coloured. Blank when secret, and on
+-- name-only plates when their level is switched off.
 oUF.Tags.Methods["kkui:nplevel"] = function(unit)
+	if C.Nameplate.FriendlyLevel == false and IsNameOnlyUnit(unit) then
+		return ""
+	end
 	local level = UnitLevel(unit)
 	if IsSecret(level) or not level then
 		return ""
@@ -110,13 +133,70 @@ oUF.Tags.Methods["kkui:nplevel"] = function(unit)
 end
 oUF.Tags.Events["kkui:nplevel"] = "UNIT_LEVEL PLAYER_LEVEL_UP"
 
--- Guild name in angle brackets for players, blank for everyone else.
-oUF.Tags.Methods["kkui:npguild"] = function(unit)
-	local guild = GetGuildInfo(unit)
-	if guild and not IsSecret(guild) then
-		return "<" .. guild .. ">"
+-- An NPC's title, such as Butcher or Flight Master, is the second line of its
+-- tooltip when that line is not the level line. Kept per NPC ID, since every
+-- copy of an NPC shares one title. Bounded, so a long session cannot grow it
+-- without end. A tooltip that has not loaded yet is not cached, so the next
+-- update tries again.
+local LEVEL_TEXT = _G.LEVEL
+local npcTitles = {}
+local npcTitleCount = 0
+local MAX_NPC_TITLES = 400
+
+local function NPCID(unit)
+	local guid = UnitGUID(unit)
+	if not guid or IsSecret(guid) then
+		return nil
 	end
-	return ""
+	local kind, _, _, _, _, id = strsplit("-", guid)
+	if kind == "Creature" or kind == "Vehicle" then
+		return tonumber(id)
+	end
+end
+
+local function NPCTitle(unit)
+	local id = NPCID(unit)
+	if not id then
+		return nil
+	end
+	local cached = npcTitles[id]
+	if cached ~= nil then
+		return cached or nil
+	end
+	if not (C_TooltipInfo and C_TooltipInfo.GetUnit) then
+		return nil
+	end
+	local data = C_TooltipInfo.GetUnit(unit)
+	local line = data and data.lines and data.lines[2]
+	local text = line and line.leftText
+	if not text or IsSecret(text) then
+		return nil
+	end
+	local title = false
+	if text ~= "" and not (LEVEL_TEXT and text:find(LEVEL_TEXT, 1, true)) then
+		title = text
+	end
+	if npcTitleCount >= MAX_NPC_TITLES then
+		wipe(npcTitles)
+		npcTitleCount = 0
+	end
+	npcTitles[id] = title
+	npcTitleCount = npcTitleCount + 1
+	return title or nil
+end
+
+-- Guild name in angle brackets for players, the title in angle brackets for an
+-- NPC that has one, blank for everyone else.
+oUF.Tags.Methods["kkui:npguild"] = function(unit)
+	if UnitIsPlayer(unit) then
+		local guild = GetGuildInfo(unit)
+		if guild and not IsSecret(guild) then
+			return "<" .. guild .. ">"
+		end
+		return ""
+	end
+	local title = NPCTitle(unit)
+	return title and ("<" .. title .. ">") or ""
 end
 oUF.Tags.Events["kkui:npguild"] = "UNIT_NAME_UPDATE"
 
@@ -410,10 +490,12 @@ end
 -- soft shadow. Always sets an explicit state for every piece so a recycled plate
 -- (friendly -> hostile) never keeps a leftover shadow or hidden bar.
 local function UpdateNameOnly(self)
-	local friendly = false
-	if C.Nameplate.FriendlyNameOnly then
-		local reaction = self.unit and UnitReaction(self.unit, "player")
-		friendly = reaction and not IsSecret(reaction) and reaction >= 5 or false
+	local friendly
+	if self.__previewNameOnly ~= nil then
+		-- The preview plates stand in for a unit type the player is not.
+		friendly = self.__previewNameOnly
+	else
+		friendly = IsNameOnlyUnit(self.unit)
 	end
 	self.__nameOnly = friendly
 
@@ -656,6 +738,21 @@ local function CustomHealthColor(health, unit)
 			local c = C.Nameplate.FocusColor
 			health:SetStatusBarColor(c[1], c[2], c[3])
 			return
+		end
+	end
+
+	-- A mob someone else tagged keeps the grey oUF gave it, the same as the target
+	-- frame, rather than being painted over by the role, threat or reaction colour
+	-- below. Same test oUF uses, guarded in case either read comes back secret.
+	local controlled = UnitPlayerControlled(unit)
+	if not IsSecret(controlled) and not controlled then
+		local tapDenied = UnitIsTapDenied(unit)
+		if not IsSecret(tapDenied) and tapDenied then
+			local tapped = oUF.colors and oUF.colors.tapped
+			if tapped then
+				health:SetStatusBarColor(tapped:GetRGB())
+				return
+			end
 		end
 	end
 
@@ -929,6 +1026,9 @@ local function BuildCastbar(self)
 	name:SetParent(cast)
 	name:SetPoint("LEFT", cast, "LEFT", 3, 0)
 	name:SetJustifyH("LEFT")
+	-- One line, cut with an ellipsis. A long spell name otherwise wraps and
+	-- spills out of the bar.
+	name:SetWordWrap(false)
 	cast.Text = name
 
 	local time = self:CreateFontString(nil, "OVERLAY")
@@ -1070,6 +1170,7 @@ end
 -- Shared style
 -- ---------------------------------------------------------------------------
 
+-- Preview plates reuse the same builders through this style, nothing else.
 function Module.Style(self, unit)
 	-- Do not size `self`: oUF anchors it to the whole nameplate. The health bar
 	-- carries the visible size, and everything else hangs off it.

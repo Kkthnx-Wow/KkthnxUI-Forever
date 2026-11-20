@@ -16,13 +16,17 @@
 			RareAlert.lua        announce rares that appear on the minimap
 			BlockInvites.lua     turn away group invites from strangers
 			CopyName.lua         "Copy Name" on player right click menus
-			Lockout.lua          the Bloodlust lockout as an icon with a countdown
 			TradeTabs.lua        profession icons down the side of the professions window
 			Crosshair.lua        a small crosshair in the middle of the screen
 			QuestAnnounce.lua    tell the group about accepted and finished quests
 			AchievementShot.lua  take a screenshot when an achievement is earned
 			AutoLog.lua          turn combat logging on in raids and heroic dungeons
 			LevelAnnouncer.lua   say how long each level took when you ding
+			LootSparkle.lua      keep the sparkle on lootable quest items
+			FastLoot.lua         take all loot at once when auto looting
+			Reminders.lua        clickable icons for missing buffs, enchants, pet and talents
+			TrainAll.lua         a Train All button on class and profession trainers
+			QuestLevels.lua      quest levels in NPC quest lists and quest text titles
 
 		A feature only registers its events when its toggle is on, so a switched
 		off feature costs nothing. Toggles apply on reload.
@@ -167,7 +171,6 @@ local FEATURES = {
 	{ "RareAlert", "SetupRareAlert" },
 	{ "BlockInvites", "SetupBlockInvites" },
 	{ "CopyName", "SetupCopyName" },
-	{ "LustLockout", "SetupLockout" },
 	{ "TradeTabs", "SetupTradeTabs" },
 	{ "Crosshair", "SetupCrosshair" },
 	{ "QuestAnnounce", "SetupQuestAnnounce" },
@@ -176,6 +179,10 @@ local FEATURES = {
 	{ "LevelAnnouncer", "SetupLevelAnnouncer" },
 	{ "QuickDelete", "SetupQuickDelete" },
 	{ "TradeInfo", "SetupTradeInfo" },
+	{ "FastLoot", "SetupFastLoot" },
+	{ "Reminders", "SetupReminders" },
+	{ "TrainAll", "SetupTrainAll" },
+	{ "QuestLevels", "SetupQuestLevels" },
 }
 
 function Module:OnEnable()
@@ -184,6 +191,11 @@ function Module:OnEnable()
 		if C.QoL[feature[1]] and setup then
 			setup(self)
 		end
+	end
+
+	-- Runs either way: when off it puts back a game setting it changed before.
+	if self.UpdateLootSparkle then
+		self:UpdateLootSparkle()
 	end
 end
 

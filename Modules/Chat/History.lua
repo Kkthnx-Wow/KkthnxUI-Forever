@@ -20,6 +20,9 @@ local Module = K:GetModule("Chat")
 
 local _G = _G
 local ipairs = ipairs
+local next = next
+local type = type
+local wipe = wipe
 local tremove = table.remove
 local UnitName = UnitName
 local GetRealmName = GetRealmName
@@ -50,8 +53,13 @@ local function IsPlayerChat(text)
 	return text:find("|Hplayer:", 1, true) or text:find("|HBNplayer:", 1, true)
 end
 
-local function Capture(frame, text)
+local function Capture(frame, text, _, _, _, _, _, _, event)
 	if restoring or not C.Chat.HistoryPersist then
+		return
+	end
+	-- Opening a whisper window copies the conversation in without the chat event.
+	-- Those lines were captured when they first arrived.
+	if frame.isTemporary and not event then
 		return
 	end
 	if type(text) ~= "string" or IsSecret(text) or #text > MAX_TEXT then
@@ -60,7 +68,26 @@ local function Capture(frame, text)
 	if not IsPlayerChat(text) then
 		return
 	end
-	buffer[#buffer + 1] = { text = text, t = GetServerTime(), f = frame:GetID() }
+	local now, id = GetServerTime(), frame:GetID()
+	-- A line shown in two windows reaches here once per window. Player lines carry a
+	-- per-line ID in their link, so the same text in the same second is that line
+	-- again, not a repeat. It is kept once and remembers every window it went to.
+	local last = buffer[#buffer]
+	if last and last.text == text and last.t == now and last.f ~= id then
+		local also = last.also
+		if not also then
+			also = {}
+			last.also = also
+		end
+		for _, seen in ipairs(also) do
+			if seen == id then
+				return
+			end
+		end
+		also[#also + 1] = id
+		return
+	end
+	buffer[#buffer + 1] = { text = text, t = now, f = id }
 	if #buffer > MAX_LINES then
 		tremove(buffer, 1)
 	end
@@ -82,23 +109,33 @@ local function Restore(saved)
 
 	local now = GetServerTime()
 	local dividers = {}
+	local printed = {}
 	restoring = true
 	for _, line in ipairs(saved) do
 		if type(line) == "table" and type(line.text) == "string" and not IsSecret(line.text) then
 			if not line.t or (now - line.t) < MAX_AGE then
+				-- A whisper tab is gone after a reload, so its lines fall back to the
+				-- main window, and a line never prints twice in one window.
+				wipe(printed)
 				local id = line.f
-				local frame = id and _G["ChatFrame" .. id] or _G.ChatFrame1
-				if not frame then
-					frame = _G.ChatFrame1
+				local count = 1 + (type(line.also) == "table" and #line.also or 0)
+				for n = 1, count do
+					if n > 1 then
+						id = line.also[n - 1]
+					end
+					local frame = type(id) == "number" and _G["ChatFrame" .. id] or _G.ChatFrame1
+					if frame and not printed[frame] then
+						printed[frame] = true
+						if not dividers[frame] then
+							dividers[frame] = true
+							frame:AddMessage(" ")
+							local muted = K.Colors.muted
+							frame:AddMessage(K.ColorText("accent", (K.Title or "KkthnxUI") .. ":") .. " previous chat", muted[1], muted[2], muted[3])
+						end
+						frame:AddMessage(line.text)
+					end
 				end
-				if frame and not dividers[frame] then
-					dividers[frame] = true
-					frame:AddMessage(" ")
-					local muted = K.Colors.muted
-					frame:AddMessage(K.ColorText("accent", (K.Title or "KkthnxUI") .. ":") .. " previous chat", muted[1], muted[2], muted[3])
-				end
-				if frame then
-					frame:AddMessage(line.text)
+				if next(printed) then
 					buffer[#buffer + 1] = line
 				end
 			end
@@ -109,6 +146,19 @@ local function Restore(saved)
 	while #buffer > MAX_LINES do
 		tremove(buffer, 1)
 	end
+end
+
+local active = false
+
+-- Record what one window prints. Called from setup for the windows that exist and
+-- from StyleFrame for ones opened later, so a new tab is captured too. The Combat
+-- Log is never passed in.
+function Module:HookHistoryFrame(frame)
+	if not active or frame.KKUI_HistoryHooked or not frame.AddMessage then
+		return
+	end
+	frame.KKUI_HistoryHooked = true
+	hooksecurefunc(frame, "AddMessage", Capture)
 end
 
 function Module:SetupHistory()
@@ -128,10 +178,11 @@ function Module:SetupHistory()
 	-- Capture the line as each frame prints it. The hook gets the same arguments the
 	-- frame did, before our own AddMessage wrappers reshape the text, which is what
 	-- we want: the replay goes back through those wrappers.
+	active = true
 	for i = 1, NUM_FRAMES do
 		local frame = _G["ChatFrame" .. i]
-		if frame and frame.AddMessage then
-			hooksecurefunc(frame, "AddMessage", Capture)
+		if frame and i ~= 2 then
+			self:HookHistoryFrame(frame)
 		end
 	end
 

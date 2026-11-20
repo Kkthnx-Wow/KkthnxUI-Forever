@@ -51,9 +51,8 @@ local function Announce(unit)
 		return
 	end
 	local _, class = UnitClass(unit)
-	local color = class and not IsSecret(class) and RAID_CLASS_COLORS[class]
-	if color then
-		name = format("|c%s%s|r", color.colorStr, name)
+	if class and not IsSecret(class) then
+		name = K.ClassColorText(class, name)
 	end
 	alert:Flash(format("%s %s %s", SKULL, name, K.ColorText("negative", L["DIED!"])), 1, 1, 1)
 end

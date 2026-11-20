@@ -22,6 +22,7 @@ local max = math.max
 local gsub = string.gsub
 
 local CreateFrame = CreateFrame
+local C_Timer_After = C_Timer.After
 local GameTooltip = GameTooltip
 local GetCursorPosition = GetCursorPosition
 local UIParent = UIParent
@@ -53,15 +54,22 @@ local frame
 -- Border and text colour for an item quality. Common and unknown fall back to our
 -- own border colour so a row never shows a bare black edge.
 local function QualityColor(quality)
-	local common = Enum.ItemQuality and Enum.ItemQuality.Common or 1
-	if quality and not IsSecret(quality) and quality > common and GetItemQualityColor then
+	return K.ItemQualityColor(quality)
+end
+
+-- Name colour for an item quality. Unlike the border every quality keeps its own
+-- colour, grey junk included, and a missing one reads as common like the game's.
+local function NameColor(quality)
+	if not quality or IsSecret(quality) then
+		quality = Enum.ItemQuality and Enum.ItemQuality.Common or 1
+	end
+	if GetItemQualityColor then
 		local r, g, b = GetItemQualityColor(quality)
 		if r then
 			return r, g, b
 		end
 	end
-	local c = K.GetBorderColor()
-	return c[1], c[2], c[3]
+	return 1, 1, 1
 end
 
 -- ---------------------------------------------------------------------------
@@ -185,7 +193,7 @@ end
 -- Events
 -- ---------------------------------------------------------------------------
 
-function Module:LOOT_OPENED(_, autoLoot)
+local function ShowLoot(autoLoot)
 	frame:Show()
 	if not frame:IsShown() then
 		CloseLoot(not autoLoot)
@@ -212,43 +220,50 @@ function Module:LOOT_OPENED(_, autoLoot)
 		frame:SetPoint("TOPLEFT", frame.KKUI_Mover, "TOPLEFT")
 	end
 
-	local widest, best = 0, 0
+	local widest, best, rows = 0, 0, 0
 	local numItems = GetNumLootItems()
 	if numItems > 0 then
 		for i = 1, numItems do
-			local slot = frame.slots[i] or CreateSlot(i)
 			local texture, item, quantity, _, quality, _, isQuestItem, questID, isActive, isCoin = GetLootSlotInfo(i)
-			local r, g, b = QualityColor(quality)
+			-- A slot that was already taken has nothing left in it.
+			if texture or item then
+				local slot = frame.slots[i] or CreateSlot(i)
+				local r, g, b = QualityColor(quality)
 
-			-- Coin loot arrives as multi-line text, flatten it to one row.
-			if isCoin and type(item) == "string" then
-				item = gsub(item, "\n", ", ")
+				-- Coin loot arrives as multi-line text, flatten it to one row.
+				if isCoin and type(item) == "string" then
+					item = gsub(item, "\n", ", ")
+				end
+
+				slot.icon:SetTexture(texture)
+				slot.name:SetText(item or "")
+				slot.name:SetTextColor(NameColor(quality))
+				K.SetBorderColor(slot.iconFrame.KKUI_Border, r, g, b)
+
+				slot.count:SetShown(quantity and quantity > 1)
+				slot.count:SetText(quantity and quantity > 1 and quantity or "")
+
+				-- A quest item that starts a quest shows the bang, plain quest items just
+				-- keep the quality edge.
+				slot.quest:SetShown(questID and not isActive and true or false)
+				if questID or isQuestItem then
+					K.SetBorderColor(slot.iconFrame.KKUI_Border, K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+				end
+
+				widest = max(widest, slot.name:GetStringWidth())
+				if quality and not IsSecret(quality) then
+					best = max(best, quality)
+				end
+
+				slot:Enable()
+				slot:Show()
+				rows = rows + 1
+			elseif frame.slots[i] then
+				frame.slots[i]:Hide()
 			end
-
-			slot.icon:SetTexture(texture)
-			slot.name:SetText(item or "")
-			slot.name:SetTextColor(r, g, b)
-			K.SetBorderColor(slot.iconFrame.KKUI_Border, r, g, b)
-
-			slot.count:SetShown(quantity and quantity > 1)
-			slot.count:SetText(quantity and quantity > 1 and quantity or "")
-
-			-- A quest item that starts a quest shows the bang, plain quest items just
-			-- keep the quality edge.
-			slot.quest:SetShown(questID and not isActive and true or false)
-			if questID or isQuestItem then
-				K.SetBorderColor(slot.iconFrame.KKUI_Border, K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
-			end
-
-			widest = max(widest, slot.name:GetStringWidth())
-			if quality and not IsSecret(quality) then
-				best = max(best, quality)
-			end
-
-			slot:Enable()
-			slot:Show()
 		end
-	else
+	end
+	if rows == 0 then
 		-- Nothing to take (a full bag, or an empty pile). Show one disabled row.
 		local slot = frame.slots[1] or CreateSlot(1)
 		local r, g, b = QualityColor(0)
@@ -273,6 +288,39 @@ function Module:LOOT_OPENED(_, autoLoot)
 	end
 end
 
+-- True while the game still has something in the pile to take.
+local function HasLootLeft()
+	for i = 1, GetNumLootItems() do
+		local texture, item = GetLootSlotInfo(i)
+		if texture or item then
+			return true
+		end
+	end
+	return false
+end
+
+-- Faster Auto Loot takes the pile as LOOT_READY fires, just before this. The
+-- window waits a moment so it never flashes up for loot that is already on its
+-- way, and only opens if something is left, such as when the bags are full.
+local FAST_LOOT_WAIT = 0.25
+local lootOpen = false
+local openCount = 0
+
+function Module:LOOT_OPENED(_, autoLoot)
+	lootOpen = true
+	openCount = openCount + 1
+	if autoLoot and C.QoL.FastLoot then
+		local this = openCount
+		C_Timer_After(FAST_LOOT_WAIT, function()
+			if this == openCount and lootOpen and HasLootLeft() then
+				ShowLoot(autoLoot)
+			end
+		end)
+		return
+	end
+	ShowLoot(autoLoot)
+end
+
 function Module:LOOT_SLOT_CLEARED(_, id)
 	if not frame:IsShown() then
 		return
@@ -285,6 +333,7 @@ function Module:LOOT_SLOT_CLEARED(_, id)
 end
 
 function Module:LOOT_CLOSED()
+	lootOpen = false
 	StaticPopup_Hide("LOOT_BIND")
 	frame:Hide()
 	for _, slot in next, frame.slots do

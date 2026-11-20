@@ -37,7 +37,12 @@ local barColor = setmetatable({}, { __mode = "k" })
 local colorHooked = false
 
 function Module.ColorHealthBar(bar, r, g, b)
-	barColor[bar] = { r, g, b }
+	local color = barColor[bar]
+	if color then
+		color[1], color[2], color[3] = r, g, b
+	else
+		barColor[bar] = { r, g, b }
+	end
 	bar:SetStatusBarColor(r, g, b)
 end
 

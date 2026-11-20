@@ -4,13 +4,14 @@
 	Purpose:
 		One movable bar that replaces the Blizzard status tracker and shows the most
 		relevant progress: levelling experience (with a rested overlay), tracked
-		house favor, watched reputation, honor tracked as experience, or Azerite
-		power. Levelling XP wins, then house XP, then reputation / honor / Azerite.
+		house favor, watched reputation or honor tracked as experience. Levelling XP
+		wins, then house XP, then reputation, then honor.
 		The tooltip lists every applicable section regardless of which one owns the
 		bar. Alt right click reports the visible bar to party chat.
 
-		Retail only for now. All the progress reads are plain numbers on 12.0.7, so
-		no secret guarding is needed beyond the AFK flag path.
+		Paragon, renown and Azerite power belong to later expansions and are not
+		read here. All the progress reads are plain numbers, so no secret guarding
+		is needed beyond the AFK flag path.
 -----------------------------------------------------------------------------]]
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
@@ -19,9 +20,6 @@ local Module = K:NewModule("ExpRep")
 
 local _G = _G
 local format = string.format
-local sfind = string.find
-local tonumber = tonumber
-local type = type
 local math_huge = math.huge
 local math_min = math.min
 
@@ -55,15 +53,7 @@ local hooksecurefunc = hooksecurefunc
 local IsSecret = K.IsSecret
 
 local C_Reputation_GetWatchedFactionData = C_Reputation and C_Reputation.GetWatchedFactionData
-local C_Reputation_IsFactionParagon = C_Reputation and C_Reputation.IsFactionParagon
-local C_Reputation_GetFactionParagonInfo = C_Reputation and C_Reputation.GetFactionParagonInfo
-local C_Reputation_IsMajorFaction = C_Reputation and C_Reputation.IsMajorFaction
 local C_GossipInfo_GetFriendshipReputation = C_GossipInfo and C_GossipInfo.GetFriendshipReputation
-local C_MajorFactions_GetMajorFactionData = C_MajorFactions and C_MajorFactions.GetMajorFactionData
-local C_MajorFactions_HasMaximumRenown = C_MajorFactions and C_MajorFactions.HasMaximumRenown
-local C_AzeriteItem_FindActiveAzeriteItem = C_AzeriteItem and C_AzeriteItem.FindActiveAzeriteItem
-local C_AzeriteItem_GetAzeriteItemXPInfo = C_AzeriteItem and C_AzeriteItem.GetAzeriteItemXPInfo
-local C_AzeriteItem_GetPowerLevel = C_AzeriteItem and C_AzeriteItem.GetPowerLevel
 
 -- Midnight housing. GetCurrentHouseLevelFavor is a request: it returns nothing and
 -- the client answers later with HOUSE_LEVEL_FAVOR_UPDATED, whose payload we cache.
@@ -73,7 +63,7 @@ local C_Housing_GetHouseLevelFavorForLevel = C_Housing and C_Housing.GetHouseLev
 local C_Housing_GetMaxHouseLevel = C_Housing and C_Housing.GetMaxHouseLevel
 local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
 
-local SPARK = "Interface\\CastingBar\\UI-CastingBar-Spark"
+local SPARK = C.Media.Textures.Spark
 local REPORT_COOLDOWN = 10
 local INFO_COLOR = K.ColorHex("info")
 local HEADER = { 0.9, 0.8, 0.5 }
@@ -82,17 +72,13 @@ local function BarTexture()
 	return K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI")
 end
 
-local REACTION_COLOR = {
-	[9] = { r = 0.00, g = 0.60, b = 0.10 }, -- Paragon
-	[10] = { r = 0.00, g = 0.74, b = 0.95 }, -- Renown
-}
 
 local bar
 local displayText = ""
 local reportLabel = ""
 local lastReport = 0
 
-local xpState, repState, honorState, azeriteState, housingState = {}, {}, {}, {}, {}
+local xpState, repState, honorState, housingState = {}, {}, {}, {}
 -- Never filled on Forever (no housing), which keeps the housing state unavailable.
 local housingData -- luacheck: ignore 221
 
@@ -215,33 +201,11 @@ local function AddRemainingLine(state)
 end
 
 local function ReactionColor(reaction)
-	local color = REACTION_COLOR[reaction] or (_G.FACTION_BAR_COLORS and _G.FACTION_BAR_COLORS[reaction])
+	local color = _G.FACTION_BAR_COLORS and _G.FACTION_BAR_COLORS[reaction]
 	if color then
 		return color.r, color.g, color.b
 	end
 	return 1, 1, 1
-end
-
-local function RenownLabel(level)
-	level = tonumber(level) or 0
-	local label = _G.RENOWN_LEVEL_LABEL
-	if type(label) == "string" then
-		if sfind(label, "%%d") then
-			return format(label, level)
-		end
-		return label .. " " .. level
-	end
-	return "Renown " .. level
-end
-
-local function AzeriteItem()
-	if not C_AzeriteItem_FindActiveAzeriteItem then
-		return
-	end
-	local loc = C_AzeriteItem_FindActiveAzeriteItem()
-	if loc and loc.IsEquipmentSlot and loc:IsEquipmentSlot() then
-		return loc
-	end
 end
 
 local function HideVisibleBar()
@@ -249,7 +213,6 @@ local function HideVisibleBar()
 	reportLabel = ""
 	bar.text:SetText("")
 	bar.rest:Hide()
-	bar.reward:Hide()
 	bar:Hide()
 end
 
@@ -372,7 +335,7 @@ local function BuildReputationState(data)
 	local nextThreshold = data.nextReactionThreshold or 1
 	local standing = data.currentStanding or 0
 	local factionID = data.factionID
-	local label, rewardPending
+	local label
 
 	if factionID and C_GossipInfo_GetFriendshipReputation then
 		local friend = C_GossipInfo_GetFriendshipReputation(factionID)
@@ -384,45 +347,13 @@ local function BuildReputationState(data)
 		end
 	end
 
-	-- IsFactionParagon returns true for anything that supports paragon, including
-	-- renown factions nowhere near it, so only trust it for regular factions or a
-	-- major faction that has actually reached maximum renown.
-	local isMajor = factionID and C_Reputation_IsMajorFaction and C_Reputation_IsMajorFaction(factionID)
-	local majorMaxed = isMajor and C_MajorFactions_HasMaximumRenown and C_MajorFactions_HasMaximumRenown(factionID)
-
-	if not label and factionID and C_Reputation_IsFactionParagon and C_Reputation_GetFactionParagonInfo and (not isMajor or majorMaxed) and C_Reputation_IsFactionParagon(factionID) then
-		local cur, thresh, _, pending = C_Reputation_GetFactionParagonInfo(factionID)
-		if cur and thresh and thresh > 0 then
-			label = L["Paragon"]
-			curThreshold, nextThreshold = 0, thresh
-			standing = cur % thresh
-			reaction = 9
-			rewardPending = pending
-		end
-	end
-
-	if not label and isMajor and C_MajorFactions_GetMajorFactionData then
-		local major = C_MajorFactions_GetMajorFactionData(factionID)
-		if major then
-			reaction = 10
-			curThreshold = 0
-			nextThreshold = major.renownLevelThreshold or 1
-			if C_MajorFactions_HasMaximumRenown and C_MajorFactions_HasMaximumRenown(factionID) then
-				standing = nextThreshold
-			else
-				standing = major.renownReputationEarned or 0
-			end
-			label = format("|c%s%s|r", K.RGBToHex(0, 0.74, 0.95), RenownLabel(major.renownLevel))
-		end
-	end
-
 	if not label then
 		label = _G["FACTION_STANDING_LABEL" .. reaction] or _G.UNKNOWN
 	end
 
 	repState.available = true
 	repState.name, repState.label = name, label
-	repState.reaction, repState.rewardPending = reaction, rewardPending
+	repState.reaction = reaction
 
 	-- When the standing or thresholds are secret, no Lua comparison or arithmetic
 	-- is allowed on them, so hand the raw numbers to the bar (its C setters take
@@ -469,35 +400,6 @@ local function BuildHonorState()
 	honorState.cur, honorState.max, honorState.percent = cur, maxHonor, percent
 	honorState.level, honorState.remaining = level, maxHonor - cur
 	honorState.display = format("%s - %s (%.1f%%) [%s]", K.ShortValue(cur), K.ShortValue(maxHonor), percent, level)
-	return true
-end
-
-local function BuildAzeriteState()
-	if not (C_AzeriteItem_GetAzeriteItemXPInfo and C_AzeriteItem_GetPowerLevel) then
-		azeriteState.available = nil
-		return false
-	end
-
-	local loc = AzeriteItem()
-	if not loc then
-		azeriteState.available = nil
-		return false
-	end
-
-	local cur, maxAz = C_AzeriteItem_GetAzeriteItemXPInfo(loc)
-	local level = C_AzeriteItem_GetPowerLevel(loc)
-	if not maxAz or maxAz <= 0 then
-		azeriteState.available = nil
-		return false
-	end
-
-	cur = cur or 0
-	local percent = (cur / maxAz) * 100
-
-	azeriteState.available = true
-	azeriteState.cur, azeriteState.max, azeriteState.percent = cur, maxAz, percent
-	azeriteState.level, azeriteState.remaining = level or 0, maxAz - cur
-	azeriteState.display = format("%s - %s (%.1f%%) [%s]", K.ShortValue(cur), K.ShortValue(maxAz), percent, level or 0)
 	return true
 end
 
@@ -575,7 +477,6 @@ local function ShowExperience()
 	end
 
 	bar.rest:SetShown(showRested)
-	bar.reward:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -589,7 +490,6 @@ local function ShowReputation()
 	SetBarValues(bar.fill, repState.minValue, repState.maxValue, repState.value)
 
 	bar.rest:Hide()
-	bar.reward:SetShown(not not repState.rewardPending)
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -602,20 +502,6 @@ local function ShowHonor()
 	SetBarValues(bar.fill, 0, honorState.max, honorState.cur)
 
 	bar.rest:Hide()
-	bar.reward:Hide()
-	bar.text:SetText(displayText)
-	bar:Show()
-end
-
-local function ShowAzerite()
-	reportLabel = _G.AZERITE_POWER or "Azerite"
-	displayText = azeriteState.display or ""
-
-	bar.fill:SetStatusBarColor(0.90, 0.80, 0.60, 1)
-	SetBarValues(bar.fill, 0, azeriteState.max, azeriteState.cur)
-
-	bar.rest:Hide()
-	bar.reward:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -628,7 +514,6 @@ local function ShowHousing()
 	SetBarValues(bar.fill, 0, housingState.max, housingState.cur)
 
 	bar.rest:Hide()
-	bar.reward:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -666,9 +551,6 @@ local function AddReputationTooltip(addSpacing)
 		_G.GameTooltip:AddDoubleLine(_G.REPUTATION or "Reputation", format("%s - %s (%.1f%%)", K.ShortValue(repState.cur), K.ShortValue(repState.max), repState.percent or 0), 1, 1, 1)
 		AddRemainingLine(repState)
 	end
-	if repState.rewardPending then
-		_G.GameTooltip:AddLine(_G.REWARD_AVAILABLE or "Reward available", 0, 1, 0)
-	end
 	return true
 end
 
@@ -684,21 +566,6 @@ local function AddHonorTooltip(addSpacing)
 	_G.GameTooltip:AddLine(" ")
 	_G.GameTooltip:AddDoubleLine(L["Honor XP"], format("%s - %s (%.1f%%)", K.ShortValue(honorState.cur), K.ShortValue(honorState.max), honorState.percent or 0), 1, 1, 1)
 	AddRemainingLine(honorState)
-	return true
-end
-
-local function AddAzeriteTooltip(addSpacing)
-	if not azeriteState.available then
-		return false
-	end
-	if addSpacing then
-		AddTooltipDivider()
-	end
-	local levelText = (_G.LEVEL or "Level") .. " " .. (azeriteState.level or 0)
-	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", _G.AZERITE_POWER or "Azerite"), levelText)
-	_G.GameTooltip:AddLine(" ")
-	_G.GameTooltip:AddDoubleLine(L["XP"], format("%s - %s (%.1f%%)", K.ShortValue(azeriteState.cur), K.ShortValue(azeriteState.max), azeriteState.percent or 0), 1, 1, 1)
-	AddRemainingLine(azeriteState)
 	return true
 end
 
@@ -744,8 +611,6 @@ local function OnEnter()
 	any = any or addedRep
 	local addedHonor = AddHonorTooltip(any)
 	any = any or addedHonor
-	local addedAzerite = AddAzeriteTooltip(any)
-	any = any or addedAzerite
 
 	if any then
 		_G.GameTooltip:AddLine(" ")
@@ -803,7 +668,6 @@ local function UpdateBar(_, _, unit)
 	BuildHousingState()
 	BuildReputationState()
 	BuildHonorState()
-	BuildAzeriteState()
 
 	if xpState.available then
 		ShowExperience()
@@ -813,8 +677,6 @@ local function UpdateBar(_, _, unit)
 		ShowReputation()
 	elseif honorState.available then
 		ShowHonor()
-	elseif azeriteState.available then
-		ShowAzerite()
 	else
 		HideVisibleBar()
 	end
@@ -858,8 +720,6 @@ local EVENTS = {
 	"DISABLE_XP_GAIN",
 	"UPDATE_FACTION",
 	"QUEST_FINISHED",
-	"MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
-	"MAJOR_FACTION_UNLOCKED",
 	"HONOR_XP_UPDATE",
 	"PLAYER_FLAGS_CHANGED",
 	"PLAYER_EQUIPMENT_CHANGED",
@@ -913,13 +773,6 @@ local function BuildBar()
 	spark:SetWidth(16)
 	spark:SetPoint("CENTER", fill:GetStatusBarTexture(), "RIGHT", 0, 0)
 	f.spark = spark
-
-	local reward = fill:CreateTexture(nil, "OVERLAY")
-	reward:SetAtlas("ParagonReputation_Bag")
-	reward:SetSize(14, 16)
-	reward:SetPoint("CENTER", f, "LEFT", 0, 0)
-	reward:Hide()
-	f.reward = reward
 
 	local text = CreateFS(fill, C.ExpRep.FontSize)
 	text:SetPoint("CENTER")

@@ -232,7 +232,7 @@ local function Scan()
 	-- EnableMouse and SetMovable on a protected frame are blocked in combat.
 	-- Try again once it ends rather than hook half a window now.
 	if InCombatLockdown() then
-		Module:RegisterEvent("PLAYER_REGEN_ENABLED", "PLAYER_REGEN_ENABLED")
+		K.DeferCombat("MoveFramesScan", Scan)
 		return
 	end
 	for name, spec in pairs(FRAMES) do
@@ -240,11 +240,6 @@ local function Scan()
 			Hook(name, spec)
 		end
 	end
-end
-
-function Module:PLAYER_REGEN_ENABLED()
-	self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-	Scan()
 end
 
 function Module:ADDON_LOADED(_, addon)

@@ -77,6 +77,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 			uf:ToggleTest()
 		end
 		return
+	elseif msg == "nptest" then
+		local np = K:GetModule("Nameplates", true)
+		if np and np.TogglePreview then
+			np:TogglePreview()
+		end
+		return
 	elseif msg == "questblock" then
 		local automation = K:GetModule("Automation", true)
 		if automation and automation.ToggleBlockedNPC then

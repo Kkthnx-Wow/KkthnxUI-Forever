@@ -82,6 +82,33 @@ oUF.Tags.Events["kkui:namecolor"] = "UNIT_NAME_UPDATE UNIT_FACTION UNIT_CONNECTI
 -- broken glyph, so this needs the UTF8 helpers. If they are missing, hand back
 -- the full name and let the width bound do the work rather than error on every
 -- roster update.
+local function TrimName(name, limit, ellipsis)
+	local utf8len, utf8sub = string.utf8len, string.utf8sub
+	if limit > 0 and utf8len and utf8sub and utf8len(name) > limit then
+		return utf8sub(name, 1, limit) .. (ellipsis and "..." or "")
+	end
+	return name
+end
+
+-- The party and raid name rules, shared with config mode so a made up name is
+-- cut exactly the way a real one would be. Callers pass a plain string.
+function K.FormatPartyName(name)
+	local limit = C.Unitframe.Party.NameLength or 0
+	if limit <= 0 then
+		limit = C.Unitframe.NameLength or 0
+	end
+	return TrimName(name, limit, true)
+end
+
+-- The shared name rule used by every other frame, boss included.
+function K.FormatName(name)
+	return TrimName(name, C.Unitframe.NameLength or 0, true)
+end
+
+function K.FormatRaidName(name)
+	return TrimName(name, C.Unitframe.Raid.NameLength or 5, false)
+end
+
 oUF.Tags.Methods["kkui:name"] = function(unit)
 	local name = UnitName(unit)
 	if not name then
@@ -93,14 +120,22 @@ oUF.Tags.Methods["kkui:name"] = function(unit)
 		return name
 	end
 
-	local limit = C.Unitframe.NameLength or 0
-	local utf8len, utf8sub = string.utf8len, string.utf8sub
-	if limit > 0 and utf8len and utf8sub and utf8len(name) > limit then
-		return utf8sub(name, 1, limit) .. "..."
-	end
-	return name
+	return TrimName(name, C.Unitframe.NameLength or 0, true)
 end
 oUF.Tags.Events["kkui:name"] = "UNIT_NAME_UPDATE"
+
+-- Party name with its own length. Zero follows the shared Name Length.
+oUF.Tags.Methods["kkui:nameparty"] = function(unit)
+	local name = UnitName(unit)
+	if not name then
+		return ""
+	end
+	if IsSecret(name) then
+		return name
+	end
+	return K.FormatPartyName(name)
+end
+oUF.Tags.Events["kkui:nameparty"] = "UNIT_NAME_UPDATE"
 
 -- Short name for the narrow raid frames: the first few characters, no ellipsis,
 -- so a whole group reads cleanly at a glance.
@@ -112,12 +147,7 @@ oUF.Tags.Methods["kkui:nameshort"] = function(unit)
 	if IsSecret(name) then
 		return name
 	end
-	local limit = C.Unitframe.Raid.NameLength or 5
-	local utf8len, utf8sub = string.utf8len, string.utf8sub
-	if utf8len and utf8sub and utf8len(name) > limit then
-		return utf8sub(name, 1, limit)
-	end
-	return name
+	return K.FormatRaidName(name)
 end
 oUF.Tags.Events["kkui:nameshort"] = "UNIT_NAME_UPDATE"
 

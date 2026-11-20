@@ -29,13 +29,9 @@ C.Media = {
 	-- unlisted, so they were on disk but could never be picked.
 	Statusbars = {
 		KkthnxUI = media .. "Statusbars\\Statusbar",
-		-- Blizzard's cooldown manager bar, as an atlas. Grey so class and health
-		-- colours tint it like any of our files. The player frame's health fill
-		-- (UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health-Status) looks close but
-		-- has a transparent margin and rounded corners inside its atlas, so it
-		-- never reached the edges of a bar, and a status bar cannot be told to
-		-- crop or overhang its fill. This one runs edge to edge.
-		["KkthnxUI Forever"] = "UI-HUD-CoolDownManager-Bar",
+		-- The default. The name stays as it was when this was an atlas, since the
+		-- defaults and saved profiles refer to it by that name.
+		["KkthnxUI Forever"] = media .. "Statusbars\\KkthnxUI_Forever.tga",
 		AltzUI = media .. "Statusbars\\AltzUI.tga",
 		AsphyxiaUI = media .. "Statusbars\\AsphyxiaUI.tga",
 		AzeriteUI = media .. "Statusbars\\AzeriteUI.tga",
@@ -59,7 +55,9 @@ C.Media = {
 	Textures = {
 		White8x8 = "Interface\\BUTTONS\\WHITE8X8",
 		Glow = media .. "Textures\\GlowTex.tga",
-		Spark = media .. "Textures\\Spark_128.tga",
+		-- White, so every spark can take its own colour: a 2px core with a soft
+		-- halo, drawn 16px wide so the core lands on whole pixels.
+		Spark = media .. "Textures\\Spark_Glow.tga",
 	},
 	Sounds = {},
 }
@@ -71,7 +69,6 @@ local fonts = C.Media.Fonts
 -- through SetStatusBarTexture, but a plain Texture needs SetAtlas for these, and
 -- they are never handed to other addons as a file path.
 K.StatusbarAtlases = {
-	["UI-HUD-CoolDownManager-Bar"] = true,
 }
 
 -- Put a bar texture from the list above on a plain Texture region.

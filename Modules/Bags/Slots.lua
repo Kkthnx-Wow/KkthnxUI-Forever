@@ -9,7 +9,7 @@
 		in one grid. Buttons live in a pool and are reused across relayouts.
 -----------------------------------------------------------------------------]]
 
-local K, C = KkthnxUI[1], KkthnxUI[2]
+local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 -- Match Core.lua: load wherever C_Container is present, not only on retail.
 if not (C_Container and C_Container.GetContainerNumSlots) then
@@ -33,9 +33,6 @@ local SetItemButtonCount = SetItemButtonCount
 local SetItemButtonDesaturated = SetItemButtonDesaturated
 local SetItemButtonTextureVertexColor = SetItemButtonTextureVertexColor
 local CooldownFrame_Set = CooldownFrame_Set
-local C_TradeSkillUI = C_TradeSkillUI
-local TextureKitConstants = TextureKitConstants
-local pcall = pcall
 
 local Enum = Enum
 local C_NewItems = C_NewItems
@@ -48,17 +45,7 @@ local QUEST_COLOR = { 1, 0.82, 0 }
 -- Border colour for an item quality, falling back to our own border colour for
 -- common or unknown items so the grid never shows a black edge.
 local function QualityColor(quality)
-	-- Enum.ItemQuality.Common is 1 but the enum key is absent on some flavours (TBC
-	-- Anniversary), so fall back to the literal to avoid comparing against nil.
-	local common = Enum.ItemQuality and Enum.ItemQuality.Common or 1
-	if quality and not IsSecret(quality) and quality > common then
-		local r, g, b = C_Item.GetItemQualityColor(quality)
-		if r then
-			return r, g, b, true
-		end
-	end
-	local c = K.GetBorderColor()
-	return c[1], c[2], c[3], false
+	return K.ItemQualityColor(quality)
 end
 
 -- Colour a button border. A quality tint marks itself custom so the GUI colour
@@ -150,13 +137,6 @@ local function Skin(button)
 	bind:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 	button.KKUI_Bind = bind
 
-	-- Upgrade track progress (cur/max) for gear, bottom-right where the stack
-	-- count would sit. Gear never stacks, so the corner is free.
-	local upgrade = button:CreateFontString(nil, "OVERLAY")
-	K.SetFont(upgrade, 11, K.FontOutlineStyle())
-	upgrade:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
-	button.KKUI_Upgrade = upgrade
-
 	-- Our own quest bang, a crisp "!" we place ourselves. Blizzard's quest-bang
 	-- texture carries padding sized for the default bag button, so it never lines
 	-- up on ours. Top-left is free on quest items (they carry no item level).
@@ -177,14 +157,6 @@ local function Skin(button)
 	pawn:Hide()
 	button.KKUI_Pawn = pawn
 
-	-- Crafting quality pip (the little reagent or gear tier diamond), drawn with a
-	-- texture of ours. Blizzard's own overlay call writes isCraftedItem,
-	-- isProfessionItem and its overlay onto the secure item button and registers a
-	-- callback for it, none of which an addon should do to that button.
-	local pip = button:CreateTexture(nil, "OVERLAY", nil, 7)
-	pip:SetPoint("TOPLEFT", button, "TOPLEFT", -3, 2)
-	pip:Hide()
-	button.KKUI_Quality = pip
 	-- Favourite star, top-right, hidden until the item is pinned.
 	local star = button:CreateTexture(nil, "OVERLAY", nil, 2)
 	star:SetAtlas("auctionhouse-icon-favorite")
@@ -221,14 +193,22 @@ local function Skin(button)
 				Module:ShowAssignMenu(self)
 			end
 		end)
+		-- The free slot button holds no item, so the template has nothing to show
+		-- for it. This explains it. Hooked after the template's own handler.
+		button:HookScript("OnEnter", function(self)
+			local free = self.__kkuiFree
+			if not free then
+				return
+			end
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(L["Free Slots"], 1, 1, 1)
+			if self.__kkuiTotal then
+				GameTooltip:AddLine(string.format(L["%d of %d slots free"], free, self.__kkuiTotal), K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+			end
+			GameTooltip:AddLine(L["Drop an item here to put it in the first free slot."], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3], true)
+			GameTooltip:Show()
+		end)
 	end
-end
-
--- The atlas of an item's crafting quality pip, or nil. Reagents carry a tier of
--- their own and crafted gear a quality, and the game answers for either.
-local function PipAtlas(link)
-	local quality = C_TradeSkillUI.GetItemReagentQualityInfo(link) or C_TradeSkillUI.GetItemCraftedQualityInfo(link)
-	return quality and quality.iconInventory
 end
 
 -- Pawn's own verdict on whether an item is an upgrade. Blizzard has no equivalent
@@ -353,6 +333,9 @@ function Module:UpdateSlot(button, bag, slot)
 	local holder = button:GetParent()
 	holder:SetID(bag)
 	button:SetID(slot)
+	-- Set again by the layout only for the free slot button.
+	button.__kkuiFree = nil
+	button.__kkuiTotal = nil
 
 	local info = C_Container.GetContainerItemInfo(bag, slot)
 	local size = C.Bags.ButtonSize
@@ -361,6 +344,14 @@ function Module:UpdateSlot(button, bag, slot)
 	if not info then
 		-- Empty slot: clear everything, keep it as a drop target.
 		SetItemButtonTexture(button, nil)
+		-- The game's own empty slot art, so an empty square reads like the rest of
+		-- the client's bags. The next item texture replaces it.
+		local empty = button.KKUI_Icon
+		if empty and empty.SetAtlas then
+			empty:SetAtlas("bags-item-slot64")
+			empty:SetTexCoord(0, 1, 0, 1)
+			empty:Show()
+		end
 		SetItemButtonCount(button, 0)
 		SetItemButtonDesaturated(button, false)
 		SetItemButtonTextureVertexColor(button, 1, 1, 1)
@@ -369,9 +360,6 @@ function Module:UpdateSlot(button, bag, slot)
 		end
 		if button.KKUI_Bind then
 			button.KKUI_Bind:SetText("")
-		end
-		if button.KKUI_Upgrade then
-			button.KKUI_Upgrade:SetText("")
 		end
 		if button.KKUI_Pawn then
 			button.__pawnLink = nil
@@ -395,9 +383,6 @@ function Module:UpdateSlot(button, bag, slot)
 		if button.KKUI_Set then
 			button.KKUI_Set:Hide()
 		end
-		if button.KKUI_Quality then
-			button.KKUI_Quality:Hide()
-		end
 		local c = K.GetBorderColor()
 		SetBorder(button, c[1], c[2], c[3], false)
 		if button.Cooldown then
@@ -419,7 +404,9 @@ function Module:UpdateSlot(button, bag, slot)
 	-- Grey out the icon while locked, and optionally for junk so the vendor trash
 	-- fades back and the good items lead the eye. Player-flagged items count too.
 	local flaggedJunk = info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
-	local isJunk = (not IsSecret(quality) and quality == POOR or flaggedJunk) and not info.hasNoValue
+	-- Grey gear with a look the character has not collected is not marked as junk.
+	local greyJunk = not IsSecret(quality) and quality == POOR and not K.IsUncollectedAppearance(info.hyperlink)
+	local isJunk = (greyJunk or flaggedJunk) and not info.hasNoValue
 	SetItemButtonDesaturated(button, info.isLocked or (C.Bags.DesaturateJunk and isJunk) or false)
 	-- Red icon on gear this character cannot use.
 	if C.Bags.TintUnusable and self:IsUnusableGear(bag, slot, info.itemID) then
@@ -429,23 +416,6 @@ function Module:UpdateSlot(button, bag, slot)
 	end
 
 	SetBorder(button, QualityColor(quality))
-
-	-- Crafting quality pip, shown for reagents and for crafted gear alike. Guarded:
-	-- a secret link cannot be read from our tainted code.
-	local pip = button.KKUI_Quality
-	if pip then
-		local atlas
-		if C_TradeSkillUI and info.hyperlink and not IsSecret(info.hyperlink) then
-			local ok, found = pcall(PipAtlas, info.hyperlink)
-			atlas = ok and found or nil
-		end
-		if atlas then
-			pip:SetAtlas(atlas, TextureKitConstants.UseAtlasSize)
-			pip:Show()
-		else
-			pip:Hide()
-		end
-	end
 
 	-- Favourite star.
 	if button.KKUI_Fav then
@@ -510,25 +480,6 @@ function Module:UpdateSlot(button, bag, slot)
 			end
 		end
 		button.KKUI_ItemLevel:SetText(text)
-	end
-
-	-- Upgrade track (cur/max), green once the piece is fully upgraded so finished
-	-- gear stands out from pieces that still have crests to spend.
-	if button.KKUI_Upgrade then
-		local text = ""
-		if C.Bags.ShowUpgradeTrack and info.hyperlink and C_Item.GetItemUpgradeInfo then
-			local up = C_Item.GetItemUpgradeInfo(info.hyperlink)
-			local cur, maxLevel = up and up.currentLevel, up and up.maxLevel
-			if cur and maxLevel and not IsSecret(cur) and not IsSecret(maxLevel) and maxLevel > 0 then
-				text = cur .. "/" .. maxLevel
-				if cur >= maxLevel then
-					button.KKUI_Upgrade:SetTextColor(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3])
-				else
-					button.KKUI_Upgrade:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
-				end
-			end
-		end
-		button.KKUI_Upgrade:SetText(text)
 	end
 
 	-- Pawn upgrade arrow (only when Pawn is installed).

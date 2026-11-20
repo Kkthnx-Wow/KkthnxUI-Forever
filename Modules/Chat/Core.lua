@@ -12,8 +12,9 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 local Module = K:NewModule("Chat")
 
 local _G = _G
+local ipairs = ipairs
 local gsub = string.gsub
-local format = string.format
+local concat = table.concat
 local IsSecret = K.IsSecret
 
 local NUM_FRAMES = Constants.ChatFrameConstants.MaxChatWindows
@@ -397,31 +398,122 @@ end
 -- a small box with the URL selected for copying.
 
 local URL_PATTERNS = {
-	"(%a[%w+.-]+://%S+)", -- scheme://...
-	"(www%.[%w_.%-]+%.%a%a+%S*)", -- www.something.tld
-	"(%d+%.%d+%.%d+%.%d+:?%d*)", -- ip[:port]
+	"%f[%a]https?://%S+", -- scheme://...
+	"%f[%w]www%.[%w_.%-]+%.%a%a+%S*", -- www.something.tld
+	"%f[%d]%d%d?%d?%.%d%d?%d?%.%d%d?%d?%.%d%d?%d?:?%d*", -- ip[:port]
 }
 
-local function LinkURLs(text)
-	-- A secret chat string cannot be indexed or searched, so pass it through as is.
-	if type(text) ~= "string" or IsSecret(text) or text:find("|H") then
-		return text
-	end
-	for _, pattern in ipairs(URL_PATTERNS) do
-		text = text:gsub(pattern, K.ColorHex("info") .. "|Hkkurl:%1|h[%1]|h|r")
-	end
-	return text
+-- Cheap test so ordinary chat lines never reach the matching loop.
+local function MayHaveURL(text)
+	return text:find("://", 1, true) or text:find("www.", 1, true) or text:find("%d%.%d+%.%d+%.%d")
 end
 
-local function HookURLs(frame)
-	if frame.__urlHooked then
-		return
+-- One left to right pass that takes the earliest match of any pattern. Running
+-- the patterns one after another let a later pattern match inside the link the
+-- earlier one had just written, which broke the hyperlink. A match stops at any
+-- escape sequence and sheds trailing punctuation, so "see www.x.com." links
+-- the address and not the full stop.
+local function LinkURLs(text)
+	-- A secret chat string cannot be indexed or searched, so pass it through as is.
+	if type(text) ~= "string" or IsSecret(text) or not MayHaveURL(text) then
+		return text
 	end
-	frame.__urlHooked = true
-	local original = frame.AddMessage
-	frame.AddMessage = function(self, text, ...)
-		return original(self, LinkURLs(text), ...)
+
+	local info = K.ColorHex("info")
+	local out, pos = {}, 1
+	while true do
+		local first
+		for _, pattern in ipairs(URL_PATTERNS) do
+			local s = text:find(pattern, pos)
+			if s and (not first or s < first) then
+				first = s
+			end
+		end
+		if not first then
+			break
+		end
+
+		-- Re-match from the chosen start to get this pattern's own end.
+		local url
+		for _, pattern in ipairs(URL_PATTERNS) do
+			local s, e = text:find(pattern, first)
+			if s == first then
+				url = text:sub(s, e)
+				break
+			end
+		end
+		url = url:match("^[^|]+") or ""
+		url = url:gsub("[%.,;:!%?%)%]]+$", "")
+
+		if url == "" then
+			-- Nothing usable here, step past it so the loop always advances.
+			out[#out + 1] = text:sub(pos, first)
+			pos = first + 1
+		else
+			out[#out + 1] = text:sub(pos, first - 1)
+			out[#out + 1] = info .. "|Hkkurl:" .. url .. "|h[" .. url .. "]|h|r"
+			pos = first + #url
+		end
 	end
+	out[#out + 1] = text:sub(pos)
+	return concat(out)
+end
+
+-- Run fn over the parts of a chat string that sit outside hyperlinks, leaving every
+-- |H...|h...|h span untouched. Item links and player links carry text and data a
+-- rewrite must never reach into. Shared with the keyword highlighter.
+function Module.OutsideLinks(text, fn)
+	if not text:find("|H", 1, true) then
+		return fn(text)
+	end
+	local out, pos = {}, 1
+	while true do
+		local s, e = text:find("|H.-|h.-|h", pos)
+		if not s then
+			break
+		end
+		out[#out + 1] = fn(text:sub(pos, s - 1))
+		out[#out + 1] = text:sub(s, e)
+		pos = e + 1
+	end
+	out[#out + 1] = fn(text:sub(pos))
+	return concat(out)
+end
+
+-- A message event filter, not an AddMessage wrapper. The filter sees the spoken
+-- text before the client adds the player link and channel prefix, so it can link a
+-- URL in any line, and it keeps our code out of the call path of the client's own
+-- AddMessage. Blizzard runs it once per window, which is cheap because of the
+-- MayHaveURL test.
+local URL_EVENTS = {
+	"CHAT_MSG_SAY",
+	"CHAT_MSG_YELL",
+	"CHAT_MSG_EMOTE",
+	"CHAT_MSG_GUILD",
+	"CHAT_MSG_OFFICER",
+	"CHAT_MSG_PARTY",
+	"CHAT_MSG_PARTY_LEADER",
+	"CHAT_MSG_RAID",
+	"CHAT_MSG_RAID_LEADER",
+	"CHAT_MSG_RAID_WARNING",
+	"CHAT_MSG_INSTANCE_CHAT",
+	"CHAT_MSG_INSTANCE_CHAT_LEADER",
+	"CHAT_MSG_CHANNEL",
+	"CHAT_MSG_WHISPER",
+	"CHAT_MSG_WHISPER_INFORM",
+	"CHAT_MSG_BN_WHISPER",
+	"CHAT_MSG_BN_WHISPER_INFORM",
+}
+
+local function URLFilter(_, _, text, ...)
+	if type(text) ~= "string" or IsSecret(text) or not MayHaveURL(text) then
+		return false
+	end
+	local linked = Module.OutsideLinks(text, LinkURLs)
+	if linked == text then
+		return false
+	end
+	return false, linked, ...
 end
 
 -- One shared box for copying a clicked URL.
@@ -433,10 +525,25 @@ local function ShowURL(url)
 		urlBox:SetPoint("CENTER")
 		urlBox:SetFrameStrata("DIALOG")
 		urlBox:SetAutoFocus(true)
-		urlBox:SetScript("OnEscapePressed", urlBox.ClearFocus)
-		urlBox:SetScript("OnEnterPressed", urlBox.ClearFocus)
+		-- Hiding drops focus too. Closing on Ctrl+C means the box is gone as soon as
+		-- the address is copied, and the text is put back if someone types over it.
+		urlBox:SetScript("OnEscapePressed", urlBox.Hide)
+		urlBox:SetScript("OnEnterPressed", urlBox.Hide)
+		urlBox:SetScript("OnEditFocusLost", urlBox.Hide)
+		urlBox:SetScript("OnKeyUp", function(self, key)
+			if key == "C" and IsControlKeyDown() then
+				self:Hide()
+			end
+		end)
+		urlBox:SetScript("OnTextChanged", function(self, userInput)
+			if userInput and self.KKUI_URL then
+				self:SetText(self.KKUI_URL)
+				self:HighlightText()
+			end
+		end)
 		K.SkinEditBox(urlBox)
 	end
+	urlBox.KKUI_URL = url
 	urlBox:SetText(url)
 	urlBox:HighlightText()
 	urlBox:Show()
@@ -513,7 +620,7 @@ end
 local function CleanMessage(msg, r, g, b)
 	msg = gsub(msg, "|T(.-):.-|t", "")
 	msg = gsub(msg, "|A(.-):.-|a", "")
-	return format("|cff%02x%02x%02x%s|r", (r or 1) * 255, (g or 1) * 255, (b or 1) * 255, msg)
+	return K.RGBToHex(r or 1, g or 1, b or 1) .. msg .. "|r"
 end
 
 function Module:CopyChat(chatFrame)
@@ -531,7 +638,7 @@ function Module:CopyChat(chatFrame)
 	end
 
 	self.copyFrame:Show()
-	self.copyEdit:SetText(table.concat(lines, "\n"))
+	self.copyEdit:SetText(concat(lines, "\n"))
 	self.copyEdit:HighlightText()
 end
 
@@ -706,12 +813,16 @@ local function KillFrameTextures(frame)
 	end
 end
 
-function Module:StyleFrame(index)
-	local frame = _G["ChatFrame" .. index]
+-- Style one window. The frame is passed in for temporary windows, which are found by
+-- walking the client's own window list rather than guessed from an index.
+function Module:StyleFrame(index, target)
+	local frame = target or _G["ChatFrame" .. index]
 	if not frame then
 		return
 	end
+	local name = frame:GetName()
 	local db = C.Chat
+	frame.KKUI_Styled = true
 
 	ApplyFont(frame)
 
@@ -738,23 +849,21 @@ function Module:StyleFrame(index)
 		end)
 	end
 
-	-- Hide the minimal scroll bar and the jump-to-bottom button. Scrolling is on
-	-- the mouse wheel and the side strip has its own jump-to-newest button, so
-	-- both are just clutter down the right edge of the messages.
+	-- Park the minimal scroll bar and the jump-to-bottom button on the hidden
+	-- parent. Scrolling is on the mouse wheel and the side strip has its own
+	-- jump-to-newest button, so both are just clutter down the right edge of the
+	-- messages. Hiding or zeroing their alpha was not enough: the game fades the
+	-- bar back in whenever the mouse is over the chat. On the hidden parent they
+	-- are never drawn, and the game's own calls on them still work.
 	if frame.ScrollBar then
-		frame.ScrollBar:SetAlpha(0)
-		frame.ScrollBar:EnableMouse(false)
-		frame.ScrollBar:HookScript("OnShow", function(self)
-			self:SetAlpha(0)
-		end)
+		frame.ScrollBar:SetParent(K.HiddenParent)
 	end
 	if frame.ScrollToBottomButton then
-		frame.ScrollToBottomButton:Hide()
-		frame.ScrollToBottomButton:HookScript("OnShow", frame.ScrollToBottomButton.Hide)
+		frame.ScrollToBottomButton:SetParent(K.HiddenParent)
 	end
 
-	SkinTab(_G["ChatFrame" .. index .. "Tab"])
-	SkinEditBox(_G["ChatFrame" .. index .. "EditBox"])
+	SkinTab(_G[name .. "Tab"])
+	SkinEditBox(_G[name .. "EditBox"])
 
 	if db.MouseWheelScroll then
 		frame:SetScript("OnMouseWheel", OnMouseWheel)
@@ -768,20 +877,30 @@ function Module:StyleFrame(index)
 		frame:SetTimeVisible(db.FadeTime)
 	end
 
-	if db.CopyButton and not frame.KKUI_Copy then
+	-- The side strip carries its own copy button, so the per window one is only
+	-- added when the strip is off.
+	if db.CopyButton and not db.SideButtons and not frame.KKUI_Copy then
 		frame.KKUI_Copy = AddCopyButton(frame)
 	end
 
-	if db.ShortenChannels then
-		HookShortening(frame)
-	end
+	-- The Combat Log (window 2) prints a line per event and its text is not player
+	-- chat, so the rewrite and the history capture stay off it.
+	if name ~= "ChatFrame2" then
+		if db.ShortenChannels then
+			HookShortening(frame)
+		end
 
-	if db.URLLinks then
-		HookURLs(frame)
+		if Module.HookHistoryFrame then
+			Module:HookHistoryFrame(frame)
+		end
 	end
 
 	if db.GradientBackdrop then
 		CreateGradient(frame)
+	end
+
+	if Module.hyperlinkTooltips then
+		Module:HookHyperlinkFrame(frame)
 	end
 end
 
@@ -1124,27 +1243,40 @@ function Module:OnEnable()
 		self:StyleFrame(i)
 	end
 
-	-- Style temporary / whisper windows created after login.
-	hooksecurefunc("FCF_OpenTemporaryWindow", function()
-		local frame = _G.FCF_GetCurrentChatFrame and _G.FCF_GetCurrentChatFrame()
-		if frame then
-			Module:StyleFrame(frame:GetID())
-		end
-	end)
-
-	-- Style permanent windows the user opens themselves, so a new tab is skinned
-	-- at once instead of only after the next reload.
-	if _G.FCF_OpenNewWindow then
-		hooksecurefunc("FCF_OpenNewWindow", function()
-			local frame = _G.FCF_GetCurrentChatFrame and _G.FCF_GetCurrentChatFrame()
-			if frame then
-				Module:StyleFrame(frame:GetID())
+	-- Style temporary (whisper) windows and permanent ones the user opens, as they
+	-- appear. A post-hook cannot read the window the call returned, and
+	-- FCF_GetCurrentChatFrame only tracks the window under an FCF config action, so
+	-- instead walk the client's list of windows and style any we have not seen. The
+	-- walk is cheap and a styled window is flagged, so repeat calls do nothing.
+	local function StyleNewWindows()
+		local list = _G.CHAT_FRAMES
+		if list then
+			for _, frameName in ipairs(list) do
+				local frame = _G[frameName]
+				if frame and not frame.KKUI_Styled then
+					Module:StyleFrame(frame:GetID(), frame)
+				end
 			end
-		end)
+		else
+			for i = NUM_FRAMES + 1, NUM_FRAMES + 10 do
+				local frame = _G["ChatFrame" .. i]
+				if frame and not frame.KKUI_Styled then
+					Module:StyleFrame(i, frame)
+				end
+			end
+		end
+	end
+	hooksecurefunc("FCF_OpenTemporaryWindow", StyleNewWindows)
+	if _G.FCF_OpenNewWindow then
+		hooksecurefunc("FCF_OpenNewWindow", StyleNewWindows)
 	end
 
-	-- Open a copy box when one of our URL links is clicked.
+	-- Link URLs in chat text through a filter, and open a copy box when one of our
+	-- links is clicked.
 	if C.Chat.URLLinks then
+		for _, event in ipairs(URL_EVENTS) do
+			ChatFrameUtil.AddMessageEventFilter(event, URLFilter)
+		end
 		hooksecurefunc("SetItemRef", function(link)
 			local url = link:match("^kkurl:(.+)")
 			if url then
@@ -1184,39 +1316,69 @@ function Module:OnEnable()
 	-- Blizzard, since writing tab alpha taints the dock update on 12.1.
 	if C.Chat.IdleFade then
 		local rest = C.Chat.IdleFadeAlpha or 0.25
-		local group = { _G.ChatFrame1 }
-		if C.Chat.ChatBar and _G.KKUI_ChatBar then
-			group[#group + 1] = _G.KKUI_ChatBar
+		-- Every docked window gets the same alpha, since each tab is its own frame and
+		-- only one is on screen. Hover is read off the tab you are looking at, so a
+		-- window pulled out of the dock is left at full alpha.
+		local main = _G.ChatFrame1
+		local windows = {}
+		for i = 1, NUM_FRAMES do
+			windows[#windows + 1] = _G["ChatFrame" .. i]
 		end
-		local editBox = _G.ChatFrame1EditBox
+		local bar = C.Chat.ChatBar and _G.KKUI_ChatBar
+		local function IsDocked(f)
+			return f == main or f.isDocked
+		end
 		local fadeFrame = CreateFrame("Frame")
 		local elapsed = 0
+		local target = 1
 		local STEP = 3 -- alpha per second
 		fadeFrame:SetScript("OnUpdate", function(_, delta)
+			local shown = _G.SELECTED_DOCK_FRAME or _G.ChatFrame1
+
+			-- The hover read is the costly part, so it runs on a throttle and the
+			-- frames in between only move the alpha.
 			elapsed = elapsed + delta
-			if elapsed < 0.1 then
-				return
-			end
-			elapsed = 0
-			local over = (editBox and editBox:HasFocus()) or false
-			if not over then
-				for _, f in ipairs(group) do
-					if f and f:IsMouseOver() then
+			if elapsed >= 0.1 then
+				elapsed = 0
+				local over = false
+				for i = 1, NUM_FRAMES do
+					local editBox = _G["ChatFrame" .. i .. "EditBox"]
+					if editBox and editBox:HasFocus() then
 						over = true
 						break
 					end
 				end
-			end
-			local target = over and 1 or rest
-			local current = _G.ChatFrame1:GetAlpha()
-			if current ~= target then
-				local move = STEP * 0.1
-				local a = current < target and math.min(target, current + move) or math.max(target, current - move)
-				for _, f in ipairs(group) do
-					if f then
-						f:SetAlpha(a)
+				over = over or shown:IsMouseOver() or (dock and dock:IsMouseOver())
+				if not over and _G.KKUI_ChatBar then
+					over = _G.KKUI_ChatBar:IsMouseOver()
+				end
+				target = over and 1 or rest
+
+				for _, f in ipairs(windows) do
+					if not IsDocked(f) and f:GetAlpha() ~= 1 then
+						f:SetAlpha(1)
 					end
 				end
+			end
+
+			-- The main window is always docked, so it carries the group's alpha.
+			local current = main:GetAlpha()
+			if current ~= target then
+				local move = STEP * delta
+				current = current < target and math.min(target, current + move) or math.max(target, current - move)
+				for _, f in ipairs(windows) do
+					if IsDocked(f) then
+						f:SetAlpha(current)
+					end
+				end
+				if bar then
+					bar:SetAlpha(current)
+				end
+			end
+			-- A temporary window (a whisper tab) sits past the permanent ones, and one
+			-- selected again may still hold the alpha it was left at.
+			if shown ~= main and shown:GetAlpha() ~= current then
+				shown:SetAlpha(current)
 			end
 		end)
 	end

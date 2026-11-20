@@ -92,6 +92,9 @@ local function GetCorner(element, corner)
 	return button
 end
 
+-- Config mode borrows this to light each corner.
+Module.GetWatchCorner = GetCorner
+
 -- Show a matched entry in its corner, either as a plain coloured dot or as the
 -- spell icon with its swipe.
 local function ShowEntry(element, entry, data)

@@ -14,7 +14,6 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:GetModule("Tooltip")
 
 local _G = _G
-local format = string.format
 local select = select
 local tconcat = table.concat
 
@@ -41,7 +40,6 @@ local C_Item = C_Item
 local C_MountJournal = C_MountJournal
 local IsSecret = K.IsSecret
 
-local classColors = CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS
 local ICON_LIST = _G.ICON_LIST
 
 local FACTION_HORDE = _G.FACTION_HORDE
@@ -91,7 +89,7 @@ local ROLE_ICON = {
 }
 
 local function RGBText(r, g, b, text)
-	return format("|cff%02x%02x%02x%s|r", r * 255 + 0.5, g * 255 + 0.5, b * 255 + 0.5, text)
+	return K.RGBToHex(r, g, b) .. text .. "|r"
 end
 
 -- Find the first tooltip line (past the name) whose text matches a predicate.
@@ -112,15 +110,8 @@ local function UnitColor(unit)
 		-- The class token can be a secret on some units, and a secret can never be
 		-- used as a table key, so skip the palette lookup when it is.
 		if class and not IsSecret(class) then
-			-- Prefer our custom class palette so the tooltip matches the frames.
-			local color = K.oUF and K.oUF.colors.class[class]
-			if color then
-				return color:GetRGB()
-			end
-			color = classColors[class]
-			if color then
-				return color.r, color.g, color.b
-			end
+			-- The theme's class palette, so the tooltip matches the frames.
+			return K.ClassColorRGB(class)
 		end
 	else
 		local reaction = UnitReaction(unit, "player")
@@ -277,13 +268,12 @@ function Module:OnUnitTooltip(tt)
 				local race = UnitRace(unit)
 				local className, class = UnitClass(unit)
 				-- The class token can be a secret, and a secret can never key a table.
-				local cc = class and not IsSecret(class) and classColors[class]
 				local parts = { levelText }
 				if race and not IsSecret(race) then
 					parts[#parts + 1] = race
 				end
 				if className and not IsSecret(className) then
-					parts[#parts + 1] = cc and RGBText(cc.r, cc.g, cc.b, className) or className
+					parts[#parts + 1] = (class and not IsSecret(class)) and K.ClassColorText(class, className) or className
 				end
 				levelLine:SetText(tconcat(parts, " "))
 				levelLine:SetTextColor(K.Colors.text[1], K.Colors.text[2], K.Colors.text[3])
@@ -455,12 +445,7 @@ function Module:SetupUnitInfo()
 			_, link = tt:GetItem()
 		end
 		local quality = link and C_Item and C_Item.GetItemInfo and select(3, C_Item.GetItemInfo(link))
-		if quality and quality > 1 and C_Item.GetItemQualityColor then
-			local r, g, b = C_Item.GetItemQualityColor(quality)
-			K.SetBorderColor(border, r, g, b)
-		else
-			K.ResetBorderColor(border)
-		end
+		K.SetQualityBorder(border, quality)
 	end)
 
 	-- The unit border colour is reset for the next tooltip from the anchor hook

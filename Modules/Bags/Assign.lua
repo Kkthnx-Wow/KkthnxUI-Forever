@@ -73,13 +73,6 @@ function Module:ClearCategoryItems(catKey)
 	self:UpdateAll()
 end
 
--- Wipe every custom item assignment and junk flag back to defaults.
-function Module:ResetItemAssignments()
-	K:SetConfig({ "Bags", "ItemAssignments" }, {})
-	K:SetConfig({ "Bags", "JunkList" }, {})
-	self:UpdateAll()
-end
-
 -- Middle-click assign menu, driven off whatever item is under the button.
 function Module:ShowAssignMenu(button)
 	if not (MenuUtil and MenuUtil.CreateContextMenu) then

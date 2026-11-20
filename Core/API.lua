@@ -19,12 +19,10 @@ local type = type
 local tostring = tostring
 local floor = math.floor
 local ceil = math.ceil
-local abs = math.abs
 local max = math.max
 local min = math.min
 local format = string.format
 local strfind = string.find
-local tremove = table.remove
 
 local CreateFrame = CreateFrame
 local UIParent = UIParent
@@ -49,7 +47,14 @@ K.Level = UnitLevel("player")
 K.Locale = GetLocale()
 K.GUID = UnitGUID("player")
 
-K.ClassColor = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class] or { r = 1, g = 1, b = 1 }
+-- K.ClassColor, the player's class colour, is set in Core/Palette.lua with the
+-- rest of the theme's class colours.
+
+-- One hidden frame for parking Blizzard frames we replace. A frame parented here
+-- is never drawn, however often Blizzard shows it.
+K.HiddenParent = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
+K.HiddenParent:SetAllPoints(UIParent)
+K.HiddenParent:Hide()
 
 K.MediaFolder = "Interface\\AddOns\\KkthnxUI\\Media\\"
 
@@ -100,9 +105,6 @@ function K.Print(...)
 	end
 end
 
--- Shared no-op, handy for neutering Blizzard globals.
-function K.Noop() end
-
 -- Midnight-safe aura read. C_UnitAuras.GetAuraDataByIndex throws ("Auras cannot
 -- be accessed when secret while tainted") for a secret aura while our code is on
 -- the stack (enemies, and some hidden player auras). Wrap it so callers get nil
@@ -128,7 +130,6 @@ end
 -- than through its own PLAYER_REGEN_ENABLED registration.
 --
 --   K.DeferCombat(key, fn)   run fn once, after the next combat ends
---   K.CancelCombat(key)      drop a pending key
 --
 -- A key is one pending job. Deferring it again keeps its place in the line and
 -- swaps in the new function, so a burst of requests runs once. The line drains
@@ -168,22 +169,6 @@ function K.DeferCombat(key, fn)
 	combatJobs[key] = fn
 end
 
-function K.CancelCombat(key)
-	if combatJobs[key] == nil then
-		return
-	end
-	combatJobs[key] = nil
-	for index = 1, #combatKeys do
-		if combatKeys[index] == key then
-			tremove(combatKeys, index)
-			break
-		end
-	end
-	if #combatKeys == 0 then
-		combatFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
-	end
-end
-
 -- ---------------------------------------------------------------------------
 -- Math helpers
 -- ---------------------------------------------------------------------------
@@ -219,7 +204,8 @@ function K.RGBToHex(r, g, b)
 	if type(r) == "table" then
 		r, g, b = r.r or r[1], r.g or r[2], r.b or r[3]
 	end
-	return format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+	-- Rounded, the same as K.ColorHex, so both give the same code for a colour.
+	return format("|cff%02x%02x%02x", r * 255 + 0.5, g * 255 + 0.5, b * 255 + 0.5)
 end
 
 -- ---------------------------------------------------------------------------
@@ -278,19 +264,6 @@ function Pixel.Scale(value)
 end
 K.Scale = Pixel.Scale
 
--- Nearest whole pixel snap for save paths without a frame reference.
-function Pixel.Snap(value)
-	if value == 0 then
-		return 0
-	end
-	local result = floor(value / Pixel.mult + 0.5) * Pixel.mult
-	local rounded = floor(result + 0.5)
-	if abs(result - rounded) < 0.001 then
-		result = rounded
-	end
-	return result
-end
-
 -- Apply the configured (or auto) UIParent scale. Deferred in combat.
 function K:SetupUIScale(init)
 	local general = C.General or {}
@@ -318,6 +291,23 @@ end
 -- Some retail values are "secret" (protected) and cannot be read in combat.
 K.IsSecret = _G.issecretvalue or function()
 	return false
+end
+
+-- Gear whose look is not in the transmog collection yet. A grey piece like that is
+-- still worth keeping, so the junk logic leaves it alone. Asks the game for the
+-- appearance of this exact item, and anything it cannot answer for (not gear, no
+-- appearance, API missing, a hidden link) counts as not protected.
+function K.IsUncollectedAppearance(itemInfo)
+	local T = C_TransmogCollection
+	if not itemInfo or K.IsSecret(itemInfo) or not (T and T.GetItemInfo and T.GetAppearanceInfoBySource) then
+		return false
+	end
+	local _, sourceID = T.GetItemInfo(itemInfo)
+	if not sourceID then
+		return false
+	end
+	local info = T.GetAppearanceInfoBySource(sourceID)
+	return info ~= nil and info.appearanceIsCollected == false
 end
 
 -- Keep one of our frames out of the Gamepad UI cursor. With the Gamepad UI on,
@@ -363,17 +353,26 @@ do
 	local THREAT_HOLD = { 0.2, 0.8, 0.2 }
 	local THREAT_WARN = { 0.9, 0.7, 0.2 }
 	local THREAT_AGGRO = { 0.9, 0.2, 0.2 }
+	-- Defensive Stance, Bear Form, Dire Bear Form, Righteous Fury.
+	local TANK_AURAS = { 71, 5487, 9634, 25780 }
 
-	-- Are we tanking right now? Assigned group role first, then the spec's role so
-	-- it still reads correctly while solo.
+	-- Are we tanking right now? Assigned group role first, then the stance, form
+	-- or aura, so it still reads correctly while solo.
 	function K.PlayerIsTank()
 		local role = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
 		if role == "TANK" then
 			return true
 		end
-		local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
-		if spec and _G.GetSpecializationRole then
-			return _G.GetSpecializationRole(spec) == "TANK"
+		-- Forever has no specializations, so a tank is read from what the player is
+		-- doing: a warrior in Defensive Stance, a druid in a bear form, or a paladin
+		-- with Righteous Fury up.
+		local getAura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
+		if getAura then
+			for _, spellID in ipairs(TANK_AURAS) do
+				if getAura(spellID) then
+					return true
+				end
+			end
 		end
 		return false
 	end
@@ -415,18 +414,6 @@ local function ShadowOffset(style)
 		return 0, 0
 	end
 	return 1, -1
-end
-
-function K.SetFontString(parent, font, size, style, ...)
-	local fs = parent:CreateFontString(nil, "OVERLAY")
-	fs:SetFont(font, size, style or "")
-	fs:SetJustifyH("LEFT")
-	fs:SetShadowColor(0, 0, 0, 1)
-	fs:SetShadowOffset(ShadowOffset(style))
-	if select("#", ...) > 0 then
-		fs:SetPoint(...)
-	end
-	return fs
 end
 
 -- Return the outline flag string based on the user preference.

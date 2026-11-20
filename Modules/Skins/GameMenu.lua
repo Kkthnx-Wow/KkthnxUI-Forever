@@ -227,7 +227,14 @@ function Module:OnEnable()
 				return
 			end
 			for poolButton in self.buttonPool:EnumerateActive() do
+				local reused = poolButton.__kkuiStyled
 				StyleMenuButton(poolButton)
+				-- AddButton just cleared OnEnter and OnLeave, which took our hover
+				-- hooks with them, so put them back on a reused button. A new one
+				-- was only just hooked by the styling above.
+				if reused and poolButton.KKUI_HookHover then
+					poolButton.KKUI_HookHover()
+				end
 			end
 		end)
 	end

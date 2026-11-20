@@ -95,11 +95,11 @@ end
 
 -- Name above the health bar. Pushed onto the upward stack so it always sits
 -- directly on top of health with nothing overlapping it.
-function Build.Name(self, size)
+function Build.Name(self, size, tag)
 	-- Centered name on the gradient strip above the health bar.
 	local name = Module.GradientLabel(self, self.Health or self, size or 12)
 	-- The explicit |r closes the name colour so the AFK flag keeps its own grey.
-	self:Tag(name, "[kkui:namecolor][kkui:name]|r[kkui:afkdnd]")
+	self:Tag(name, tag or "[kkui:namecolor][kkui:name]|r[kkui:afkdnd]")
 	self.Name = name
 	-- Push the name's gradient strip onto the upward stack so anything above the
 	-- frame (debuffs) sits above the gradient, not on top of it.
@@ -224,7 +224,9 @@ local function DeficitAlpha()
 	return deficitAlpha or nil
 end
 
-local function UpdateRaidHealthText(element, unit, cur)
+-- One updater for every compact health value. The mode lives on the bar so the
+-- raid and the party can each have their own.
+local function UpdateModeHealthText(element, unit, cur)
 	local text = element.__kkuiText
 	if not text then
 		return
@@ -238,7 +240,7 @@ local function UpdateRaidHealthText(element, unit, cur)
 		text:SetText(DEAD)
 		return
 	end
-	local mode = C.Unitframe.Raid.HealthText
+	local mode = element.__kkuiMode
 	if mode == "Deficit" then
 		text:SetFormattedText("-%s", AbbreviateNumbers(UnitHealthMissing(unit)))
 		local curve = DeficitAlpha()
@@ -264,7 +266,28 @@ function Build.RaidHealthText(self, size, yOffset)
 	text:SetPoint("RIGHT", self.Health, "RIGHT", -3, yOffset or 0)
 	text:SetJustifyH("CENTER")
 	self.Health.__kkuiText = text
-	self.Health.PostUpdate = UpdateRaidHealthText
+	self.Health.__kkuiMode = mode
+	self.Health.PostUpdate = UpdateModeHealthText
+	self.HealthValue = text
+	return text
+end
+
+-- Party health value. "Default" keeps following the shared Health Format, any
+-- other mode uses the same compact looks as the raid.
+function Build.PartyHealthText(self, size)
+	local mode = C.Unitframe.Party.HealthText
+	if not mode or mode == "Default" then
+		return Build.HealthText(self, size)
+	end
+	if mode == "None" then
+		return
+	end
+	local text = NewText(self.Health, size or 11)
+	text:SetPoint("CENTER", self.Health, "CENTER", 0, BAR_TEXT_NUDGE)
+	text:SetJustifyH("CENTER")
+	self.Health.__kkuiText = text
+	self.Health.__kkuiMode = mode
+	self.Health.PostUpdate = UpdateModeHealthText
 	self.HealthValue = text
 	return text
 end

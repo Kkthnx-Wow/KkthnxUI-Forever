@@ -44,7 +44,7 @@ function Module:SetupItemCount()
 		end
 
 		local muted, info = K.Colors.muted, K.Colors.info
-		local right = bank > 0 and format("%d  |cff%02x%02x%02x%s %d|r", bags, muted[1] * 255, muted[2] * 255, muted[3] * 255, BANK or "Bank", bank) or tostring(bags)
+		local right = bank > 0 and format("%d  %s %d|r", bags, K.ColorHex("muted") .. (BANK or "Bank"), bank) or tostring(bags)
 		tt:AddDoubleLine(BAGSLOT or "Bags", right, muted[1], muted[2], muted[3], info[1], info[2], info[3])
 		tt:Show()
 	end)

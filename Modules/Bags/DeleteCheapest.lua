@@ -37,7 +37,7 @@ function Module:FindCheapestJunk()
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			if info and info.hyperlink and not info.hasNoValue then
 				local flagged = info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
-				local grey = not IsSecret(info.quality) and info.quality == POOR
+				local grey = not IsSecret(info.quality) and info.quality == POOR and not K.IsUncollectedAppearance(info.hyperlink)
 				if grey or flagged then
 					local price = select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
 					local total = price * (info.stackCount or 1)

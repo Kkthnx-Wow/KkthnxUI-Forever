@@ -50,6 +50,12 @@ local function ManaPowerPostUpdate(power, unit)
 	-- before ever reaching the check. Matches the nameplate caster test.
 	local ptype = unit and UnitPowerType(unit)
 	local isMana = ptype ~= nil and not IsSecret(ptype) and ptype == 0
+	-- This runs on every power event, and the layout below re-anchors health, so it
+	-- only does that work when the answer actually changes.
+	if power.__isMana == isMana then
+		return
+	end
+	power.__isMana = isMana
 	power:SetShown(isMana)
 	RaidHealthFill(self, isMana)
 end
@@ -69,12 +75,12 @@ Module.Styles.Party = function(self)
 		Build.PortraitLevel(self)
 	end
 	-- Name on the gradient strip above health, value centred on the bar.
-	Build.Name(self, 11)
-	Build.HealthText(self, 11)
+	Build.Name(self, 11, "[kkui:namecolor][kkui:nameparty]|r[kkui:afkdnd]")
+	Build.PartyHealthText(self, 11)
 	Build.PowerText(self, 9)
 
 	Build.Indicators(self, 14)
-	Build.GroupIndicators(self)
+	Build.GroupIndicators(self, cfg)
 
 	if cfg.Debuffs then
 		-- Right side so they clear the left-hand portrait.
@@ -108,6 +114,9 @@ Module.Styles.Raid = function(self)
 	Build.Health(self)
 	if powerHeight > 0 then
 		Build.Power(self, powerHeight, gap, true)
+		-- A raid bar is a thin strip on up to 40 frames, so it takes the regular power
+		-- event and not the per-tick one the big frames use.
+		self.Power.frequentUpdates = false
 		RaidHealthFill(self, true)
 		if mode == "Mana" then
 			self.Power.PostUpdate = ManaPowerPostUpdate
@@ -123,7 +132,7 @@ Module.Styles.Raid = function(self)
 		Build.RaidHealthText(self, 9, -6)
 	end
 	Build.Indicators(self, 12)
-	Build.GroupIndicators(self)
+	Build.GroupIndicators(self, cfg)
 
 	if cfg.DispelHighlight then
 		Build.DispelHighlight(self)

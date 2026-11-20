@@ -260,12 +260,6 @@ end
 -- ---------------------------------------------------------------------------
 -- Lifecycle
 -- ---------------------------------------------------------------------------
-function Module:ADDON_LOADED(_, addon)
-	if addon == "Blizzard_TalkingHeadUI" then
-		HideTalkingHead()
-	end
-end
-
 -- Re-run when the stack-spacing slider changes so it applies live.
 function Module:Refresh()
 	RefreshLayout()
@@ -286,7 +280,6 @@ function Module:OnEnable()
 
 	InstallHooks()
 	RefreshLayout()
+	-- The talking head is part of the base UI on Forever, so it exists by now.
 	HideTalkingHead()
-
-	self:RegisterEvent("ADDON_LOADED")
 end

@@ -42,7 +42,6 @@ local FRAMES_TO_DISABLE = {
 	"MultiBar6",
 	"MultiBar7",
 	"PossessActionBar",
-	"StatusTrackingBarManager",
 }
 
 local function TrimButtonEventFrames(self)
@@ -80,12 +79,7 @@ local function DisableControllerEvents()
 end
 
 function Module:DisableBlizzardBars()
-	local hidden = _G.KKUI_HiddenParent
-	if not hidden then
-		hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-		hidden:SetAllPoints(UIParent)
-		hidden:Hide()
-	end
+	local hidden = K.HiddenParent
 	self.hiddenParent = hidden
 
 	for _, name in ipairs(FRAMES_TO_HIDE) do
@@ -104,11 +98,10 @@ function Module:DisableBlizzardBars()
 
 	DisableControllerEvents()
 
-	-- The page number and XP/rep status bars are part of the old look too.
+	-- The page number is part of the old look too. The XP and rep tracker is left
+	-- to the experience bar, which hides it while ours is on and gives it back
+	-- when ours is off.
 	if _G.MainMenuBarPageNumber then
 		_G.MainMenuBarPageNumber:Hide()
-	end
-	if _G.StatusTrackingBarManager then
-		_G.StatusTrackingBarManager:Hide()
 	end
 end

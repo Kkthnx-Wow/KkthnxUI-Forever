@@ -172,6 +172,8 @@ function Module:OnEnable()
 	self:CreatePossessBar()
 	self:CreateExtras()
 
+	self:SetupRankUpgrade()
+
 	-- Bind keys to our buttons and keep them in sync with binding changes.
 	self:ReassignBindings()
 	self:RegisterEvent("UPDATE_BINDINGS", "ReassignBindings")

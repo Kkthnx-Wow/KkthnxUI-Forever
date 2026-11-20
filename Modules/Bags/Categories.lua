@@ -193,7 +193,9 @@ function Module:GetCategory(bag, slot, info)
 
 	-- Grey items are junk, unless the client marked them worthless-but-not-grey.
 	local quality = info.quality
-	if not IsSecret(quality) and quality == POOR then
+	-- An uncollected transmog appearance is not junk, it falls through to its normal
+	-- shelf. A player-flagged item went to Junk above, so that choice still wins.
+	if not IsSecret(quality) and quality == POOR and not K.IsUncollectedAppearance(info.hyperlink) then
 		return "Junk"
 	end
 

@@ -17,7 +17,7 @@
 		default.
 -----------------------------------------------------------------------------]]
 
-local K = KkthnxUI[1]
+local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local GUI = K.GUI
 
@@ -71,7 +71,34 @@ function GUI.State()
 	if not state.baseline then
 		state.baseline = KkthnxUIDB.installedVersion or K.Version
 	end
+	-- A baseline newer than the running version came from the old version scheme
+	-- (11.1.1 before 1.0.0) and would hide every new setting for good. Fall back
+	-- to the installed version, or the running one if that is no better.
+	local current = GUI.VersionKey(K.Version)
+	if GUI.VersionKey(state.baseline) > current then
+		local installed = KkthnxUIDB.installedVersion
+		if installed and GUI.VersionKey(installed) <= current then
+			state.baseline = installed
+		else
+			state.baseline = K.Version
+		end
+	end
 	return state
+end
+
+-- One chat line at login when there are new settings to look at. It only comes
+-- back when the version changes or more settings turn up, so it never nags.
+local function LoginHint()
+	local state = GUI.State()
+	if not state or not C.General.WelcomeMessage then
+		return
+	end
+	local count = GUI.CountNewTotal()
+	local last = state.hint
+	if count > 0 and (not last or last.version ~= K.Version or count > (last.count or 0)) then
+		K.Print(L["%d new settings since your last update. Type %s and open What's New."], count, K.ColorText("accent", "/kk"))
+	end
+	state.hint = { version = K.Version, count = count }
 end
 
 local loginFrame = CreateFrame("Frame")
@@ -79,6 +106,8 @@ loginFrame:RegisterEvent("PLAYER_LOGIN")
 loginFrame:SetScript("OnEvent", function(self)
 	GUI.State()
 	self:UnregisterAllEvents()
+	-- After the welcome line, so the two read in order.
+	C_Timer.After(2, LoginHint)
 end)
 
 -- ---------------------------------------------------------------------------

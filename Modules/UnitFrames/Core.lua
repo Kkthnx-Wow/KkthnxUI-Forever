@@ -301,7 +301,14 @@ function Module:SpawnParty()
 	-- Raid-as-party sits tight like the raid. The standard party spreads out so the
 	-- debuff row beside each frame has room, and further still when the castbar is on
 	-- so the bar above one frame never reaches the frame above it.
-	local partySpacing = useRaid and Module.GAP or (cfg.Castbar and 36 or 24)
+	-- The spacing setting is the visible gap between frames. The standard party adds
+	-- 12 on top when the castbar is on, which is the bar that hangs above each frame.
+	local partySpacing
+	if useRaid then
+		partySpacing = C.Unitframe.Raid.Spacing or Module.GAP
+	else
+		partySpacing = (cfg.Spacing or 24) + (cfg.Castbar and 12 or 0)
+	end
 	local header = oUF:SpawnHeader("KKUI_Party", nil,
 		"showPlayer", cfg.ShowPlayer ~= false,
 		"showSolo", cfg.ShowSolo,
@@ -394,7 +401,8 @@ function Module:SpawnRaid()
 		UP_LEFT = { point = "BOTTOM", column = "RIGHT", down = false },
 	}
 	local orient = ORIENT[cfg.Orientation] or ORIENT.DOWN_RIGHT
-	local yOffset = orient.down and -Module.GAP or Module.GAP
+	local spacing = cfg.Spacing or Module.GAP
+	local yOffset = orient.down and -spacing or spacing
 
 	-- Order within a column: ascending (index order) or descending (reversed).
 	local sortDir = cfg.SortDirection == "DESC" and "DESC" or "ASC"
@@ -416,11 +424,11 @@ function Module:SpawnRaid()
 		"sortDir", sortDir,
 		"maxColumns", maxColumns,
 		"unitsPerColumn", perColumn,
-		"columnSpacing", Module.GAP,
+		"columnSpacing", spacing,
 		"columnAnchorPoint", orient.column,
 		"oUF-initialConfigFunction", InitialConfig(cfg.Width, height))
 
-	header:SetSize(cols * cfg.Width + (cols - 1) * Module.GAP, height * rows + Module.GAP * (rows - 1))
+	header:SetSize(cols * cfg.Width + (cols - 1) * spacing, height * rows + spacing * (rows - 1))
 	K.CreateMover(header, "RaidFrames", "Raid", { "TOPLEFT", UIParent, "TOPLEFT", 4, -180 }, header:GetWidth(), header:GetHeight())
 
 	-- Only up inside a raid, the party header covers 5-man groups.
@@ -433,21 +441,21 @@ function Module:SpawnRaid()
 	-- Column labels only make sense keyed by group. Under class or role grouping a
 	-- column no longer maps to a raid group, so the numbers would lie.
 	if cfg.ShowGroupNumber and groupByCfg == "GROUP" and not raidWide then
-		self:BuildRaidGroupLabels(header, cols, cfg.Width)
+		self:BuildRaidGroupLabels(header, cols, cfg.Width, spacing)
 	end
 end
 
 -- A small numbered label above each column, since with one combined header every
 -- raid group lands in its own column. Labels only show for groups that actually
 -- have members, refreshed on roster changes.
-function Module:BuildRaidGroupLabels(header, cols, width)
+function Module:BuildRaidGroupLabels(header, cols, width, spacing)
 	local labels = {}
 	for i = 1, cols do
 		local fs = header:CreateFontString(nil, "OVERLAY")
 		K.SetFont(fs, 12, K.FontOutlineStyle())
 		fs:SetTextColor(K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
 		fs:SetText(i)
-		local x = (i - 1) * (width + Module.GAP) + width * 0.5
+		local x = (i - 1) * (width + spacing) + width * 0.5
 		fs:SetPoint("BOTTOM", header, "TOPLEFT", x, 3)
 		fs:Hide()
 		labels[i] = fs
@@ -492,11 +500,7 @@ function Module:DisableBlizzardRaid()
 		return
 	end
 
-	local hidden = _G.KKUI_HiddenParent
-	if not hidden then
-		hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-		hidden:Hide()
-	end
+	local hidden = K.HiddenParent
 
 	if CompactPartyFrame then
 		CompactPartyFrame:UnregisterAllEvents()

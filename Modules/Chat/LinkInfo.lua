@@ -14,7 +14,7 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:GetModule("Chat")
 
 local C_Item = C_Item
-local ChatFrame_AddMessageEventFilter = ChatFrame_AddMessageEventFilter
+local ipairs = ipairs
 local format = string.format
 local gsub = string.gsub
 local IsSecret = K.IsSecret
@@ -44,7 +44,7 @@ local function WithIcon(link)
 end
 
 local function LootIconFilter(_, _, msg, ...)
-	if IsSecret(msg) then
+	if type(msg) ~= "string" or IsSecret(msg) then
 		return false
 	end
 	return false, gsub(msg, ITEM_LINK, WithIcon), ...
@@ -64,7 +64,7 @@ local function WithLevel(head, name, tail)
 end
 
 local function ItemLevelFilter(_, _, msg, ...)
-	if IsSecret(msg) then
+	if type(msg) ~= "string" or IsSecret(msg) then
 		return false
 	end
 	-- Rewrite only the text inside the brackets, the link data stays untouched so
@@ -74,11 +74,11 @@ end
 
 function Module:SetupLinkInfo()
 	if C.Chat.LootIcons then
-		ChatFrame_AddMessageEventFilter("CHAT_MSG_LOOT", LootIconFilter)
+		ChatFrameUtil.AddMessageEventFilter("CHAT_MSG_LOOT", LootIconFilter)
 	end
 	if C.Chat.LinkItemLevel then
 		for _, event in ipairs(LEVEL_EVENTS) do
-			ChatFrame_AddMessageEventFilter(event, ItemLevelFilter)
+			ChatFrameUtil.AddMessageEventFilter(event, ItemLevelFilter)
 		end
 	end
 end

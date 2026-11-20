@@ -177,23 +177,18 @@ local function Refresh(slot)
 	end
 
 	local quality = GetInventoryItemQuality(unit, id)
-	local r, g, b
-	if quality and not IsSecret(quality) and quality > 1 then
-		r, g, b = C_Item.GetItemQualityColor(quality)
-	end
-	if border then
-		if r then
-			K.SetBorderColor(border, r, g, b, 1)
-		else
-			K.ResetBorderColor(border)
-		end
+	K.SetQualityBorder(border, quality)
+	-- The item level reads in the quality colour, white for common.
+	local r, g, b, isQuality = K.ItemQualityColor(quality)
+	if not isQuality then
+		r, g, b = 1, 1, 1
 	end
 
 	if level then
 		local ilvl = not NO_LEVEL[id] and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(link)
 		if ilvl and not IsSecret(ilvl) and ilvl > 1 then
 			level:SetText(ilvl)
-			level:SetTextColor(r or 1, g or 1, b or 1)
+			level:SetTextColor(r, g, b)
 		else
 			level:SetText("")
 		end

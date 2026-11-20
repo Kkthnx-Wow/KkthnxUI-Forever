@@ -42,10 +42,6 @@ local STARTING_BONUS_PAGES = {
 	WARRIOR = { [1] = 7, [2] = 8, [3] = 9 },
 }
 
--- Page for the skyriding mount bar, shared by every class.
-local SKYRIDING_BONUS_BAR = 5
-local SKYRIDING_PAGE = 11
-
 local function BonusPages()
 	local pages = {}
 	for offset, page in pairs(STARTING_BONUS_PAGES[K.Class] or {}) do
@@ -86,9 +82,6 @@ local function GetPageDriver()
 		parts[#parts + 1] = format("[bonusbar:%d] %d", offset, pages[offset])
 	end
 
-	if not pages[SKYRIDING_BONUS_BAR] then
-		parts[#parts + 1] = format("[bonusbar:%d] %d", SKYRIDING_BONUS_BAR, SKYRIDING_PAGE)
-	end
 	parts[#parts + 1] = "1"
 	return table.concat(parts, "; ")
 end
@@ -330,16 +323,42 @@ local FadeTick
 -- Work out where a bar should be resting and start the glide if it is not there.
 -- Called when something that decides that changes: a hover, or combat starting or
 -- ending. Between those the bar has no per frame cost at all.
+-- True while the pointer is on the bar, or on the flyout popup one of its buttons
+-- opened. The popup is one shared frame parented to the button that opened it and
+-- sits outside the bar's own rectangle, so the bar alone reads as "left" the moment
+-- the pointer steps onto it.
+local function IsOverBar(bar)
+	if bar:IsMouseOver() then
+		return true
+	end
+	local lab = Module.LAB
+	local flyout = lab and lab.flyoutHandler
+	if flyout and flyout:IsShown() and flyout:IsMouseOver() then
+		local owner = flyout:GetParent()
+		for _, button in ipairs(bar.buttons or {}) do
+			if button == owner then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Set while the cursor carries a spell or item, so a faded bar shows its empty slots
+-- as drop targets for the drag.
+local gridShown = false
+
 local function Retarget(bar)
 	local state = faders[bar]
 	if not state then
 		return
 	end
 
-	-- Full while fighting, and (for mouseover bars) while hovered. Otherwise the bar
-	-- rests at the faded alpha. A combat fade bar therefore hides out of combat and
-	-- comes up the moment a fight starts.
-	local want = (InCombatLockdown() or (state.mouseover and state.hovered)) and state.target or state.faded
+	-- Full while fighting, and (for mouseover bars) while hovered or while something
+	-- is being dragged. Otherwise the bar rests at the faded alpha. A combat fade bar
+	-- therefore hides out of combat and comes up the moment a fight starts.
+	local reveal = state.mouseover and (state.hovered or gridShown)
+	local want = (InCombatLockdown() or reveal) and state.target or state.faded
 	state.want = want
 
 	if state.current ~= want or state.hovered then
@@ -360,7 +379,7 @@ FadeTick = function(bar, delta)
 		state.recheck = (state.recheck or 0) + delta
 		if state.recheck >= HOVER_RECHECK then
 			state.recheck = 0
-			if not bar:IsMouseOver() then
+			if not IsOverBar(bar) then
 				state.hovered = false
 				Retarget(bar)
 			end
@@ -390,7 +409,12 @@ FadeTick = function(bar, delta)
 	end
 end
 
-local function OnFadeEvent()
+local function OnFadeEvent(_, event)
+	if event == "ACTIONBAR_SHOWGRID" then
+		gridShown = true
+	elseif event == "ACTIONBAR_HIDEGRID" then
+		gridShown = false
+	end
 	for bar in pairs(faders) do
 		Retarget(bar)
 	end
@@ -406,6 +430,8 @@ local function EnsureFadeEvents()
 	fadeEvents = CreateFrame("Frame")
 	fadeEvents:RegisterEvent("PLAYER_REGEN_DISABLED")
 	fadeEvents:RegisterEvent("PLAYER_REGEN_ENABLED")
+	fadeEvents:RegisterEvent("ACTIONBAR_SHOWGRID")
+	fadeEvents:RegisterEvent("ACTIONBAR_HIDEGRID")
 	fadeEvents:SetScript("OnEvent", OnFadeEvent)
 end
 
@@ -448,7 +474,7 @@ function Module:SetupFade(bar, cfg)
 			if s then
 				-- Moving between buttons fires a leave then an enter, and the pointer
 				-- is still over the bar for the first of those.
-				s.hovered = bar:IsMouseOver()
+				s.hovered = IsOverBar(bar)
 				Retarget(bar)
 			end
 		end
@@ -498,7 +524,7 @@ local function LearnBonusBars()
 		return
 	end
 	local offset = api.GetBonusBarOffset()
-	if not offset or offset == 0 or offset == SKYRIDING_BONUS_BAR then
+	if not offset or offset == 0 then
 		return
 	end
 
@@ -546,7 +572,7 @@ function Module:SetupMainBar(bar)
 	-- at 31, 32 and 33 (read live on 1.60.1), far past the 18 the bar used to
 	-- cover, so the range is taken from the client.
 	local api = C_ActionBar
-	local lastPage = math.max(18, api.GetVehicleBarIndex(), api.GetTempShapeshiftBarIndex(), api.GetOverrideBarIndex(), SKYRIDING_PAGE)
+	local lastPage = math.max(18, api.GetVehicleBarIndex(), api.GetTempShapeshiftBarIndex(), api.GetOverrideBarIndex())
 	for _, page in pairs(BonusPages()) do
 		lastPage = math.max(lastPage, page)
 	end

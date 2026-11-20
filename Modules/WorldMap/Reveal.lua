@@ -205,12 +205,13 @@ function Module:SetupReveal()
 	end
 	check:SetFrameLevel(level + 1)
 
-	-- Sit just to the left of the map's maximize/minimize button, where the title
-	-- bar has open room. The label reads inward, to the left of the box.
+	-- Sit to the left of the map's maximize/minimize button, where the title bar
+	-- has open room, with a clear gap so the box does not read as one of the
+	-- window buttons. The label reads inward, to the left of the box.
 	-- Forever names it MaximizeMinimizeFrame. The other key is the Retail one.
 	local maxMin = border and (border.MaximizeMinimizeFrame or border.MaximizeMinimizeButton)
 	if maxMin then
-		check:SetPoint("RIGHT", maxMin, "LEFT", -4, 0)
+		check:SetPoint("RIGHT", maxMin, "LEFT", -12, 0)
 	else
 		check:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -60, -4)
 	end
@@ -223,12 +224,16 @@ function Module:SetupReveal()
 	K.SetFont(label, 13, K.FontOutlineStyle())
 	label:SetPoint("RIGHT", check, "LEFT", -2, 0)
 	label:SetText(L["Map Reveal"])
+	local gold = K.Colors.highlight
+	label:SetTextColor(gold[1], gold[2], gold[3])
 
 	-- Quick toggle: flip the saved setting and show or hide what is already drawn,
 	-- so it applies instantly without waiting for the next map redraw.
 	check:SetScript("OnClick", function(self)
 		local on = self:GetChecked() and true or false
-		C.WorldMap.Reveal = on
+		-- Through SetConfig so the choice lands in the saved profile, not only the
+		-- live table, which is rebuilt from the profile on every reload.
+		K:SetConfig({ "WorldMap", "Reveal" }, on)
 		if on then
 			-- Take the hook now if this is the first time on, then draw for the pins
 			-- already on the map so it applies without waiting for a redraw.

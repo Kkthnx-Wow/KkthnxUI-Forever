@@ -167,7 +167,14 @@ end
 local function UnitBorderColor(frame, unit)
 	local colors = frame.colors
 
-	if UnitIsPlayer(unit) or UnitInPartyIsAI(unit) then
+	-- Either call can hand back a secret boolean, which cannot be tested. Treat that
+	-- as an unknown unit and fall through to the plain border colour.
+	local isPlayer = UnitIsPlayer(unit)
+	local isAI = UnitInPartyIsAI(unit)
+	if IsSecret(isPlayer) or IsSecret(isAI) then
+		return nil
+	end
+	if isPlayer or isAI then
 		-- Second return only. The class token can be a secret on restricted units
 		-- (target of target, some delve mobs), and a secret can never be a table
 		-- key. When it is secret, ask the client for the colour instead, which
@@ -276,6 +283,9 @@ local function OnHealthColor(element, unit)
 		ColorEnemyFill(element, unit)
 	end
 end
+
+-- Config mode recolours bars by hand, so it needs the same backdrop shading.
+Module.ShadeBar = ShadeBar
 
 function Build.Health(self, height)
 	local health = CreateBox(self, height)

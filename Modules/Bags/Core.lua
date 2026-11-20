@@ -39,7 +39,6 @@ local C_Container = C_Container
 local C_Item = C_Item
 local SetItemButtonCount = SetItemButtonCount
 local C_Timer = C_Timer
-local C_MerchantFrame = C_MerchantFrame
 local C_CurrencyInfo = C_CurrencyInfo
 local BreakUpLargeNumbers = BreakUpLargeNumbers
 
@@ -181,9 +180,73 @@ end
 
 -- Rebuild one container's grid from the current contents of its bags. Empty
 -- slots are gathered into a trailing block so items can still be dragged in.
+-- Vendor value of a list of bag entries (bag, slot, quality, itemID, stack).
+local function JunkShelfValue(list)
+	local total = 0
+	for _, entry in ipairs(list) do
+		local itemID = entry[4]
+		if itemID and itemID > 0 then
+			local price = select(11, C_Item.GetItemInfo(itemID))
+			if price and price > 0 then
+				total = total + price * (entry[5] or 1)
+			end
+		end
+	end
+	return total
+end
+
+-- The free slot button's number. The stock count hides itself at one, which is
+-- exactly when the number matters most, so the text is set directly.
+local function SetFreeCount(button, count, total)
+	-- Read by the tooltip hook in Slots.lua.
+	button.__kkuiFree = count
+	button.__kkuiTotal = total
+	SetItemButtonCount(button, count)
+	if button.Count then
+		button.Count:SetText(count)
+		button.Count:Show()
+	end
+end
+
+-- Stand-in for the free slot button while there is no free slot to bind it to.
+-- The real one is an item button on the first empty slot, so with full bags there
+-- is nothing to hang it on. This keeps the spot, and the "0", instead of the
+-- button vanishing right when it matters.
+local function FullSlotButton(f)
+	local button = f.FullSlot
+	if button then
+		return button
+	end
+	button = CreateFrame("Frame", nil, f)
+	K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBorder(button)
+	local art = button:CreateTexture(nil, "ARTWORK")
+	art:SetPoint("TOPLEFT", 1, -1)
+	art:SetPoint("BOTTOMRIGHT", -1, 1)
+	art:SetAtlas("bags-item-slot64")
+	local text = button:CreateFontString(nil, "OVERLAY")
+	K.SetFont(text, 14, K.FontOutlineStyle())
+	text:SetPoint("CENTER", 0, 0)
+	text:SetText("0")
+	local red = K.Colors.negative
+	text:SetTextColor(red[1], red[2], red[3])
+	button:EnableMouse(true)
+	button:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(L["No free slots"], 1, 1, 1)
+		GameTooltip:Show()
+	end)
+	button:SetScript("OnLeave", GameTooltip_Hide)
+	f.FullSlot = button
+	return button
+end
+
 function Module:LayoutContainer(f)
 	if not f or not f:IsShown() then
 		return
+	end
+	if f.FullSlot then
+		f.FullSlot:Hide()
 	end
 	local cfg = C.Bags
 	local size = cfg.ButtonSize
@@ -211,8 +274,10 @@ function Module:LayoutContainer(f)
 	local useCategories = cfg.Categories and not f.noCategories
 	local splitReagent = useCategories and cfg.ReagentBagSection and not (cfg.CategoryGroup and cfg.CategoryGroup.ReagentBag)
 	local buckets, empties, reagentEmpties = {}, {}, {}
+	local totalSlots = 0
 	for _, bag in ipairs(f.bags) do
 		local numSlots = C_Container.GetContainerNumSlots(bag) or 0
+		totalSlots = totalSlots + numSlots
 		for slot = 1, numSlots do
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			if info then
@@ -247,6 +312,9 @@ function Module:LayoutContainer(f)
 	-- groupName (optional): set on the header so its menu offers group actions.
 	local function placeGroup(list, label, key, free, groupName)
 		list = list or {}
+		-- The junk header carries what the shelf would sell for. Worked out before
+		-- merging, while every entry is still one real stack.
+		local value = key == "Junk" and JunkShelfValue(list) or 0
 		if cfg.MergeStacks then
 			list = MergeList(list)
 		end
@@ -263,7 +331,7 @@ function Module:LayoutContainer(f)
 			header:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, y)
 			header:SetWidth(rowWidth)
 			header.Toggle:SetText(collapsed and "+" or "-")
-			header.Text:SetText(label .. "  (" .. #list .. ")")
+			header.Text:SetText(label .. "  (" .. #list .. ")" .. (value > 0 and ("  -  " .. GetCoinTextureString(value)) or ""))
 			header:SetEnabled(key ~= nil)
 			y = y - HEADER_H
 		end
@@ -302,7 +370,7 @@ function Module:LayoutContainer(f)
 				holder:ClearAllPoints()
 				holder:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN + col * step, y - row * step)
 				self:UpdateSlot(button, free[1][1], free[1][2])
-				SetItemButtonCount(button, freeCount)
+				SetFreeCount(button, freeCount)
 			end
 		end
 		local rows = ceil(total / perRow)
@@ -357,9 +425,16 @@ function Module:LayoutContainer(f)
 			holder:ClearAllPoints()
 			holder:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, y)
 			self:UpdateSlot(button, first[1], first[2])
-			SetItemButtonCount(button, #empties)
+			SetFreeCount(button, #empties, totalSlots)
 			y = y - step - GROUP_GAP
 		end
+	elseif f.bags and #f.bags > 0 then
+		local full = FullSlotButton(f)
+		full:SetSize(size, size)
+		full:ClearAllPoints()
+		full:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, y)
+		full:Show()
+		y = y - step - GROUP_GAP
 	end
 
 	-- Size the window to the content, with a sane minimum width.
@@ -381,9 +456,6 @@ end
 function Module:UpdateInfoText(f)
 	if f.Money then
 		f.Money:SetText(GetCoinTextureString(GetMoney()))
-	end
-	if f.WarbandMoney and self.UpdateWarbandMoney then
-		self:UpdateWarbandMoney(f)
 	end
 	if f.FreeSlots then
 		local free, total = 0, 0
@@ -776,62 +848,18 @@ local function IsSellable(info)
 		return false
 	end
 	local poor = Enum.ItemQuality and Enum.ItemQuality.Poor or 0
-	if not IsSecret(info.quality) and info.quality == poor then
+	if not IsSecret(info.quality) and info.quality == poor and not K.IsUncollectedAppearance(info.hyperlink) then
 		return true
 	end
 	return info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID] and true or false
 end
 
--- Seconds between individual item sales.
-local SELL_GAP = 0.2
-local sellQueue, selling = {}, false
-
-local function SellNext()
-	local entry = table.remove(sellQueue, 1)
-	-- Stop when the merchant closes or combat starts; the rest simply stay in the bags.
-	if not entry or not (_G.MerchantFrame and _G.MerchantFrame:IsShown()) or InCombatLockdown() then
-		wipe(sellQueue)
-		selling = false
-		return
-	end
-	-- Re-read the slot, the bag may have changed since the queue was built.
-	local info = C_Container.GetContainerItemInfo(entry.bag, entry.slot)
-	if info and info.itemID and not IsSecret(info.itemID) and info.itemID == entry.itemID and not info.hasNoValue then
-		C_Container.UseContainerItem(entry.bag, entry.slot)
-	end
-	if #sellQueue > 0 then
-		C_Timer.After(SELL_GAP, SellNext)
-	else
-		selling = false
-	end
-end
-
+-- Greys and the items the player flagged as junk, through the one shared seller
+-- (Automation/SellJunk.lua), so this button and the auto sell never run two
+-- queues at once.
 function Module:SellJunk()
-	-- Grey items go through Blizzard's own bulk sell, then any player-flagged items
-	-- are sold one by one, both only while a merchant is open.
-	if C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
-		C_MerchantFrame.SellAllJunkItems()
-	end
-	if not (_G.MerchantFrame and _G.MerchantFrame:IsShown()) or InCombatLockdown() then
-		return
-	end
-	-- Each sale is a packet to the server. Selling a full set of bags in one frame
-	-- is the kind of burst that gets a client disconnected, so the flagged items
-	-- are queued and sold one per SELL_GAP seconds.
-	wipe(sellQueue)
-	for _, bag in ipairs(self.BagIDs) do
-		local numSlots = C_Container.GetContainerNumSlots(bag) or 0
-		for slot = 1, numSlots do
-			local info = C_Container.GetContainerItemInfo(bag, slot)
-			local flagged = info and info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
-			if flagged and not info.hasNoValue then
-				sellQueue[#sellQueue + 1] = { bag = bag, slot = slot, itemID = info.itemID }
-			end
-		end
-	end
-	if #sellQueue > 0 and not selling then
-		selling = true
-		SellNext()
+	if K.SellJunkItems then
+		K.SellJunkItems(true)
 	end
 end
 
@@ -895,14 +923,6 @@ function Module:CloseBags()
 	end
 	-- The keyring window is a companion of the inventory window, so it goes with it.
 	self:CloseKeyring()
-end
-
-function Module:ToggleBags()
-	if self.BagFrame and self.BagFrame:IsShown() then
-		self:CloseBags()
-	else
-		self:OpenBags()
-	end
 end
 
 function Module:OpenKeyring()

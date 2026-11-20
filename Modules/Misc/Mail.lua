@@ -195,7 +195,7 @@ local function ShowAttachments(self)
 	for itemID, count in pairs(attachments) do
 		local name, _, quality, _, _, _, _, _, _, texture = C_Item.GetItemInfo(itemID)
 		if name then
-			local r, g, b = C_Item.GetItemQualityColor(quality)
+			local r, g, b = C_Item.GetItemQualityColor(quality or 1)
 			tooltip:AddDoubleLine(format("|T%s:12:12:0:0:64:64:5:59:5:59|t %s", texture, name), count, r, g, b, r, g, b)
 		end
 	end

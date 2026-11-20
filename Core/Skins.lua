@@ -252,31 +252,39 @@ function K.SkinButton(button, emphasize)
 
 	-- Hover: lift the fill toward the accent and light the border, so every control
 	-- reacts the same and the hover reads at a glance.
-	button:HookScript("OnEnter", function(self)
-		if not self:IsEnabled() then
-			return
-		end
-		K.ApplyGradient(bg, "buttonHover")
-		if self.KKUI_Border then
-			K.SetBorderColor(self.KKUI_Border, hoverBorder[1], hoverBorder[2], hoverBorder[3], 1)
-		end
-		if glow then
-			glow:Show()
-		end
-		if fs then
-			fs:SetTextColor(hoverColor[1], hoverColor[2], hoverColor[3])
-		end
-	end)
-	button:HookScript("OnLeave", function(self)
-		if glow then
-			glow:Hide()
-		end
-		K.ApplyGradient(bg, "buttonRest")
-		if self.KKUI_Border then
-			K.ResetBorderColor(self.KKUI_Border)
-		end
-		RestText(self)
-	end)
+	-- Kept as a function so a caller can put the hover back: a frame that has its
+	-- OnEnter or OnLeave replaced with SetScript loses these hooks, which the game
+	-- menu does to its pooled buttons every time it rebuilds.
+	local function HookHover()
+		button:HookScript("OnEnter", function(self)
+			if not self:IsEnabled() then
+				return
+			end
+			K.ApplyGradient(bg, "buttonHover")
+			if self.KKUI_Border then
+				K.SetBorderColor(self.KKUI_Border, hoverBorder[1], hoverBorder[2], hoverBorder[3], 1)
+			end
+			if glow then
+				glow:Show()
+			end
+			if fs then
+				fs:SetTextColor(hoverColor[1], hoverColor[2], hoverColor[3])
+			end
+		end)
+		button:HookScript("OnLeave", function(self)
+			if glow then
+				glow:Hide()
+			end
+			K.ApplyGradient(bg, "buttonRest")
+			if self.KKUI_Border then
+				K.ResetBorderColor(self.KKUI_Border)
+			end
+			RestText(self)
+		end)
+	end
+	button.KKUI_HookHover = HookHover
+	HookHover()
+
 	button:HookScript("OnEnable", RestText)
 	button:HookScript("OnDisable", function(self)
 		if glow then
@@ -386,65 +394,6 @@ function K.SkinCloseButton(button)
 		b:SetColorTexture(gold[1], gold[2], gold[3])
 	end)
 	return button
-end
-
--- ---------------------------------------------------------------------------
--- Slider
--- ---------------------------------------------------------------------------
-
-function K.SkinSlider(slider)
-	if slider.__skinned then
-		return slider
-	end
-	slider.__skinned = true
-
-	local thumb = slider:GetThumbTexture()
-
-	-- Remove the default track art but leave the thumb alone.
-	if slider.SetBackdrop then
-		slider:SetBackdrop(nil)
-	end
-	for _, region in ipairs({ slider:GetRegions() }) do
-		if region:GetObjectType() == "Texture" and region ~= thumb then
-			region:SetAlpha(0)
-		end
-	end
-
-	-- Thin track. It is a sibling of the slider (parented to the holder) sitting
-	-- one frame level below, so the slider's thumb still draws above it. A track
-	-- parented to the slider would be a child and would cover the thumb.
-	local track = CreateFrame("Frame", nil, slider:GetParent())
-	track:SetFrameLevel(math.max(0, slider:GetFrameLevel() - 1))
-	track:SetPoint("LEFT", slider, "LEFT", 0, 0)
-	track:SetPoint("RIGHT", slider, "RIGHT", 0, 0)
-	track:SetHeight(6)
-	K.CreateBackground(track, 0.08, 0.08, 0.08, 0.95)
-	K.CreateBorder(track)
-	slider.KKUI_Track = track
-
-	-- Handle: a crisp accent bar with its own thin border, brighter on hover.
-	if thumb then
-		thumb:SetTexture(white)
-		thumb:SetVertexColor(accent[1], accent[2], accent[3], 1)
-		thumb:SetSize(12, 20)
-
-		local edge = slider:CreateTexture(nil, "OVERLAY")
-		edge:SetColorTexture(0, 0, 0, 0.8)
-		edge:SetDrawLayer("OVERLAY", 1)
-		edge:SetPoint("TOPLEFT", thumb, "TOPLEFT", -1, 1)
-		edge:SetPoint("BOTTOMRIGHT", thumb, "BOTTOMRIGHT", 1, -1)
-		edge:SetColorTexture(accent[1] * 0.5, accent[2] * 0.5, accent[3] * 0.5, 1)
-		-- Keep the coloured thumb on top of its edge.
-		thumb:SetDrawLayer("OVERLAY", 2)
-
-		slider:HookScript("OnEnter", function()
-			thumb:SetVertexColor(accent[1] + 0.15, accent[2] + 0.1, accent[3], 1)
-		end)
-		slider:HookScript("OnLeave", function()
-			thumb:SetVertexColor(accent[1], accent[2], accent[3], 1)
-		end)
-	end
-	return slider
 end
 
 -- ---------------------------------------------------------------------------

@@ -31,6 +31,9 @@ function Module:SetupCVars()
 	SetCVar("nameplateShowSelf", 0)
 	SetCVar("nameplateShowEnemies", 1)
 	SetCVar("nameplateShowEnemyMinions", 1)
+	-- Off by default in the client, which leaves friendly NPCs with a widgets only
+	-- plate that oUF keeps hidden, so quest givers and vendors got no name at all.
+	SetCVar("nameplateShowFriendlyNpcs", db.ShowFriendlyNPCs and 1 or 0)
 	SetCVar("nameplateMinScale", 1)
 	SetCVar("nameplateMaxScale", 1)
 	SetCVar("nameplateSelectedScale", 1.1)

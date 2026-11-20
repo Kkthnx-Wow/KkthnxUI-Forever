@@ -8,4 +8,5 @@
 	<Script file="GameMenu.lua" />
 	<Script file="ObjectiveTracker.lua" />
 	<Script file="Details.lua" />
+	<Script file="MirrorTimers.lua" />
 </Ui>

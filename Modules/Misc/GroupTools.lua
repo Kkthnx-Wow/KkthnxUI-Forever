@@ -512,20 +512,24 @@ function Module:UpdateRoleCount()
 	end
 end
 
--- Panel holds secure marker buttons, so hiding it is blocked in combat. Defer any
--- hide to when the fight ends.
+-- Panel holds secure marker buttons, so showing or hiding it is blocked in
+-- combat, either way round. A hide the roster asked for is deferred to when the
+-- fight ends. Returns whether the panel changed.
 function Module:SetPanelShown(show)
 	if not self.Panel then
-		return
+		return false
 	end
-	if not show and InCombatLockdown() then
-		-- UpdateVisibility runs again once combat ends and calls back here.
-		K.DeferCombat("GroupToolsVisibility", function()
-			Module:UpdateVisibility()
-		end)
-		return
+	if InCombatLockdown() then
+		if not show then
+			-- UpdateVisibility runs again once combat ends and calls back here.
+			K.DeferCombat("GroupToolsVisibility", function()
+				Module:UpdateVisibility()
+			end)
+		end
+		return false
 	end
 	self.Panel:SetShown(show)
+	return true
 end
 
 -- Show the tab only in a group, and refresh the tools while it is up.
@@ -597,14 +601,18 @@ function Module:OnEnable()
 	self:BuildRoleBar(tab)
 	self:BuildPanel(tab)
 	tab:SetScript("OnClick", function()
-		if InCombatLockdown() and self.Panel:IsShown() then
-			return -- cannot hide the secure marker buttons mid-combat
+		-- The secure marker buttons cannot be shown or hidden mid fight, so the
+		-- panel stays as it is until combat ends.
+		if InCombatLockdown() then
+			if UIErrorsFrame and ERR_NOT_IN_COMBAT then
+				UIErrorsFrame:AddExternalErrorMessage(ERR_NOT_IN_COMBAT)
+			end
+			return
 		end
 		-- The role summary and the full panel swap: opening the panel hides the role
 		-- bar, closing it brings the role bar back.
 		local openPanel = not self.Panel:IsShown()
-		self:SetPanelShown(openPanel)
-		if self.RoleBar then
+		if self:SetPanelShown(openPanel) and self.RoleBar then
 			self.RoleBar:SetShown(not openPanel)
 		end
 	end)

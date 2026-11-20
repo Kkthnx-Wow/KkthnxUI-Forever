@@ -21,13 +21,10 @@ local IsSecret = K.IsSecret
 local C_NamePlate = C_NamePlate
 local Enum = Enum
 
--- Class resource each class shows here.
+-- Class resource each class shows here. Forever only has combo points.
 local POWER_BY_CLASS = {
 	ROGUE = Enum.PowerType.ComboPoints,
 	DRUID = Enum.PowerType.ComboPoints,
-	MAGE = Enum.PowerType.ArcaneCharges,
-	PALADIN = Enum.PowerType.HolyPower,
-	WARLOCK = Enum.PowerType.SoulShards,
 }
 
 -- Combo-point ramp, matching the unit-frame class power colours.
@@ -46,22 +43,15 @@ local MAX_SEGMENTS = 10
 local powerType = POWER_BY_CLASS[K.Class]
 local isCombo = K.Class == "ROGUE" or K.Class == "DRUID"
 
--- Fill colour for non-combo resources (soul shards, chi, holy power, and the
--- like), taken from the same power token the unit frame uses so the nameplate
--- and the player frame match. Falls back to the theme accent.
-local POWER_TOKEN = {
-	[Enum.PowerType.SoulShards] = "SOUL_SHARDS",
-	[Enum.PowerType.HolyPower] = "HOLY_POWER",
-	[Enum.PowerType.ArcaneCharges] = "ARCANE_CHARGES",
-}
+-- Fill colour for a non-combo resource, taken from the same power token the
+-- unit frame uses so the nameplate and the player frame match. Falls back to the
+-- theme accent. Empty on Forever, where combo points are the only resource.
+local POWER_TOKEN = {}
 -- The token UNIT_POWER_UPDATE carries for each resource. Every other power the
 -- player has (mana, energy, rage) raises the same event, often several times a
 -- second, and none of it concerns this row.
 local EVENT_TOKEN = {
 	[Enum.PowerType.ComboPoints] = "COMBO_POINTS",
-	[Enum.PowerType.ArcaneCharges] = "ARCANE_CHARGES",
-	[Enum.PowerType.HolyPower] = "HOLY_POWER",
-	[Enum.PowerType.SoulShards] = "SOUL_SHARDS",
 }
 local eventToken = powerType and EVENT_TOKEN[powerType]
 

@@ -4,4 +4,5 @@
 	<Script file="Core.lua" />
 	<Script file="Style.lua" />
 	<Script file="TargetPower.lua" />
+	<Script file="Preview.lua" />
 </Ui>

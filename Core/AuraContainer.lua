@@ -288,7 +288,9 @@ local function MakeInitializer(opts)
 		-- cooldowns should behave this way. Everything is pcalled because the
 		-- cooldown carries the Cooldown secret aspect and writes are denied while
 		-- auras are secret.
-		if cooldown.SetCooldownFromDurationObject then
+		-- Flagged so a pooled button that comes back through this setup is hooked once.
+		if cooldown.SetCooldownFromDurationObject and not cooldown.KKUI_ZeroHook then
+			cooldown.KKUI_ZeroHook = true
 			hooksecurefunc(cooldown, "SetCooldownFromDurationObject", function(self, auraDuration)
 				if not auraDuration then
 					return
@@ -303,7 +305,8 @@ local function MakeInitializer(opts)
 		local fmt = GetDurationFormatter()
 		pcall(button.SetDurationText, button, duration, fmt and { textFormatter = fmt } or {})
 
-		if opts.cancel and button.UpdateAuraDisplay then
+		if opts.cancel and button.UpdateAuraDisplay and not button.KKUI_ClickHook then
+			button.KKUI_ClickHook = true
 			-- The engine runs UpdateAuraDisplay right after this callback and on each
 			-- aura change, which resets the button's click state and wipes a one-time
 			-- setup. Re-assert the clicks after every update so it sticks.
@@ -333,6 +336,8 @@ function K.CreateAuraContainer(parent, opts)
 		container:SetPoint(unpack(opts.point))
 	end
 	container:SetSize(1, 1)
+	-- Kept so config mode can draw stand-in icons with the same geometry.
+	container.__kkuiOpts = opts
 
 	-- The default policy adds nothing to the aura data and is all the groups here
 	-- need. ProcessAura makes the container classify every aura through

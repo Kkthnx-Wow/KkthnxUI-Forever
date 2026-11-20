@@ -24,7 +24,6 @@ local C_PaperDollInfo = C_PaperDollInfo
 local C_Timer = C_Timer
 local GetInventoryItemTexture = GetInventoryItemTexture
 local GetInventoryItemQuality = GetInventoryItemQuality
-local GetItemQualityColor = C_Item and C_Item.GetItemQualityColor
 local GetTime = GetTime
 local abs = math.abs
 local ceil = math.ceil
@@ -128,17 +127,7 @@ function Module:UpdateWeaponEnchants()
 
 			-- Quality border, falling back to the configured border colour for common
 			-- or unrated items.
-			if GetItemQualityColor then
-				local quality = GetInventoryItemQuality("player", slot)
-				if quality and quality > 1 then
-					local r, g, b = GetItemQualityColor(quality)
-					if button.KKUI_Border then
-						K.SetBorderColor(button.KKUI_Border, r, g, b)
-					end
-				elseif button.KKUI_Border then
-					K.ResetBorderColor(button.KKUI_Border)
-				end
-			end
+			K.SetQualityBorder(button.KKUI_Border, GetInventoryItemQuality("player", slot))
 
 			-- Some enchants never run out on a timer, only on charges. Blizzard's own
 			-- frame skips the timer for those, so there is no ring to draw.

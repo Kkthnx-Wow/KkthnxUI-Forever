@@ -68,11 +68,17 @@ local function CropIcon(btn, name)
 		return
 	end
 	local tex = icon:GetTexture()
-	if name == "MainMenuBarBackpackButton" or not tex or tex == DEFAULT_TEX then
+	if name == "MainMenuBarBackpackButton" then
 		icon:SetTexture(BACKPACK_ICON)
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	elseif not tex or tex == DEFAULT_TEX then
+		-- An empty bag slot keeps the game's own empty bag art, drawn whole.
+		icon:SetTexture(DEFAULT_TEX)
+		icon:SetTexCoord(0, 1, 0, 1)
+	else
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	end
 	icon:Show()
-	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 end
 
 -- Re-hide the art Blizzard restores on UpdateTextures (the round mask especially).
@@ -100,7 +106,30 @@ local function StripStock(btn)
 	end
 end
 
+-- Free slots in the backpack and the four bags, drawn on the backpack button. The
+-- count is ours because the game's own one is hidden whenever its free bag slots
+-- setting is off, which left the button bare. The reagent bag is not counted, the
+-- same as the game's count.
+local function UpdateFree()
+	local pack = _G.MainMenuBarBackpackButton
+	local text = pack and pack.__kkuiFree
+	if not text then
+		return
+	end
+	local free = 0
+	for id = 0, 4 do
+		free = free + (C_Container.GetContainerNumFreeSlots(id) or 0)
+	end
+	text:SetText(free)
+	local key = free == 0 and "negative" or (free <= 3 and "warning" or "text")
+	local color = K.Colors[key] or K.Colors.text
+	if color then
+		text:SetTextColor(color[1], color[2], color[3])
+	end
+end
+
 local function ReapplyIcons()
+	UpdateFree()
 	for _, name in ipairs(BUTTONS) do
 		local btn = _G[name]
 		if btn and btn.__kkuiBag then
@@ -232,11 +261,7 @@ function Module:Setup()
 	end
 	self.setupDone = true
 
-	local hidden = _G.KKUI_HiddenParent
-	if not hidden then
-		hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-		hidden:Hide()
-	end
+	local hidden = K.HiddenParent
 
 	bar = CreateFrame("Frame", "KKUI_BagBar", UIParent)
 	bar:SetSize(200, C.BagBar.ButtonSize)
@@ -279,11 +304,20 @@ function Module:Setup()
 		end
 	end
 
-	-- Keep Blizzard's backpack free-slot count, anchored cleanly.
-	local count = _G.MainMenuBarBackpackButtonCount
-	if count then
-		count:ClearAllPoints()
-		count:SetPoint("BOTTOM", _G.MainMenuBarBackpackButton, "BOTTOM", 0, 2)
+	-- The backpack free-slot count. Ours replaces the game's, which is silent
+	-- when its setting is off, so the stock one is faded out to avoid doubling.
+	local pack = _G.MainMenuBarBackpackButton
+	if pack and C.BagBar.ShowFreeSlots then
+		-- The game draws its count in FreeSlots and shows it by the displayFreeBagSlots
+		-- CVar, so alpha keeps it out of the way without fighting that.
+		if pack.FreeSlots then
+			pack.FreeSlots:SetAlpha(0)
+		end
+		local text = pack:CreateFontString(nil, "OVERLAY")
+		K.SetFont(text, 12, K.FontOutlineStyle())
+		text:SetPoint("BOTTOM", pack, "BOTTOM", 0, 2)
+		pack.__kkuiFree = text
+		UpdateFree()
 	end
 
 	Layout()
@@ -303,11 +337,7 @@ function Module:OnEnable()
 		-- and layout are left alone either way.
 		local stock = C.BagBar.HideStock and _G.BagsBar
 		if stock then
-			local hidden = _G.KKUI_HiddenParent
-			if not hidden then
-				hidden = CreateFrame("Frame", "KKUI_HiddenParent", UIParent)
-				hidden:Hide()
-			end
+			local hidden = K.HiddenParent
 			if InCombatLockdown() then
 				K.DeferCombat("BagBarStockHide", function()
 					stock:SetParent(hidden)

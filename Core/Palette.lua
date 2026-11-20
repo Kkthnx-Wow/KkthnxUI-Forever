@@ -11,6 +11,7 @@ local K = KkthnxUI[1]
 
 local format = string.format
 local type = type
+local pairs = pairs
 local setmetatable = setmetatable
 
 -- ---------------------------------------------------------------------------
@@ -83,4 +84,72 @@ end
 -- Wrap text in a token's colour.
 function K.ColorText(color, text)
 	return K.ColorHex(color) .. text .. "|r"
+end
+
+-- ---------------------------------------------------------------------------
+-- Class colours
+-- ---------------------------------------------------------------------------
+
+-- The class colours, harmonised for the dark slate theme (mage locked to the
+-- #5C8BCF accent). Every class colour in the UI comes from here, so a name reads
+-- the same shade in chat, tooltips, the friends list and on the frames.
+K.ClassColors = {
+	DRUID = { 1.00, 0.49, 0.04 },
+	HUNTER = { 0.67, 0.83, 0.45 },
+	MAGE = { 0.36, 0.55, 0.81 },
+	PALADIN = { 0.96, 0.55, 0.73 },
+	PRIEST = { 0.90, 0.92, 0.96 },
+	ROGUE = { 0.96, 0.85, 0.41 },
+	SHAMAN = { 0.00, 0.44, 0.87 },
+	WARLOCK = { 0.53, 0.47, 0.84 },
+	WARRIOR = { 0.78, 0.61, 0.43 },
+}
+
+-- r, g, b for a class file name ("MAGE"). White for an unknown or secret one.
+function K.ClassColorRGB(class)
+	local c = class and not K.IsSecret(class) and K.ClassColors[class]
+	if c then
+		return c[1], c[2], c[3]
+	end
+	return 1, 1, 1
+end
+
+-- "|cffRRGGBB" for a class file name, for text built with markup.
+function K.ClassColorHex(class)
+	local c = class and not K.IsSecret(class) and K.ClassColors[class]
+	return c and K.ColorHex(c) or "|cffffffff"
+end
+
+-- Wrap text in a class colour.
+function K.ClassColorText(class, text)
+	return K.ClassColorHex(class) .. text .. "|r"
+end
+
+-- The class file name for a localised class name ("Warlock" -> "WARLOCK"), as the
+-- friends list and the who list hand them over. A class file passes through.
+local classFileByName
+function K.ClassFileFromName(name)
+	if not name or K.IsSecret(name) then
+		return nil
+	end
+	if K.ClassColors[name] then
+		return name
+	end
+	if not classFileByName then
+		classFileByName = {}
+		for file, localized in pairs(_G.LOCALIZED_CLASS_NAMES_MALE or {}) do
+			classFileByName[localized] = file
+		end
+		for file, localized in pairs(_G.LOCALIZED_CLASS_NAMES_FEMALE or {}) do
+			classFileByName[localized] = file
+		end
+	end
+	return classFileByName[name]
+end
+
+-- The player's own class colour, used as an accent by chat, the GCD bar, the
+-- cursor trail and others.
+do
+	local r, g, b = K.ClassColorRGB(K.Class)
+	K.ClassColor = { r = r, g = g, b = b }
 end

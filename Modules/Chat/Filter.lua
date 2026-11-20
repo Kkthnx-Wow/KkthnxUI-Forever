@@ -12,6 +12,9 @@ local K = KkthnxUI[1]
 
 local Module = K:GetModule("Chat")
 
+local ipairs = ipairs
+local pairs = pairs
+local wipe = wipe
 local GetTime = GetTime
 local UnitName = UnitName
 local Ambiguate = Ambiguate

@@ -26,6 +26,7 @@ K.ConfigDefaults = {
 	ActionBar = {
 		Enable = true,
 		ShowGrid = true,
+		AutoUpgradeRanks = true, -- swap a newly learned spell rank into the slots holding a lower rank
 		RangeColoring = "button", -- how out-of-range shows: button, hotkey, or none
 		RangeColor = { 0.8, 0.1, 0.1 }, -- out-of-range tint
 		ManaColor = { 0.5, 0.5, 1.0 }, -- out-of-mana tint
@@ -87,12 +88,6 @@ K.ConfigDefaults = {
 			RAGE = { 0.82, 0.31, 0.31 }, -- soft crimson
 			FOCUS = { 0.90, 0.52, 0.28 }, -- warm copper
 			ENERGY = { 0.95, 0.76, 0.32 }, -- soft amber gold
-			RUNIC_POWER = { 0.33, 0.72, 0.88 }, -- frost cyan-blue
-			LUNAR_POWER = { 0.45, 0.62, 0.88 }, -- astral blue
-			MAELSTROM = { 0.25, 0.58, 0.88 }, -- deep ocean blue
-			INSANITY = { 0.55, 0.32, 0.78 }, -- void purple
-			FURY = { 0.72, 0.32, 0.82 }, -- fel magenta
-			PAIN = { 0.92, 0.55, 0.22 }, -- demon amber
 		},
 		-- Reaction colours, indexed 1 (hated) to 8 (exalted), harmonised with the
 		-- theme: crimson hostiles, gold neutral, jade friendly, frost-blue exalted.
@@ -107,16 +102,16 @@ K.ConfigDefaults = {
 			[8] = { 0.36, 0.72, 0.88 },
 		},
 
-		Player = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, Totems = true, PvPIcon = true },
+		Player = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, AutoShotBar = true, AutoShotWidth = 242, AutoShotHeight = 12, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
 		Target = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true },
 		TargetOfTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true },
 		Focus = { Enable = true, Width = 200, Height = 34, PowerHeight = 14, ShowPower = true, Debuffs = true },
 		FocusTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
-		Party = { Enable = true, Width = 150, Height = 26, PowerHeight = 10, ShowPower = true, ShowSolo = false, ShowPlayer = true, Debuffs = true, DispelHighlight = true, Portrait = true, Castbar = true, RaidStyle = false },
+		Party = { Enable = true, Width = 150, Height = 26, PowerHeight = 10, ShowPower = true, ShowSolo = false, ShowPlayer = true, Debuffs = true, DispelHighlight = true, Portrait = true, Castbar = true, RaidStyle = false, Spacing = 24, RoleIcon = true, HealthText = "Default", NameLength = 0 },
 		-- Height is the health bar, the power bar (PowerHeight) sits below it with a
 		-- PowerGap so the two read as separate bars. PowerMode: All, Mana, or None.
-		Raid = { Enable = true, Width = 80, Height = 30, PowerHeight = 6, PowerGap = 6, PowerMode = "All", GroupsPerRow = 5, GroupBy = "GROUP", RaidWide = false, SortDirection = "ASC", Orientation = "DOWN_RIGHT", DispelHighlight = true, ShowGroupNumber = true, Debuffs = false, DebuffSize = 16, HealthText = "None", NameLength = 5, SortBy = "INDEX" },
+		Raid = { Enable = true, Width = 80, Height = 30, PowerHeight = 6, PowerGap = 6, PowerMode = "All", GroupsPerRow = 5, GroupBy = "GROUP", RaidWide = false, SortDirection = "ASC", Orientation = "DOWN_RIGHT", DispelHighlight = true, ShowGroupNumber = true, Debuffs = false, DebuffSize = 16, HealthText = "None", NameLength = 5, SortBy = "INDEX", Spacing = 6, RoleIcon = true },
 		-- Spacing has to clear the frame plus its attached castbar, otherwise the
 		-- bar for boss1 lands on top of boss2's name.
 		Boss = { Enable = true, Width = 150, Height = 24, PowerHeight = 10, ShowPower = true, Spacing = 34, Debuffs = true, Castbar = true, Portrait = true },
@@ -170,8 +165,6 @@ K.ConfigDefaults = {
 		ZoomResetDelay = 0, -- seconds of no wheel input before zoom snaps back out, 0 = off
 		MouseoverFade = false, -- fade the map out until you hover it
 		FadeAlpha = 0.25, -- alpha while faded
-		LandingFade = false, -- fade the expansion landing page button until you hover it
-		LandingFadeAlpha = 0.4, -- alpha for that button while faded
 		CollectButtons = true,
 		ButtonCorner = "BOTTOMLEFT", -- corner the button-collector bracket sits in
 		CollectedButtonSize = 22, -- size of each addon button in the collector flyout
@@ -201,6 +194,8 @@ K.ConfigDefaults = {
 
 		ShowClassification = true,
 		FriendlyNameOnly = true,
+		ShowFriendlyNPCs = true, -- plates on friendly NPCs, drawn as a name only
+		FriendlyLevel = true, -- level in front of the name on name-only plates
 		ShowGuildName = true,
 		ShowCastbar = true,
 		CastbarHeight = 14, -- matches the health bar so a cast does not outweigh it
@@ -248,7 +243,8 @@ K.ConfigDefaults = {
 		CharacterFramesWide = true, -- give the paper doll tab and the inspect window more width for the model
 		GearInfo = true, -- red marker for a missing enchant and the gems beside each slot
 		CharacterSlots = true, -- our slot look, quality border and item level on the character and inspect frames
-		SocialColors = true, -- class/difficulty colour the Friends, Who, and Guild panels
+		SocialColors = true, -- class/difficulty colour the Friends and Who panels
+		MirrorTimers = true, -- breath, fatigue and feign death bars in our style with the seconds left
 		GameMenu = true, -- skin the pause menu and add a KkthnxUI options button
 		ObjectiveTracker = false, -- tidy the quest tracker header/minimise and recolour its bars, off while the scenario tracker taint reports are open
 		ObjectiveTrackerClassColor = true, -- class colour the tracker bars instead of the accent
@@ -273,6 +269,7 @@ K.ConfigDefaults = {
 		Orientation = "HORIZONTAL", -- HORIZONTAL or VERTICAL
 		Order = "DEFAULT", -- DEFAULT puts the backpack first, REVERSE puts it last
 		ShowKeyring = true, -- the keyring button, when the client has one
+		ShowFreeSlots = true, -- free bag slots on the backpack button
 		HideStock = true, -- hide the game's own bag bar while ours is off
 	},
 
@@ -286,7 +283,6 @@ K.ConfigDefaults = {
 		MergeStacks = false, -- fold duplicate stackable items into one button
 		GroupGearBySlot = false, -- split gear into per equipment slot shelves
 		ShowItemLevel = true, -- item level on equippable gear
-		ShowUpgradeTrack = true, -- upgrade track progress (cur/max) on gear
 		PawnArrows = true, -- Pawn upgrade arrows on gear (only if Pawn is installed)
 		QuestColor = true, -- quest-yellow border on quest items, ! bang on starters
 		ReagentBagSection = true, -- group the reagent pouch into its own section
@@ -311,7 +307,7 @@ K.ConfigDefaults = {
 		ItemAssignments = {}, -- itemID -> category key the player pinned it to
 	},
 
-	-- Movable experience / reputation / honor / azerite / house progress bar.
+	-- Movable experience / reputation / honor / house progress bar.
 	ExpRep = {
 		Enable = true,
 		Width = 400,
@@ -422,11 +418,20 @@ K.ConfigDefaults = {
 		BlockRequests = false, -- also turn away requests to join your group
 		CopyName = false, -- add Copy Name to player right click menus
 		QuickDelete = false, -- fill in the typed word on the delete good item dialog
+		LootSparkle = false, -- keep the sparkle on lootable quest items through graphics presets
+		FastLoot = false, -- take all loot at once when the game would auto loot
+		Reminders = false, -- clickable icons for what your character is missing, out of combat
+		ReminderSize = 36, -- icon size of the reminder row
+		ReminderBuffs = true, -- class self-buffs such as armors and Intellect
+		ReminderWeapons = true, -- poisons, oils, stones and shaman imbues
+		ReminderPet = true, -- hunter pet and warlock demon
+		ReminderTalents = true, -- unspent talent points and spells to train
+		TrainAll = false, -- Train All button on class and profession trainers
+		QuestLevels = false, -- quest levels in NPC quest lists and quest text titles
 		TradeInfo = false, -- label a trade partner as friend, guild member or stranger
 		HideErrors = false, -- hide the red error text except the useful ones
 		HideTips = false, -- hide tutorial pop ups and help tips
 		HideBossBanner = false, -- hide the boss kill banner
-		LustLockout = false, -- Bloodlust lockout icon with a countdown
 		TradeTabs = false, -- profession icons beside the professions window
 		Crosshair = false, -- crosshair in the middle of the screen
 		CrosshairSize = 12,
@@ -506,7 +511,7 @@ K.ConfigDefaults = {
 		HealthBarPosition = "TOP", -- TOP or BOTTOM, outside the tooltip
 		ShowTarget = true,
 		ShowGuild = true, -- <Guild> line for players
-		ShowItemLevel = true, -- inspect item level + spec on players
+		ShowItemLevel = true, -- inspect item level on players
 		ItemLevelOnShift = false, -- only look it up while shift is held
 		ShowIDs = true, -- spell / item / currency / mount ids
 		ShowItemCount = true, -- how many of an item you hold in the bags and the bank

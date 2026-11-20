@@ -66,7 +66,7 @@ local function MSColor(value)
 end
 
 local function Hex(color)
-	return format("|cff%02x%02x%02x", color[1] * 255, color[2] * 255, color[3] * 255)
+	return K.RGBToHex(color)
 end
 
 -- The colour the fps and ms labels wear, per the config.
@@ -166,11 +166,14 @@ local function AddMemoryLines(tooltip)
 	tooltip:AddDoubleLine(_G.TOTAL or "Total", format("%.2f mb", total / 1024), K.Colors.highlight[1], K.Colors.highlight[2], K.Colors.highlight[3], 1, 1, 1)
 end
 
-function Module:PerformanceTooltip(anchor)
+-- The data bar shows the same readout.
+Module.PerformanceText = BuildText
+
+function Module:PerformanceTooltip(anchor, point)
 	local fps = floor(GetFramerate() or 0)
 	local _, home, world, bandwidth = Latency()
 
-	GameTooltip:SetOwner(anchor, "ANCHOR_LEFT")
+	GameTooltip:SetOwner(anchor, point or "ANCHOR_LEFT")
 	GameTooltip:ClearLines()
 	GameTooltip:AddLine(L["Performance"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
 	GameTooltip:AddLine(" ")

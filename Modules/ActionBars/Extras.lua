@@ -200,7 +200,7 @@ function Module:StyleVehicleLeave()
 	end
 	local pushed = button:GetPushedTexture()
 	if pushed then
-		pushed:SetTexCoord(0.140625, 0.859375, 0.140625, 0.859375)
+		-- pushed:SetTexCoord(0.140625, 0.859375, 0.140625, 0.859375)
 		pushed:SetAllPoints(button)
 	end
 	-- Hover only. Its pushed texture is the icon art itself, so the square

@@ -14,8 +14,10 @@
 	<Script file="Elements\Auras.lua" />
 	<Script file="Elements\ClassPower.lua" />
 	<Script file="Elements\Indicators.lua" />
+	<Script file="Elements\Range.lua" />
 	<Script file="Elements\Castbar.lua" />
 	<Script file="Elements\Forever.lua" />
+	<Script file="Elements\PowerTick.lua" />
 	<Script file="Elements\AuraWatch.lua" />
 
 	<!-- Unit styles fill Module.Styles, so they load after the builders. -->

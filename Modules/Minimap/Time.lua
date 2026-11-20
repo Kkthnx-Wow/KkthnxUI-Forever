@@ -58,8 +58,12 @@ local function TimeText()
 	return format("%d:%02d %s", h, minute, suffix), pending
 end
 
+-- The data bar shows the same clock text.
+Module.TimeText = TimeText
+
 -- Hover tooltip: date, both clocks, and this character's saved instance lockouts.
-function Module:TimeTooltip(anchor)
+-- point is where the tooltip opens, left of the map unless the caller says.
+function Module:TimeTooltip(anchor, point)
 	-- Every call is a server request, and the tooltip rebuilds on each hover, so
 	-- ask at most once per RAID_INFO_INTERVAL. The lockouts barely change.
 	local now = _G.GetTime()
@@ -67,7 +71,7 @@ function Module:TimeTooltip(anchor)
 		lastRaidInfo = now
 		RequestRaidInfo()
 	end
-	GameTooltip:SetOwner(anchor, "ANCHOR_LEFT")
+	GameTooltip:SetOwner(anchor, point or "ANCHOR_LEFT")
 	GameTooltip:ClearLines()
 
 	local today = C_DateAndTime and C_DateAndTime.GetCurrentCalendarTime and C_DateAndTime.GetCurrentCalendarTime()

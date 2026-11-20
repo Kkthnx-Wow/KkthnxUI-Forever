@@ -17,12 +17,11 @@ local Build = Module.Build
 local CreateFrame = CreateFrame
 
 -- Classes with a segmented resource oUF drives through the ClassPower element.
+-- Forever only has combo points. Holy power, soul shards and arcane charges are
+-- later resources oUF never enables on this client.
 local CLASS_POWER = {
 	DRUID = true,
 	ROGUE = true,
-	PALADIN = true,
-	WARLOCK = true,
-	MAGE = true,
 }
 
 local MAX_SEGMENTS = 10

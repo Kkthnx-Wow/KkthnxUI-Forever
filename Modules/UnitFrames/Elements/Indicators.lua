@@ -13,7 +13,7 @@
 		health border, which is far easier to read mid pull.
 -----------------------------------------------------------------------------]]
 
-local K, C = KkthnxUI[1], KkthnxUI[2]
+local K = KkthnxUI[1]
 
 local Module = K:GetModule("UnitFrames")
 local Build = Module.Build
@@ -330,21 +330,8 @@ function Build.QuestIndicator(self)
 	self.QuestIndicator = Icon(self.Health, 14, "TOPLEFT", self.Health, "TOPLEFT", 1, -1)
 end
 
--- Fade a frame while its unit is out of range, so an unreachable target or group
--- member reads as dimmed. oUF drives the alpha from its range check.
-function Build.Range(self)
-	if not C.Unitframe.RangeFade then
-		return
-	end
-	self.Range = {
-		insideAlpha = 1,
-		outsideAlpha = C.Unitframe.RangeAlpha or 0.4,
-	}
-	return self.Range
-end
-
 -- Party and raid: everything a healer needs to see on a roster.
-function Build.GroupIndicators(self)
+function Build.GroupIndicators(self, cfg)
 	local health = self.Health
 
 	-- Leader and assistant share a corner. Only one can ever be shown.
@@ -360,20 +347,22 @@ function Build.GroupIndicators(self)
 	-- which art to use per role. The older path hands PostUpdate an Enum.LFGRole
 	-- number from UnitGroupRolesAssignedEnum instead, so that callback is only kept
 	-- for clients without the helper.
-	self.GroupRoleIndicator = Icon(health, 12, "BOTTOMLEFT", health, "BOTTOMLEFT", 1, 1)
-	self.GroupRoleIndicator.tankAtlas = "icons_16x16_tank"
-	self.GroupRoleIndicator.healerAtlas = "icons_16x16_heal"
-	self.GroupRoleIndicator.damageAtlas = ""
-	if not _G.UnitFrameUtil then
-		self.GroupRoleIndicator.PostUpdate = function(element, role)
-			if role == LFG_TANK then
-				element:SetAtlas("icons_16x16_tank")
-				element:Show()
-			elseif role == LFG_HEALER then
-				element:SetAtlas("icons_16x16_heal")
-				element:Show()
-			else
-				element:Hide()
+	if not cfg or cfg.RoleIcon ~= false then
+		self.GroupRoleIndicator = Icon(health, 12, "BOTTOMLEFT", health, "BOTTOMLEFT", 1, 1)
+		self.GroupRoleIndicator.tankAtlas = "icons_16x16_tank"
+		self.GroupRoleIndicator.healerAtlas = "icons_16x16_heal"
+		self.GroupRoleIndicator.damageAtlas = ""
+		if not _G.UnitFrameUtil then
+			self.GroupRoleIndicator.PostUpdate = function(element, role)
+				if role == LFG_TANK then
+					element:SetAtlas("icons_16x16_tank")
+					element:Show()
+				elseif role == LFG_HEALER then
+					element:SetAtlas("icons_16x16_heal")
+					element:Show()
+				else
+					element:Hide()
+				end
 			end
 		end
 	end

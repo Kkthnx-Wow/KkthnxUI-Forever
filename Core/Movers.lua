@@ -188,7 +188,7 @@ local function ShowTag(mover)
 	tagOwner = mover
 	local x, y = CurrentOffset(mover)
 	local c = THEME.coords
-	tag.Text:SetFormattedText("%s  |cff%02x%02x%02x%s  %d, %d|r", mover.moverLabel, c[1] * 255, c[2] * 255, c[3] * 255, CurrentPoint(mover), x, y)
+	tag.Text:SetFormattedText("%s  %s%s  %d, %d|r", mover.moverLabel, K.RGBToHex(c), CurrentPoint(mover), x, y)
 	tag:SetWidth(tag.Text:GetStringWidth() + 14)
 	tag:ClearAllPoints()
 	-- Above the box, or below it when the box is against the top of the screen.
@@ -588,10 +588,6 @@ function K.EnableFrameDrag(frame)
 		self:ClearAllPoints()
 		self:SetPoint("TOPLEFT", mover, "TOPLEFT", 0, 0)
 	end)
-end
-
-function K.GetMover(key)
-	return movers[key]
 end
 
 -- Ordered list of { key, label } for the config GUI mover list.
