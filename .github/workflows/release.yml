@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Clone project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The changelog is built from the commits since the previous tag, so
           # the full history has to be there.
