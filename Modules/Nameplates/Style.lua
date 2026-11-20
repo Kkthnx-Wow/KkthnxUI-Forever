@@ -201,7 +201,7 @@ end
 oUF.Tags.Events["kkui:npguild"] = "UNIT_NAME_UPDATE"
 
 local GAP = 6
-local CAST_COLOR = { 0.85, 0.65, 0.13 } -- normal cast (gold / yellow)
+local CAST_COLOR = K.CastColors.cast -- normal cast (gold / yellow)
 -- Bright accent that marks the current target's border (never black).
 local TARGET_ACCENT = { 1, 0.9, 0.2 }
 
@@ -967,7 +967,8 @@ end
 -- castbars). notInterruptible is a Midnight
 -- secret boolean, so colour through SetVertexColorFromBoolean rather than an if.
 local CAST_CLR = CreateColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
-local NOINTERRUPT_CLR = CreateColor(0.6, 0.6, 0.65) -- cannot interrupt (silver)
+local CHANNEL_CLR = CreateColor(K.CastColors.channel[1], K.CastColors.channel[2], K.CastColors.channel[3])
+local NOINTERRUPT_CLR = CreateColor(K.CastColors.noInterrupt[1], K.CastColors.noInterrupt[2], K.CastColors.noInterrupt[3])
 
 -- notInterruptible arrives as a PostCastStart argument in the current oUF. It can
 -- be a Midnight secret boolean (enemy casts), a plain boolean, or nil. Only the
@@ -977,22 +978,23 @@ local NOINTERRUPT_CLR = CreateColor(0.6, 0.6, 0.65) -- cannot interrupt (silver)
 -- start callback and the mid-cast interruptibility change so a spell that flips (a
 -- kick immunity dropping, say) recolours instead of staying its start colour. A
 -- failed or interrupted cast goes red.
-local FAIL_COLOR = { 0.85, 0.25, 0.25 }
+local FAIL_COLOR = K.CastColors.fail
 
 local function CastRecolor(cast, notInterruptible)
 	local tex = cast:GetStatusBarTexture()
+	local base = cast.__channel and CHANNEL_CLR or CAST_CLR
 	if IsSecret(notInterruptible) then
 		if tex and tex.SetVertexColorFromBoolean then
-			tex:SetVertexColorFromBoolean(notInterruptible, NOINTERRUPT_CLR, CAST_CLR)
+			tex:SetVertexColorFromBoolean(notInterruptible, NOINTERRUPT_CLR, base)
 		end
 	elseif notInterruptible then
 		cast:SetStatusBarColor(NOINTERRUPT_CLR:GetRGB())
 	else
-		cast:SetStatusBarColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+		cast:SetStatusBarColor(base:GetRGB())
 	end
 end
 
-local function OnCastStart(cast, _, _, notInterruptible)
+local function OnCastStart(cast, unit, _, notInterruptible)
 	-- A friendly name-only plate has no bar to hang a cast on, and the health event
 	-- that used to hide it again no longer runs on every update.
 	local owner = cast.__owner
@@ -1003,6 +1005,8 @@ local function OnCastStart(cast, _, _, notInterruptible)
 	-- An interrupt turns the duration binding off so the old cast stops counting
 	-- down, so bring it back for the new one.
 	cast.__failed = nil
+	-- Green while channelling, as Blizzard paints it.
+	cast.__channel = K.IsChanneling(unit)
 	if cast.Time and cast.Time.binding then
 		cast.Time.binding:SetEnabled(true)
 	end

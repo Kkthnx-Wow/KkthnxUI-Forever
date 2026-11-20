@@ -90,19 +90,59 @@ end
 -- Class colours
 -- ---------------------------------------------------------------------------
 
--- The class colours, harmonised for the dark slate theme (mage locked to the
--- #5C8BCF accent). Every class colour in the UI comes from here, so a name reads
--- the same shade in chat, tooltips, the friends list and on the frames.
-K.ClassColors = {
-	DRUID = { 1.00, 0.49, 0.04 },
-	HUNTER = { 0.67, 0.83, 0.45 },
-	MAGE = { 0.36, 0.55, 0.81 },
-	PALADIN = { 0.96, 0.55, 0.73 },
-	PRIEST = { 0.90, 0.92, 0.96 },
-	ROGUE = { 0.96, 0.85, 0.41 },
-	SHAMAN = { 0.00, 0.44, 0.87 },
-	WARLOCK = { 0.53, 0.47, 0.84 },
-	WARRIOR = { 0.78, 0.61, 0.43 },
+-- The class colours are the client's own, read from RAID_CLASS_COLORS, so a class
+-- reads the exact shade players know from the default UI. Mage in particular must
+-- stay cyan, a darker blue reads as Shaman and as the mana bar. The table below is
+-- Blizzard's published values, used only if the client table is missing a class.
+-- Every class colour in the UI comes from here, so a name reads the same shade in
+-- chat, tooltips, the friends list and on the frames.
+local CLASS_FALLBACK = {
+	DRUID = { 1.000, 0.486, 0.039 },
+	HUNTER = { 0.667, 0.827, 0.447 },
+	MAGE = { 0.247, 0.780, 0.922 },
+	PALADIN = { 0.957, 0.549, 0.729 },
+	PRIEST = { 1.000, 1.000, 1.000 },
+	ROGUE = { 1.000, 0.957, 0.408 },
+	SHAMAN = { 0.000, 0.439, 0.867 },
+	WARLOCK = { 0.529, 0.533, 0.933 },
+	WARRIOR = { 0.776, 0.608, 0.427 },
+}
+
+K.ClassColors = {}
+do
+	local live = _G.RAID_CLASS_COLORS
+	for class, fallback in pairs(CLASS_FALLBACK) do
+		local c = live and live[class]
+		K.ClassColors[class] = c and { c.r, c.g, c.b } or fallback
+	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Game state colours
+-- ---------------------------------------------------------------------------
+-- Colours that mean the same thing as one in the default UI keep Blizzard's hue,
+-- with pure primaries softened so they do not glare on the dark bars. The same
+-- treatment as the power and reaction colours in the config defaults.
+
+-- Cast bars, as Blizzard paints them: gold while casting, green while channelling,
+-- grey when it cannot be interrupted, red when it fails or is interrupted. Shared
+-- by the unit frame and nameplate castbars and the mirror timers.
+K.CastColors = {
+	cast = { 0.85, 0.65, 0.13 },
+	channel = { 0.25, 0.72, 0.30 },
+	noInterrupt = { 0.60, 0.60, 0.65 },
+	fail = { 0.84, 0.27, 0.22 },
+}
+
+-- Combo points, one colour per point, climbing from the hostile red to the
+-- friendly green of the reaction palette so a full bar reads as ready. Points past
+-- the fifth take the last colour.
+K.ComboColors = {
+	{ 0.84, 0.27, 0.22 },
+	{ 0.86, 0.45, 0.12 },
+	{ 0.93, 0.76, 0.15 },
+	{ 0.62, 0.76, 0.26 },
+	{ 0.25, 0.72, 0.30 },
 }
 
 -- r, g, b for a class file name ("MAGE"). White for an unknown or secret one.

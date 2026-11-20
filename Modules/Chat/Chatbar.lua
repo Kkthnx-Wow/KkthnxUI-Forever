@@ -25,34 +25,48 @@ local function OpenChat(chatType)
 	edit:SetFocus()
 end
 
--- { r, g, b, label, onClick }
+-- { r, g, b, label, onClick, chatType }. The colour is the channel's own from
+-- ChatTypeInfo, so a channel colour changed in the chat settings reaches the bar.
+-- The numbers here are Blizzard's defaults, used until ChatTypeInfo has an entry.
 local function BuildButtons()
 	return {
 		{ 1, 1, 1, "Say", function()
 			OpenChat("SAY")
-		end },
+		end, "SAY" },
 		{ 1, 0.5, 1, "Wsp", function()
 			ChatFrameUtil.ReplyTell(_G.ChatFrame1)
-		end },
-		{ 0.65, 0.65, 1, "Party", function()
+		end, "WHISPER" },
+		{ 0.667, 0.667, 1, "Party", function()
 			OpenChat("PARTY")
-		end },
-		{ 1, 0.28, 0.04, "Raid", function()
+		end, "PARTY" },
+		{ 1, 0.498, 0, "Raid", function()
 			OpenChat("RAID")
-		end },
-		{ 1, 0.5, 0, "Inst", function()
+		end, "RAID" },
+		{ 1, 0.498, 0, "Inst", function()
 			OpenChat("INSTANCE_CHAT")
-		end },
-		{ 0.25, 1, 0.25, "Guild", function()
+		end, "INSTANCE_CHAT" },
+		{ 0.251, 1, 0.251, "Guild", function()
 			OpenChat("GUILD")
-		end },
-		{ 1, 0.75, 0.75, "Emote", function()
+		end, "GUILD" },
+		{ 1, 0.502, 0.251, "Emote", function()
 			OpenChat("EMOTE")
-		end },
-		{ 1, 1, 0.4, "Roll", function()
+		end, "EMOTE" },
+		{ 1, 1, 0, "Roll", function()
 			RandomRoll(1, 100)
-		end },
+		end, "SYSTEM" },
 	}
+end
+
+-- Read each button's colour from ChatTypeInfo, keeping the default when the
+-- client has no entry for that type yet.
+local function RefreshColors(buttons)
+	local info = _G.ChatTypeInfo
+	for _, data in ipairs(buttons) do
+		local c = info and data[6] and info[data[6]]
+		if c and c.r then
+			data[1], data[2], data[3] = c.r, c.g, c.b
+		end
+	end
 end
 
 function Module:CreateChatBar()
@@ -94,6 +108,7 @@ function Module:CreateChatBar()
 	local PADDING = 8
 	local GAP = 8
 	local buttons = BuildButtons()
+	RefreshColors(buttons)
 	local x = 0
 	for _, data in ipairs(buttons) do
 		local button = CreateFrame("Button", nil, bar)
@@ -129,7 +144,19 @@ function Module:CreateChatBar()
 			hover:Hide()
 			text:SetTextColor(data[1], data[2], data[3])
 		end)
+		data.text, data.hover = text, hover
 	end
+
+	-- The client fills and changes channel colours through UPDATE_CHAT_COLOR, at
+	-- login and whenever a colour is picked in the chat settings.
+	bar:RegisterEvent("UPDATE_CHAT_COLOR")
+	bar:SetScript("OnEvent", function()
+		RefreshColors(buttons)
+		for _, data in ipairs(buttons) do
+			data.text:SetTextColor(data[1], data[2], data[3])
+			data.hover:SetColorTexture(data[1], data[2], data[3], 0.2)
+		end
+	end)
 
 	bar:SetWidth(math.max(1, x - GAP))
 	self.chatBar = bar

@@ -22,13 +22,16 @@ local hooksecurefunc = hooksecurefunc
 
 local BAR_HEIGHT = 16
 
+-- The client draws these timers with its castbar art: the standard gold fill for
+-- fatigue and release, the channel green for Feign Death and a light blue for
+-- breath. Ours follow that, using the shared cast colours.
 local COLORS = {
 	BREATH = { 0.25, 0.6, 1 },
-	EXHAUSTION = { 0.95, 0.6, 0.15 },
-	FEIGNDEATH = { 1, 0.8, 0.25 },
-	DEATH = { 0.6, 0.6, 0.6 },
+	EXHAUSTION = K.CastColors.cast,
+	FEIGNDEATH = K.CastColors.channel,
+	DEATH = K.CastColors.cast,
 }
-local FALLBACK = { 0.7, 0.7, 0.7 }
+local FALLBACK = K.CastColors.noInterrupt
 
 local styled = {}
 local timeTexts = {}

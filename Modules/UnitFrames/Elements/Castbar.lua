@@ -22,15 +22,18 @@ local CreateFrame = CreateFrame
 local CreateColor = CreateColor
 local IsSecret = K.IsSecret
 
--- Blizzard's own cast colour language, tuned to sit in our palette: a warm gold
--- for a normal cast, silver grey for one you cannot interrupt (paired with the
+-- Blizzard's cast colour language from Core/Palette.lua: gold for a cast, green
+-- for a channel, silver grey for one you cannot interrupt (paired with the
 -- padlock), and red when a cast is interrupted or fails.
-local CAST_COLOR = { 0.85, 0.65, 0.13 } -- normal (gold / yellow)
-local NOINTERRUPT_COLOR = { 0.6, 0.6, 0.65 } -- cannot interrupt (silver)
-local FAIL_COLOR = { 0.85, 0.25, 0.25 } -- interrupted / failed (red)
+local CAST_COLOR = K.CastColors.cast
+local CHANNEL_COLOR = K.CastColors.channel
+local NOINTERRUPT_COLOR = K.CastColors.noInterrupt
+local FAIL_COLOR = K.CastColors.fail
 -- ColorMixin objects for the secret-safe boolean colouring below.
 local CAST_CLR = CreateColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+local CHANNEL_CLR = CreateColor(CHANNEL_COLOR[1], CHANNEL_COLOR[2], CHANNEL_COLOR[3])
 local NOINTERRUPT_CLR = CreateColor(NOINTERRUPT_COLOR[1], NOINTERRUPT_COLOR[2], NOINTERRUPT_COLOR[3])
+local IsChanneling = K.IsChanneling
 
 -- ---------------------------------------------------------------------------
 -- Callbacks
@@ -42,24 +45,26 @@ local NOINTERRUPT_CLR = CreateColor(NOINTERRUPT_COLOR[1], NOINTERRUPT_COLOR[2], 
 -- SetVertexColorFromBoolean which handles the secret natively instead of an if.
 local function Recolor(self, notInterruptible)
 	local tex = self:GetStatusBarTexture()
+	local base = self.__channel and CHANNEL_CLR or CAST_CLR
 	-- Secret boolean (enemy casts) -> the secret-safe setter. A plain boolean or nil
 	-- -> a normal branch, since the setter rejects non-secret values.
 	if IsSecret(notInterruptible) then
 		if tex and tex.SetVertexColorFromBoolean then
-			tex:SetVertexColorFromBoolean(notInterruptible, NOINTERRUPT_CLR, CAST_CLR)
+			tex:SetVertexColorFromBoolean(notInterruptible, NOINTERRUPT_CLR, base)
 		end
 	elseif notInterruptible then
 		self:SetStatusBarColor(NOINTERRUPT_CLR:GetRGB())
 	else
-		self:SetStatusBarColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
+		self:SetStatusBarColor(base:GetRGB())
 	end
 end
 
-local function OnCastStart(self, _, _, notInterruptible)
+local function OnCastStart(self, unit, _, notInterruptible)
 	-- Clear the interrupted state a previous cast may have left behind, and switch the
 	-- duration binding back on since an interrupt turns it off to stop the old cast
 	-- counting down.
 	self.__failed = nil
+	self.__channel = IsChanneling(unit)
 	if self.Time and self.Time.binding then
 		self.Time.binding:SetEnabled(true)
 	end

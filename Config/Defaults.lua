@@ -82,25 +82,27 @@ K.ConfigDefaults = {
 
 		-- Custom power bar colours, applied over the oUF defaults. Keyed by power
 		-- token so both unit frames and nameplates use them.
-		-- Retuned to sit alongside the #5C8BCF theme: softened jewel tones and
-		-- warm ambers instead of harsh primaries, with mana locked to the accent.
+		-- Blizzard's hues, with the pure primaries softened so they do not glare
+		-- on the dark bars. Mana uses the lighter blue Blizzard gives its own
+		-- nameplate mana bar, and stays apart from the accent and the mage colour.
 		PowerColors = {
-			MANA = { 0.36, 0.55, 0.81 }, -- theme accent
-			RAGE = { 0.82, 0.31, 0.31 }, -- soft crimson
-			FOCUS = { 0.90, 0.52, 0.28 }, -- warm copper
-			ENERGY = { 0.95, 0.76, 0.32 }, -- soft amber gold
+			MANA = { 0.18, 0.36, 0.95 },
+			RAGE = { 0.89, 0.18, 0.18 },
+			FOCUS = { 1.00, 0.55, 0.25 },
+			ENERGY = { 1.00, 0.90, 0.25 },
 		},
-		-- Reaction colours, indexed 1 (hated) to 8 (exalted), harmonised with the
-		-- theme: crimson hostiles, gold neutral, jade friendly, frost-blue exalted.
+		-- Reaction colours, indexed 1 (hated) to 8 (exalted). Blizzard's red,
+		-- orange, yellow and green, softened the same way. Like Blizzard, every
+		-- friendly standing is the same green.
 		ReactionColors = {
-			[1] = { 0.82, 0.31, 0.31 },
-			[2] = { 0.82, 0.31, 0.31 },
-			[3] = { 0.85, 0.45, 0.25 },
-			[4] = { 0.95, 0.76, 0.32 },
-			[5] = { 0.22, 0.80, 0.30 }, -- friendly: clear green
-			[6] = { 0.22, 0.80, 0.30 },
-			[7] = { 0.22, 0.80, 0.30 },
-			[8] = { 0.36, 0.72, 0.88 },
+			[1] = { 0.84, 0.27, 0.22 },
+			[2] = { 0.84, 0.27, 0.22 },
+			[3] = { 0.86, 0.45, 0.12 },
+			[4] = { 0.93, 0.76, 0.15 },
+			[5] = { 0.25, 0.72, 0.30 },
+			[6] = { 0.25, 0.72, 0.30 },
+			[7] = { 0.25, 0.72, 0.30 },
+			[8] = { 0.25, 0.72, 0.30 },
 		},
 
 		Player = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, AutoShotBar = true, AutoShotWidth = 242, AutoShotHeight = 12, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
@@ -208,7 +210,9 @@ K.ConfigDefaults = {
 		ThreatColor = true,
 		ThreatHealthColor = false, -- colour enemy health bars by your threat instead of reaction
 		RoleColors = false, -- colour hostile plates by caster or melee so casters stand out
-		CasterColor = { 0.35, 0.5, 0.9 }, -- health colour for caster enemies
+		-- Muted plum, kept clear of the accent, mana, the blue and purple classes and
+		-- FocusColor, at the same brightness as MeleeColor so neither plate shouts.
+		CasterColor = { 0.68, 0.34, 0.66 }, -- health colour for caster enemies
 		MeleeColor = { 0.85, 0.4, 0.3 }, -- health colour for melee enemies
 		ExecuteRange = 0, -- tint enemy health under this percent, 0 is off
 		FocusHighlight = false, -- colour your focus's health bar

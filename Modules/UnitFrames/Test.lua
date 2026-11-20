@@ -196,7 +196,8 @@ local function PreviewCast(cast, spell)
 	end
 	cast:SetMinMaxValues(0, 1)
 	cast:SetValue(0.6)
-	cast:SetStatusBarColor(0.85, 0.65, 0.13)
+	local castColor = K.CastColors.cast
+	cast:SetStatusBarColor(castColor[1], castColor[2], castColor[3])
 	if cast.Text then
 		cast.Text:SetText(spell or "Fake Spell Name")
 	end
@@ -257,7 +258,8 @@ local FAKE_NAMES = {
 local FAKE_ROLES = { WARRIOR = "TANK", PALADIN = "HEALER", PRIEST = "HEALER", DRUID = "HEALER", SHAMAN = "HEALER" }
 local FAKE_DISPEL_COLORS = { { 0.2, 0.6, 1 }, { 0.6, 0, 1 }, { 0, 0.6, 0 }, { 0.6, 0.4, 0 } }
 -- Mana for casters, rage for warriors, energy for rogues, focus for hunters.
-local FAKE_POWER = { WARRIOR = "RAGE", ROGUE = "ENERGY", HUNTER = "FOCUS" }
+-- Hunters use mana on Forever, focus is only on their pet.
+local FAKE_POWER = { WARRIOR = "RAGE", ROGUE = "ENERGY" }
 
 local function Pick(list)
 	return list[math_random(#list)]
@@ -306,12 +308,14 @@ local function PreviewMember(frame)
 	-- A power bar in the colour and fill that class would show.
 	local power = frame.Power
 	if power and power:IsShown() then
-		local pcolor = PowerBarColor and PowerBarColor[FAKE_POWER[class] or "MANA"]
+		-- Our power palette, the one the live frames draw with.
+		local powers = frame.colors and frame.colors.power
+		local pcolor = powers and powers[FAKE_POWER[class] or "MANA"]
 		power:SetMinMaxValues(0, 100)
 		power:SetValue(FAKE_POWER[class] == "RAGE" and math_random(0, 60) or math_random(30, 100))
 		local texture = power:GetStatusBarTexture()
 		if pcolor and texture and not texture:GetAtlas() then
-			power:SetStatusBarColor(pcolor.r, pcolor.g, pcolor.b)
+			power:SetStatusBarColor(pcolor:GetRGB())
 			if power.PostUpdateColor == Module.ShadeBar then
 				Module.ShadeBar(power)
 			end

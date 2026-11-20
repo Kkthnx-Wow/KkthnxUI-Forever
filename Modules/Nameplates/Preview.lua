@@ -26,7 +26,6 @@ local UnregisterUnitWatch = UnregisterUnitWatch
 local ipairs = ipairs
 
 local TARGET_ACCENT = { 1, 0.9, 0.2 }
-local ENEMY_COLOR = { 0.82, 0.31, 0.31 }
 
 -- x is the offset from screen centre. Wide enough apart that a full row of
 -- debuffs on one plate never reaches the next.
@@ -75,8 +74,10 @@ local function Decorate(plate, variant)
 	local health = plate.Health
 	health:SetMinMaxValues(0, 100)
 	health:SetValue(variant.pct)
-	if variant.enemy then
-		health:SetStatusBarColor(ENEMY_COLOR[1], ENEMY_COLOR[2], ENEMY_COLOR[3])
+	-- The live hostile colour, so the preview follows the reaction palette.
+	local hostile = variant.enemy and oUF.colors.reaction[2]
+	if hostile then
+		health:SetStatusBarColor(hostile:GetRGB())
 	end
 	if plate.HealthText then
 		plate.HealthText:SetText(variant.pct .. "%")

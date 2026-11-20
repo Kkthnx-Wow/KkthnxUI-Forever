@@ -345,14 +345,33 @@ function K.FormatCoords(x, y)
 	return format("%d, %d", floor(x + 0.5), floor(y + 0.5))
 end
 
+-- True while the unit is channelling, so castbars can paint it green as Blizzard
+-- does. oUF keeps that state private, so ask the client. A secret spell name
+-- cannot be tested, so it counts as a normal cast.
+do
+	local UnitChannelInfo = UnitChannelInfo
+	function K.IsChanneling(unit)
+		if not unit then
+			return false
+		end
+		local spell = UnitChannelInfo(unit)
+		if K.IsSecret(spell) then
+			return false
+		end
+		return spell ~= nil and spell ~= ""
+	end
+end
+
 -- Threat colouring shared by nameplates and unit frames, so both read the same
 -- way. The colour flips by role: a tank wants aggro (green while holding it), while
 -- everyone else wants none (red the moment they pull it). A nil result means the
 -- safe case, so the caller keeps the normal reaction colour.
 do
-	local THREAT_HOLD = { 0.2, 0.8, 0.2 }
-	local THREAT_WARN = { 0.9, 0.7, 0.2 }
-	local THREAT_AGGRO = { 0.9, 0.2, 0.2 }
+	-- Blizzard's threat hues (green, yellow, red) in the same softened tones as the
+	-- reaction palette. Aggro uses the rage red, a shade deeper than hostile.
+	local THREAT_HOLD = { 0.25, 0.72, 0.30 }
+	local THREAT_WARN = { 0.93, 0.76, 0.15 }
+	local THREAT_AGGRO = { 0.89, 0.18, 0.18 }
 	-- Defensive Stance, Bear Form, Dire Bear Form, Righteous Fury.
 	local TANK_AURAS = { 71, 5487, 9634, 25780 }
 

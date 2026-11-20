@@ -67,6 +67,11 @@ local SPARK = C.Media.Textures.Spark
 local REPORT_COOLDOWN = 10
 local INFO_COLOR = K.ColorHex("info")
 local HEADER = { 0.9, 0.8, 0.5 }
+-- Blizzard's experience blue and rested purple, and its honor orange softened
+-- the same way as the power colours.
+local XP_COLOR = { 0.00, 0.39, 0.88 }
+local RESTED_COLOR = { 0.58, 0.00, 0.55 }
+local HONOR_COLOR = { 0.90, 0.30, 0.10 }
 
 local function BarTexture()
 	return K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI")
@@ -200,7 +205,14 @@ local function AddRemainingLine(state)
 	_G.GameTooltip:AddDoubleLine(L["Remaining"], format("%s (%.1f%% - %.1f %s)", K.ShortValue(remaining), percent, bars, L["Bars"]), 1, 1, 1)
 end
 
+-- The same reaction palette the unit frames use, so a standing reads the same
+-- shade on the bar as on an NPC of that faction. Blizzard's table covers any
+-- standing ours does not list.
 local function ReactionColor(reaction)
+	local ours = C.Unitframe and C.Unitframe.ReactionColors and C.Unitframe.ReactionColors[reaction]
+	if ours then
+		return ours[1], ours[2], ours[3]
+	end
 	local color = _G.FACTION_BAR_COLORS and _G.FACTION_BAR_COLORS[reaction]
 	if color then
 		return color.r, color.g, color.b
@@ -467,12 +479,12 @@ local function ShowExperience()
 	reportLabel = _G.COMBAT_XP_GAIN or "Experience"
 	displayText = xpState.display or ""
 
-	bar.fill:SetStatusBarColor(0, 0.4, 1, 0.9)
+	bar.fill:SetStatusBarColor(XP_COLOR[1], XP_COLOR[2], XP_COLOR[3], 1)
 	SetBarValues(bar.fill, 0, xpState.max, xpState.cur)
 
 	local showRested = C.ExpRep.ShowRested and xpState.rested and xpState.rested > 0
 	if showRested then
-		bar.rest:SetStatusBarColor(1, 0, 1, 0.35)
+		bar.rest:SetStatusBarColor(RESTED_COLOR[1], RESTED_COLOR[2], RESTED_COLOR[3], 0.6)
 		SetBarValues(bar.rest, 0, xpState.max, math_min(xpState.cur + xpState.rested, xpState.max))
 	end
 
@@ -498,7 +510,7 @@ local function ShowHonor()
 	reportLabel = _G.HONOR or "Honor"
 	displayText = honorState.display or ""
 
-	bar.fill:SetStatusBarColor(0.94, 0.45, 0.25, 1)
+	bar.fill:SetStatusBarColor(HONOR_COLOR[1], HONOR_COLOR[2], HONOR_COLOR[3], 1)
 	SetBarValues(bar.fill, 0, honorState.max, honorState.cur)
 
 	bar.rest:Hide()
@@ -752,7 +764,7 @@ local function BuildBar()
 	rest:SetAllPoints()
 	rest:SetFrameLevel(base + 1)
 	rest:SetStatusBarTexture(BarTexture())
-	rest:SetStatusBarColor(1, 0, 1, 0.35)
+	rest:SetStatusBarColor(RESTED_COLOR[1], RESTED_COLOR[2], RESTED_COLOR[3], 0.6)
 	rest:Hide()
 	f.rest = rest
 

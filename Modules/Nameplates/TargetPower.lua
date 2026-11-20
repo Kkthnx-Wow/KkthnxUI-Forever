@@ -27,16 +27,8 @@ local POWER_BY_CLASS = {
 	DRUID = Enum.PowerType.ComboPoints,
 }
 
--- Combo-point ramp, matching the unit-frame class power colours.
-local COMBO_COLORS = {
-	{ 0.85, 0.27, 0.27 },
-	{ 0.90, 0.45, 0.25 },
-	{ 0.90, 0.68, 0.28 },
-	{ 0.62, 0.80, 0.35 },
-	{ 0.35, 0.80, 0.45 },
-	{ 0.36, 0.55, 0.81 },
-	{ 0.55, 0.32, 0.78 },
-}
+-- Combo-point ramp, the same table the unit-frame class power row uses.
+local COMBO_COLORS = K.ComboColors
 local EMPTY = { 0.15, 0.15, 0.15 }
 
 local MAX_SEGMENTS = 10

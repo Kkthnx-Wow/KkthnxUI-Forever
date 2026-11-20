@@ -26,17 +26,8 @@ local CLASS_POWER = {
 
 local MAX_SEGMENTS = 10
 
--- Per-point colours for combo points, a red to green ramp with the accent for any
--- extra (anima charged) points.
-local COMBO_COLORS = {
-	{ 0.85, 0.27, 0.27 },
-	{ 0.90, 0.45, 0.25 },
-	{ 0.90, 0.68, 0.28 },
-	{ 0.62, 0.80, 0.35 },
-	{ 0.35, 0.80, 0.45 },
-	{ 0.36, 0.55, 0.81 },
-	{ 0.55, 0.32, 0.78 },
-}
+-- Per-point colours for combo points, shared with the nameplate row.
+local COMBO_COLORS = K.ComboColors
 -- Classes whose ClassPower element is combo points.
 local COMBO_CLASS = {
 	ROGUE = true,

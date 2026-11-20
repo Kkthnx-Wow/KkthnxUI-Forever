@@ -115,7 +115,7 @@ stds.wow = {
 		"STAT_STRENGTH", "STAT_AGILITY", "STAT_STAMINA", "STAT_INTELLECT", "STAT_ARMOR", "STAT_CRITICAL_STRIKE",
 		"STAT_HASTE", "STAT_MASTERY", "STAT_VERSATILITY", "STAT_LIFESTEAL", "STAT_AVOIDANCE", "STAT_SPEED",
 		"STAT_DODGE", "STAT_PARRY", "STAT_BLOCK", "STAT_CATEGORY_ATTRIBUTES", "STAT_CATEGORY_ENHANCEMENTS",
-		"GetSpecialization", "GetSpecializationInfo", "UnitThreatSituation", "GetThreatStatusColor",
+		"GetSpecialization", "GetSpecializationInfo", "UnitThreatSituation", "GetThreatStatusColor", "UnitChannelInfo",
 		"SetItemButtonTexture", "SetItemButtonCount", "SetItemButtonDesaturated", "CooldownFrame_Set", "BankFrame",
 		"UnitIsAFK", "UnitIsDND", "C_MountJournal", "C_PlayerInfo", "MOUNT", "DUNGEON_SCORE",
 		"UnitGroupRolesAssigned", "FROM", "CancelUnitBuff",
