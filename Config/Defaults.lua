@@ -354,7 +354,7 @@ K.ConfigDefaults = {
 		Width = 232, -- minimum window width, grown to fit the longest item name
 		UnderMouse = false, -- open the window at the cursor instead of the saved spot
 		RollFrames = true, -- compact group loot roll bars in place of the game's roll frames
-		RollWidth = 328,
+		RollWidth = 380, -- room for the name beside four buttons and the BoP tag
 		RollHeight = 26,
 	},
 
