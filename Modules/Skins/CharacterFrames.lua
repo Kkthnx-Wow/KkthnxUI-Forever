@@ -27,6 +27,7 @@ local Module = K:NewModule("CharacterFrames")
 
 local _G = _G
 local CreateFrame = CreateFrame
+local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
 local UnitClass = UnitClass
 local IsSecret = K.IsSecret
@@ -40,6 +41,24 @@ local INSPECT_EXTRA = 60
 local FRAME_WIDTH = _G.CHARACTER_FRAME_WIDTH or 631
 local FRAME_COLLAPSED_WIDTH = _G.CHARACTER_FRAME_COLLAPSED_WIDTH or 398
 local INSPECT_WIDTH = 338
+-- The inspect window is 60 shorter than the character window by template, which
+-- pushed its slot columns up under the level line and down beside the weapon row.
+-- It takes the character window's height so the same layout fits.
+local INSPECT_HEIGHT = _G.CHARACTER_FRAME_HEIGHT or 484
+
+-- Inspect slot offsets, measured in game from the character window so the two
+-- line up: columns 9 in from the window sides and 79 down from the top, weapon
+-- row 9 up from the bottom. The columns hang off the inset, which sits 4 in and
+-- 60 down, hence the numbers below.
+local INSPECT_SLOT_X = 5
+local INSPECT_SLOT_Y = -20
+local INSPECT_WEAPON_BOTTOM = 10
+-- The character slots are spaced 6 apart, the inspect ones 4 (both read live).
+local INSPECT_SLOT_GAP = -6
+local INSPECT_CHAINED = {
+	"Neck", "Shoulder", "Back", "Chest", "Shirt", "Tabard", "Wrist",
+	"Waist", "Legs", "Feet", "Finger0", "Finger1", "Trinket0", "Trinket1",
+}
 
 local ILVL_SIZE = 12
 
@@ -55,8 +74,39 @@ local function Wide()
 	return C.Skins and C.Skins.CharacterFramesWide
 end
 
+-- Our own edited dressing room art, one file per class in Media\Skins, named
+-- DressingRoom<Class>.blp. The painting fills the top left 480 by 502 of each
+-- 512 square file. A class with no file of ours keeps Blizzard's atlas.
+local SKIN_ART = K.MediaFolder .. "Skins\\DressingRoom"
+local SKIN_ART_FILES = {
+	DRUID = "Druid",
+	HUNTER = "Hunter",
+	MAGE = "Mage",
+	PALADIN = "Paladin",
+	PRIEST = "Priest",
+	ROGUE = "Rogue",
+	SHAMAN = "Shaman",
+	WARLOCK = "Warlock",
+	WARRIOR = "Warrior",
+}
+local SKIN_ART_RIGHT = 480 / 512
+local SKIN_ART_BOTTOM = 502 / 512
+-- Our art is dimmed a little so the lit stonework does not outshine the
+-- character, and it sits closer to the dark stats pane beside it. Picked by eye
+-- in game against 100 and 65 percent.
+local SKIN_ART_SHADE = 0.8
+
 local function SetClassArt(texture, class)
-	texture:SetAtlas(CLASS_ART .. class)
+	local file = SKIN_ART_FILES[class]
+	if file then
+		texture:SetTexture(SKIN_ART .. file)
+		texture:SetTexCoord(0, SKIN_ART_RIGHT, 0, SKIN_ART_BOTTOM)
+		texture:SetVertexColor(SKIN_ART_SHADE, SKIN_ART_SHADE, SKIN_ART_SHADE)
+	else
+		texture:SetTexCoord(0, 1, 0, 1)
+		texture:SetVertexColor(1, 1, 1)
+		texture:SetAtlas(CLASS_ART .. class)
+	end
 end
 
 -- ---------------------------------------------------------------------------
@@ -77,6 +127,9 @@ end
 
 local function ApplyCharacterWidth(frame)
 	if InCombatLockdown() then
+		K.DeferCombat("CharacterWidth", function()
+			ApplyCharacterWidth(frame)
+		end)
 		return
 	end
 	local width, leftWidth = CharacterTargets(frame)
@@ -150,12 +203,23 @@ local function StyleCharacterFrame()
 	end
 
 	if Wide() then
-		-- The watcher is parented to the window, so it only ticks while it is open.
-		local watcher = CreateFrame("Frame", nil, frame)
-		watcher:SetScript("OnUpdate", function()
+		-- UpdateSize is the only thing that puts the stock width back (on show, on a
+		-- tab change and on the details toggle), and ShowSubFrame decides which tab
+		-- gets the extra width, so the width is re-applied after either instead of
+		-- being checked every frame.
+		local function Reapply()
 			ApplyCharacterWidth(frame)
-		end)
-		Module.characterWatcher = watcher
+		end
+		if frame.UpdateSize then
+			hooksecurefunc(frame, "UpdateSize", Reapply)
+		end
+		if frame.ShowSubFrame then
+			hooksecurefunc(frame, "ShowSubFrame", Reapply)
+		end
+		frame:HookScript("OnShow", Reapply)
+		if frame:IsShown() then
+			Reapply()
+		end
 	end
 end
 
@@ -168,12 +232,18 @@ local inspectArt, inspectLevel, inspectClass
 
 local function ApplyInspectWidth(frame)
 	if InCombatLockdown() then
+		K.DeferCombat("InspectWidth", function()
+			ApplyInspectWidth(frame)
+		end)
 		return
 	end
 	local paperDollShown = _G.InspectPaperDollFrame and _G.InspectPaperDollFrame:IsShown()
 	local width = INSPECT_WIDTH + ((Wide() and paperDollShown) and INSPECT_EXTRA or 0)
 	if frame:GetWidth() ~= width then
 		frame:SetWidth(width)
+	end
+	if frame:GetHeight() ~= INSPECT_HEIGHT then
+		frame:SetHeight(INSPECT_HEIGHT)
 	end
 end
 
@@ -240,6 +310,14 @@ local function StyleInspectFrame()
 	inspectLevel:SetJustifyH("CENTER")
 	inspectLevel:SetPoint("BOTTOM", inset, "BOTTOM", 0, 32)
 
+	-- Head starts the left column and Hands the right one, the rest are chained.
+	NudgeSlot(_G.InspectHeadSlot, INSPECT_SLOT_X, INSPECT_SLOT_Y)
+	NudgeSlot(_G.InspectHandsSlot, -INSPECT_SLOT_X, INSPECT_SLOT_Y)
+	NudgeSlot(_G.InspectMainHandSlot, nil, INSPECT_WEAPON_BOTTOM)
+	for _, name in ipairs(INSPECT_CHAINED) do
+		NudgeSlot(_G["Inspect" .. name .. "Slot"], nil, INSPECT_SLOT_GAP)
+	end
+
 	-- The wider layout re-centres the model and the weapon row. Done once: both
 	-- are anchored to the window, so they follow the width from then on.
 	if Wide() then
@@ -251,7 +329,7 @@ local function StyleInspectFrame()
 		if main and off and ranged then
 			-- Three slots 37 wide with a 5 gap, centred as a row on the window.
 			main:ClearAllPoints()
-			main:SetPoint("BOTTOM", frame, "BOTTOM", -42, 16)
+			main:SetPoint("BOTTOM", frame, "BOTTOM", -42, INSPECT_WEAPON_BOTTOM)
 			off:ClearAllPoints()
 			off:SetPoint("LEFT", main, "RIGHT", 5, 0)
 			ranged:ClearAllPoints()
@@ -259,12 +337,22 @@ local function StyleInspectFrame()
 		end
 	end
 
+	-- The panel manager places windows from their size before showing them, so a
+	-- size applied after the window opens comes too late: with the character window
+	-- already up, inspect opened at the stock width and the two overlapped. Blizzard
+	-- switches to the character tab through InspectSwitchTabs before ShowUIPanel,
+	-- and tab clicks use it too, so the size is applied there. Always, for the
+	-- height. The width only grows when the wide layout is on.
+	if _G.InspectSwitchTabs then
+		hooksecurefunc("InspectSwitchTabs", function()
+			ApplyInspectWidth(frame)
+		end)
+	end
+	ApplyInspectWidth(frame)
+
 	local watcher = CreateFrame("Frame", nil, frame)
 	local elapsed = 0.5
 	watcher:SetScript("OnUpdate", function(_, delta)
-		if Wide() then
-			ApplyInspectWidth(frame)
-		end
 		elapsed = elapsed + delta
 		if elapsed >= 0.5 then
 			elapsed = 0
