@@ -52,7 +52,9 @@ local FOLLOW = 4
 -- warrior at range by Shoot. Unknown spells are dropped when the list is built.
 local HARM = {
 	DRUID = { 5176, 8921, 6807 }, -- Wrath, Moonfire, Maul
-	HUNTER = { 75, 2974 }, -- Auto Shot, Wing Clip
+	-- Auto Shot has a minimum range, so melee needs its own probe. Raptor Strike is
+	-- known from level 1, Wing Clip only from 12.
+	HUNTER = { 75, 2973, 2974 }, -- Auto Shot, Raptor Strike, Wing Clip
 	MAGE = { 133, 116, 5143 }, -- Fireball, Frostbolt, Arcane Missiles
 	PALADIN = { 20271, 853 }, -- Judgement, Hammer of Justice
 	PRIEST = { 585, 589 }, -- Smite, Shadow Word: Pain

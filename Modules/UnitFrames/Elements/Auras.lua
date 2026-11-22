@@ -153,12 +153,15 @@ end
 -- party portrait, "left" is the default for the raid.
 function Build.GroupDebuffs(self, count, size, side)
 	local spacing = Module.GAP
+	-- The container is a 1 px point the icons flow up from, so it sits on the bar's
+	-- bottom corner. Pinned to the bar's middle, the first row started halfway up
+	-- the bar and a second row rose well above the frame.
 	local point, anchorPoint, growthH
 	if side == "right" then
-		point = { "LEFT", self.Health, "RIGHT", spacing, 0 }
+		point = { "BOTTOMLEFT", self.Health, "BOTTOMRIGHT", spacing, 0 }
 		anchorPoint, growthH = "BOTTOMLEFT", "Right"
 	else
-		point = { "RIGHT", self.Health, "LEFT", -spacing, 0 }
+		point = { "BOTTOMRIGHT", self.Health, "BOTTOMLEFT", -spacing, 0 }
 		anchorPoint, growthH = "BOTTOMRIGHT", "Left"
 	end
 
