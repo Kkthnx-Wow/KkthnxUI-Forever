@@ -99,13 +99,23 @@ local SKIN_LIST = {
 	"GameSmallHeaderTooltip",
 }
 
--- Tooltips that only exist once a load-on-demand addon has come in, keyed by the
--- addon that brings them. FrameStackTooltip is the /fstack readout and lives in
+-- Tooltips that only exist once another addon has come in, keyed by the addon
+-- that brings them. FrameStackTooltip is the /fstack readout and lives in
 -- Blizzard_DebugTools, which is LoadOnDemand, so it is simply not there at login
--- and never got picked up by the list above.
+-- and never got picked up by the list above. What's Training builds its own
+-- tooltips from GameTooltipTemplate and would otherwise keep the stock look
+-- next to our skinned GameTooltip.
 local LOD_TOOLTIPS = {
 	Blizzard_DebugTools = { "FrameStackTooltip" },
 	Blizzard_EventTrace = { "EventTraceTooltip" },
+	WhatsTraining = {
+		"WhatsTrainingTooltip",
+		"WhatsTrainingForeverTooltip",
+		"WhatsTrainingCompareTooltip",
+		"WhatsTrainingTrainerTooltip",
+		"WhatsTrainingTomeSpellTooltip",
+		"WhatsTrainingSayaadTomeTooltip",
+	},
 }
 
 local function SkinLoadOnDemand(addon)
@@ -143,12 +153,15 @@ function Module:SetupSkins()
 		SkinLoadOnDemand(addon)
 	end)
 
-	-- Keep Blizzard from re-adding its backdrop on shared tooltips.
+	-- Keep Blizzard from re-adding its backdrop on the tooltips we skinned. Every
+	-- tooltip built from GameTooltipTemplate runs this, including other addons'
+	-- tooltips we never skinned, and hiding their art left them with no
+	-- background at all, so only our own are touched.
 	if _G.SharedTooltip_SetBackdropStyle then
 		hooksecurefunc("SharedTooltip_SetBackdropStyle", function(tt)
 			-- Widget tooltips (EmbeddedItemTooltip) can be forbidden objects that we
 			-- may not touch from tainted code, so skip them.
-			if not tt or (tt.IsForbidden and tt:IsForbidden()) then
+			if not tt or (tt.IsForbidden and tt:IsForbidden()) or not skinned[tt] then
 				return
 			end
 			if tt.NineSlice then
