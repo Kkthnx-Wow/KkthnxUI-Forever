@@ -24,6 +24,7 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 local Module = K:NewModule("Mail")
 
 local CreateFrame = CreateFrame
+local hooksecurefunc = hooksecurefunc
 local GetInboxNumItems = GetInboxNumItems
 local GetInboxHeaderInfo = GetInboxHeaderInfo
 local GetInboxItem = GetInboxItem
@@ -33,7 +34,7 @@ local HasInboxItem = HasInboxItem
 local C_Mail = C_Mail
 local C_Item = C_Item
 local GetCoinTextureString = C_CurrencyInfo.GetCoinTextureString
-local wipe, pairs, format = wipe, pairs, string.format
+local wipe, pairs, select, format = wipe, pairs, select, string.format
 
 -- Matches OPEN_ALL_MAIL_MIN_DELAY in Blizzard's mail frame. Anything shorter
 -- just queues requests the server will not answer any faster.
@@ -41,13 +42,34 @@ local STEP_DELAY = 0.15
 
 local goldRunner, inboxIndex, collecting
 
--- Scratch table for the attachment tooltip, reused so hovering a full inbox does
--- not churn a table per row.
-local attachments = {}
+-- Scratch tables for the attachment tooltip, by item ID, reused so hovering a
+-- full inbox does not churn tables per row.
+local attachCount, attachName, attachTexture, attachQuality = {}, {}, {}, {}
 
 -- ---------------------------------------------------------------------------
 -- Collect gold
 -- ---------------------------------------------------------------------------
+
+-- What is sitting in the inbox, so the button says whether it is worth clicking.
+local function TotalGold()
+	local total = 0
+	for i = 1, GetInboxNumItems() do
+		local _, _, _, _, money, codAmount = GetInboxHeaderInfo(i)
+		if money and money > 0 and not (codAmount and codAmount > 0) then
+			total = total + money
+		end
+	end
+	return total
+end
+
+-- Clickable only when there is gold to take, so an idle click never looks like
+-- it did something. Left alone while a run is going, which owns the button.
+local function UpdateGoldButton()
+	local gold = Module.GoldButton
+	if gold and not collecting then
+		gold:SetEnabled(TotalGold() > 0)
+	end
+end
 
 local function StopCollecting()
 	collecting = false
@@ -55,8 +77,8 @@ local function StopCollecting()
 	goldRunner.wait = nil
 	C_Mail.SetOpeningAll(false)
 	if Module.GoldButton then
-		Module.GoldButton:Enable()
 		Module.GoldButton:SetText(L["Collect Gold"])
+		UpdateGoldButton()
 	end
 end
 
@@ -113,25 +135,35 @@ local function StartCollecting()
 	goldRunner:SetScript("OnUpdate", OnGoldUpdate)
 end
 
--- What is sitting in the inbox, so the button says whether it is worth clicking.
-local function TotalGold()
-	local total = 0
-	for i = 1, GetInboxNumItems() do
-		local _, _, _, _, money, codAmount = GetInboxHeaderInfo(i)
-		if money and money > 0 and not (codAmount and codAmount > 0) then
-			total = total + money
-		end
-	end
-	return total
-end
-
 -- ---------------------------------------------------------------------------
 -- Take every attachment on the open mail
 -- ---------------------------------------------------------------------------
 
+-- The mail Take All was pressed on, by index and by what it says. Taking the last
+-- attachment can delete the mail, and the next mail then moves into its index,
+-- so the index alone could carry the loop into a mail nobody asked to empty.
+local takeID, takeSender, takeSubject
+
+local function MailIdentity(index)
+	local _, _, sender, subject = GetInboxHeaderInfo(index)
+	return sender, subject
+end
+
+-- COD mail charges for its items, and Blizzard asks before paying. Taking them
+-- straight from here would pay without that question.
+local function IsCOD(index)
+	local codAmount = select(6, GetInboxHeaderInfo(index))
+	return codAmount and codAmount > 0
+end
+
 local function TakeNextAttachment()
+	local openMail = _G.OpenMailFrame
 	local mailID = _G.InboxFrame and _G.InboxFrame.openMailID
-	if not mailID then
+	if not (mailID and openMail and openMail:IsShown()) or mailID ~= takeID then
+		return false
+	end
+	local sender, subject = MailIdentity(mailID)
+	if sender ~= takeSender or subject ~= takeSubject or IsCOD(mailID) then
 		return false
 	end
 	for i = 1, _G.ATTACHMENTS_MAX_RECEIVE do
@@ -181,23 +213,40 @@ local function ShowAttachments(self)
 		return
 	end
 
-	wipe(attachments)
+	-- The mail itself carries each attachment's name, icon and quality, so the
+	-- list is complete the first time even for items the client has not cached.
+	-- The item cache is only asked when the mail gave no name.
+	wipe(attachCount)
+	wipe(attachName)
+	wipe(attachTexture)
+	wipe(attachQuality)
 	for slot = 1, _G.ATTACHMENTS_MAX_RECEIVE do
-		local _, itemID, _, count = GetInboxItem(index, slot)
+		local name, itemID, texture, count, quality = GetInboxItem(index, slot)
 		if itemID and count and count > 0 then
-			attachments[itemID] = (attachments[itemID] or 0) + count
+			attachCount[itemID] = (attachCount[itemID] or 0) + count
+			if not attachName[itemID] then
+				if not name then
+					local cachedName, _, cachedQuality, _, _, _, _, _, _, cachedTexture = C_Item.GetItemInfo(itemID)
+					name, quality, texture = cachedName, cachedQuality, cachedTexture
+				end
+				attachName[itemID] = name
+				attachTexture[itemID] = texture
+				attachQuality[itemID] = quality
+			end
 		end
 	end
 
 	local tooltip = _G.GameTooltip
 	tooltip:AddLine(" ")
 	tooltip:AddLine(L["Attached"])
-	for itemID, count in pairs(attachments) do
-		local name, _, quality, _, _, _, _, _, _, texture = C_Item.GetItemInfo(itemID)
-		if name then
-			local r, g, b = C_Item.GetItemQualityColor(quality or 1)
-			tooltip:AddDoubleLine(format("|T%s:12:12:0:0:64:64:5:59:5:59|t %s", texture, name), count, r, g, b, r, g, b)
+	for itemID, count in pairs(attachCount) do
+		local r, g, b = C_Item.GetItemQualityColor(attachQuality[itemID] or 1)
+		local label = attachName[itemID] or ("item:" .. itemID)
+		local texture = attachTexture[itemID]
+		if texture then
+			label = format("|T%s:12:12:0:0:64:64:5:59:5:59|t %s", texture, label)
 		end
+		tooltip:AddDoubleLine(label, count, r, g, b, r, g, b)
 	end
 	if money and money > 0 then
 		tooltip:AddDoubleLine(L["Gold"], GetCoinTextureString(money), 1, 1, 1, 1, 1, 1)
@@ -211,19 +260,19 @@ end
 
 local function BuildButtons()
 	local inbox = _G.InboxFrame
-	local openAll = _G.OpenAllMail
-	if not (inbox and openAll) then
+	if not inbox or Module.GoldButton then
 		return
 	end
 
-	-- Sit beside Blizzard's own button rather than replacing it, since Open All
-	-- Mail already handles the full sweep well.
+	-- Open All Mail already handles the full sweep, so this sits beside it rather
+	-- than replacing it. The bottom row is full (page buttons either side of Open
+	-- All), so it goes in the strip under the title, on the right, beside the
+	-- centred "too much mail" warning. It keeps the stock red button look so it
+	-- reads as part of the mail frame like Open All does.
 	local gold = CreateFrame("Button", "KKUI_MailCollectGold", inbox, "UIPanelButtonTemplate")
-	gold:SetSize(118, 24)
-	gold:SetPoint("LEFT", openAll, "RIGHT", 4, 0)
+	gold:SetSize(100, 22)
+	gold:SetPoint("TOPRIGHT", inbox, "TOPRIGHT", -8, -30)
 	gold:SetText(L["Collect Gold"])
-	K.SkinButton(gold)
-	K.SetFont(gold:GetFontString(), 12, "")
 	gold:SetScript("OnClick", StartCollecting)
 	gold:SetScript("OnEnter", function(self)
 		local total = TotalGold()
@@ -237,20 +286,41 @@ local function BuildButtons()
 		_G.GameTooltip:Show()
 	end)
 	gold:SetScript("OnLeave", _G.GameTooltip_Hide)
+	-- Greyed out with no gold waiting, but the tooltip still says what it does.
+	gold:SetMotionScriptsWhileDisabled(true)
 	Module.GoldButton = gold
+	UpdateGoldButton()
 
 	local openMail = _G.OpenMailFrame
-	if openMail then
+	local reply = _G.OpenMailReplyButton
+	if openMail and reply then
+		-- First in the stock Reply, Delete, Cancel row, sized and chained the same
+		-- way, which fills the room left of Reply exactly.
 		local takeAll = CreateFrame("Button", "KKUI_MailTakeAll", openMail, "UIPanelButtonTemplate")
-		takeAll:SetSize(118, 24)
-		takeAll:SetPoint("BOTTOMLEFT", openMail, "BOTTOMLEFT", 62, 82)
+		takeAll:SetSize(reply:GetWidth(), reply:GetHeight())
+		takeAll:SetPoint("RIGHT", reply, "LEFT", 0, 0)
 		takeAll:SetText(L["Take All"])
-		K.SkinButton(takeAll)
-		K.SetFont(takeAll:GetFontString(), 12, "")
 		takeAll:SetScript("OnClick", function(self)
+			local mailID = _G.InboxFrame.openMailID
+			if not mailID or IsCOD(mailID) then
+				return
+			end
+			takeID = mailID
+			takeSender, takeSubject = MailIdentity(mailID)
 			self.wait = 0
 			self:SetScript("OnUpdate", OnTakeUpdate)
 		end)
+		-- COD mail is left to Blizzard's own confirmation, so the button is off
+		-- for it. Clicking another mail while this one is open does not show the
+		-- frame again, so the inbox click is hooked as well.
+		local function UpdateTakeAll()
+			local mailID = _G.InboxFrame.openMailID
+			takeAll:SetEnabled(mailID ~= nil and not IsCOD(mailID))
+		end
+		openMail:HookScript("OnShow", UpdateTakeAll)
+		if _G.InboxFrame_OnClick then
+			hooksecurefunc("InboxFrame_OnClick", UpdateTakeAll)
+		end
 		Module.TakeAllButton = takeAll
 	end
 end
@@ -280,6 +350,9 @@ function Module:OnEnable()
 	end
 
 	self:RegisterEvent("MAIL_CLOSED", "MAIL_CLOSED")
+	-- The inbox fills in after the frame opens and changes as mail is taken, so
+	-- the gold button follows it.
+	self:RegisterEvent("MAIL_INBOX_UPDATE", UpdateGoldButton)
 
 	-- Inbox rows are recycled, so hook the shared handler once rather than each
 	-- row. InboxFrameItem_OnEnter is what the XML calls and it carries self.index.
