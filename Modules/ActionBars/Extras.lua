@@ -175,6 +175,24 @@ function Module:StyleZoneAbility()
 	end
 end
 
+local function StyleVehicleHighlight(button)
+	if button.__kkuiHighlighting then
+		return
+	end
+	-- Our own SetHighlightTexture call below would re-enter the hook.
+	button.__kkuiHighlighting = true
+	button:SetHighlightTexture(K.GetBorderMedia("ButtonHighlight"), "ADD")
+	local highlight = button:GetHighlightTexture()
+	if highlight then
+		highlight:SetTexCoord(0, 1, 0, 1)
+		highlight:ClearAllPoints()
+		highlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+		highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+		highlight:SetVertexColor(1, 1, 1, 0.5)
+	end
+	button.__kkuiHighlighting = false
+end
+
 -- Reuse Blizzard's secure leave-vehicle button, skinned and repositioned. It
 -- manages its own show/hide, so no state driver is needed here.
 function Module:StyleVehicleLeave()
@@ -186,7 +204,10 @@ function Module:StyleVehicleLeave()
 	-- It is a child of MainActionBar, which we reparent to a hidden frame to
 	-- disable the stock bars, so it never showed. Pull it back onto UIParent.
 	button:SetParent(UIParent)
-	button:SetSize(C.ActionBar.ExtraBar.Size, C.ActionBar.ExtraBar.Size)
+	-- It sits at the end of bar 1 by default, so it takes that bar's button size
+	-- and spacing and reads as part of the row.
+	local bar1 = C.ActionBar.Bar1
+	button:SetSize(bar1.Size, bar1.Size)
 
 	-- Keep the original exit art: its icon IS the normal texture,
 	-- so instead of stripping it we crop the button-frame padding off and fit it
@@ -205,20 +226,14 @@ function Module:StyleVehicleLeave()
 	end
 	-- Hover only. Its pushed texture is the icon art itself, so the square
 	-- pressed shadow would blank the button while held.
-	local highlight = button:GetHighlightTexture()
-	if highlight then
-		highlight:SetTexture(K.GetBorderMedia("ButtonHighlight"))
-		highlight:SetTexCoord(0, 1, 0, 1)
-		highlight:ClearAllPoints()
-		highlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-		highlight:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-		highlight:SetBlendMode("ADD")
-		highlight:SetVertexColor(1, 1, 1, 0.5)
-	end
+	StyleVehicleHighlight(button)
 	K.AddBorderHover(button, 1, 1, 1, 0.5)
 
 	if not button.__kkuiVehicle then
 		button.__kkuiVehicle = true
+		-- The mixin sets its own highlight on every update, and a different one
+		-- after a taxi landing click, so put ours back each time.
+		hooksecurefunc(button, "SetHighlightTexture", StyleVehicleHighlight)
 		K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
 		K.CreateBorder(button)
 		-- These stock scripts taint through EditModeManager so we drop them. The
@@ -227,7 +242,9 @@ function Module:StyleVehicleLeave()
 		button:SetScript("OnHide", nil)
 	end
 
-	self:AttachExtraMover(button, "VehicleLeave", L["Leave Vehicle"], { "BOTTOM", UIParent, "BOTTOM", -80, 320 }, true)
+	local anchor = self.bars and self.bars.Bar1 and self.bars.Bar1.KKUI_Mover
+	local point = anchor and { "BOTTOMLEFT", anchor, "BOTTOMRIGHT", bar1.Space, 0 } or { "BOTTOM", UIParent, "BOTTOM", -80, 320 }
+	self:AttachExtraMover(button, "VehicleLeave", L["Leave Vehicle"], point, true)
 end
 
 function Module:CreateExtras()
