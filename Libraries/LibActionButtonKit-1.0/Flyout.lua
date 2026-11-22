@@ -177,7 +177,9 @@ local function NewButton(index)
 	button:HookScript("OnAttributeChanged", ButtonOnAttributeChanged)
 
 	SecureHandlerSetFrameRef(frame, "b" .. index, button)
-	SecureHandlerWrapScript(button, "OnClick", frame, nil, CLOSE_SNIPPET)
+	-- This client rejects a nil pre-body, and the post-body only runs when the
+	-- pre-body returns a message, so pass one through unchanged.
+	SecureHandlerWrapScript(button, "OnClick", frame, "return nil, true", CLOSE_SNIPPET)
 
 	Flyout.buttons[index] = button
 	Kit:Fire("FlyoutButtonCreated", button)
