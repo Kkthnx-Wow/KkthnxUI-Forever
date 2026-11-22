@@ -44,6 +44,7 @@ local type = type
 local next = next
 local tinsert = table.insert
 local tremove = table.remove
+local wipe = wipe
 local xpcall = xpcall
 local geterrorhandler = geterrorhandler
 local CreateFrame = CreateFrame
@@ -96,6 +97,8 @@ local dispatch = CreateFrame("Frame")
 -- MERCHANT_SHOW), so storing one handler per module let whichever registered last
 -- silently replace the other.
 local eventMap = {}
+-- module -> event -> frame, for RegisterUnitEvent below.
+local unitFrames = {}
 -- event -> modules in the order they first registered for it, and a set to keep
 -- that list free of duplicates. Dispatch walks this list, not the map, so every
 -- module sees an event in the same order on every login. pairs over the map has no
@@ -213,6 +216,13 @@ function moduleMixin:UnregisterEvent(event, handler)
 end
 
 function moduleMixin:UnregisterAllEvents()
+	local byEvent = unitFrames[self]
+	if byEvent then
+		for event, frame in pairs(byEvent) do
+			wipe(frame.handlers)
+			frame:UnregisterEvent(event)
+		end
+	end
 	for event, handlers in pairs(eventMap) do
 		if handlers[self] then
 			handlers[self] = nil
@@ -223,6 +233,70 @@ function moduleMixin:UnregisterAllEvents()
 				dispatch:UnregisterEvent(event)
 			end
 		end
+	end
+end
+
+-- Unit events filtered by the game. The shared dispatch frame hears an event for
+-- every unit, so a module that only cares about the player still ran its handler
+-- for every nameplate and raid member. Each module and event gets its own frame
+-- registered with RegisterUnitEvent instead. The unit list belongs to that frame,
+-- so it is one unit set per module and event, the last call's. unitFrames is
+-- declared with the other event tables above, since UnregisterAllEvents uses it.
+local function UnitDispatch(frame, event, ...)
+	local list = frame.handlers
+	for i = 1, #list do
+		local handler = list[i]
+		if handler ~= nil then
+			xpcall(CallHandler, errorHandler, frame.module, handler, event, ...)
+		end
+	end
+end
+
+-- module:RegisterUnitEvent("UNIT_EVENT", handler, "unit1"[, "unit2"])
+--   handler takes the same forms as RegisterEvent.
+function moduleMixin:RegisterUnitEvent(event, handler, unit1, unit2)
+	local byEvent = unitFrames[self]
+	if not byEvent then
+		byEvent = {}
+		unitFrames[self] = byEvent
+	end
+	local frame = byEvent[event]
+	if not frame then
+		frame = CreateFrame("Frame")
+		frame.module = self
+		frame.handlers = {}
+		frame:SetScript("OnEvent", UnitDispatch)
+		byEvent[event] = frame
+	end
+	frame:RegisterUnitEvent(event, unit1, unit2)
+	handler = handler or true
+	local list = frame.handlers
+	for i = 1, #list do
+		if list[i] == handler then
+			return
+		end
+	end
+	list[#list + 1] = handler
+end
+
+-- Removes one handler, or all of them for the event when handler is nil.
+function moduleMixin:UnregisterUnitEvent(event, handler)
+	local frame = unitFrames[self] and unitFrames[self][event]
+	if not frame then
+		return
+	end
+	local list = frame.handlers
+	if handler ~= nil then
+		for i = #list, 1, -1 do
+			if list[i] == handler then
+				tremove(list, i)
+			end
+		end
+	else
+		wipe(list)
+	end
+	if #list == 0 then
+		frame:UnregisterEvent(event)
 	end
 end
 

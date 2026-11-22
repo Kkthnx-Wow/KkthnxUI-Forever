@@ -495,18 +495,15 @@ function Module:SetupReminders()
 	}) do
 		self:RegisterEvent(event, refresh)
 	end
-	-- Player and pet changes. The pet's own health tells us when it dies.
+	-- Player and pet changes, filtered by the game so other units never reach us.
+	-- The pet's own health tells us when it dies.
 	local valid = C_EventUtils and C_EventUtils.IsEventValid
 	for _, event in ipairs({ "UNIT_AURA", "UNIT_INVENTORY_CHANGED", "UNIT_PET", "UNIT_HAPPINESS" }) do
 		if not valid or valid(event) then
-			self:RegisterEvent(event, OnUnitEvent)
+			self:RegisterUnitEvent(event, OnUnitEvent, "player", "pet")
 		end
 	end
-	self:RegisterEvent("UNIT_HEALTH", function(_, _, unit)
-		if unit == "pet" then
-			QueueRefresh()
-		end
-	end)
-	self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", OnSpellcast)
+	self:RegisterUnitEvent("UNIT_HEALTH", QueueRefresh, "pet")
+	self:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", OnSpellcast, "player")
 	self:RegisterEvent("PLAYER_REGEN_DISABLED", OnCombatStart)
 end

@@ -1196,7 +1196,8 @@ function Module:OnEnable()
 	self:RegisterEvent("BAG_UPDATE_COOLDOWN", "MarkDirty")
 	self:RegisterEvent("ITEM_LOCK_CHANGED", "MarkDirty")
 	self:RegisterEvent("QUEST_ACCEPTED", "MarkDirty")
-	self:RegisterEvent("UNIT_QUEST_LOG_CHANGED", "MarkDirty")
+	-- Your own quest log only. Party members' changes have nothing to do with your bags.
+	self:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "MarkDirty", "player")
 	self:RegisterEvent("PLAYER_MONEY", function()
 		if self.CaptureGold then
 			self:CaptureGold()
