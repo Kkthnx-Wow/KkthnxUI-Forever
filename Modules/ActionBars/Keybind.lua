@@ -2,7 +2,7 @@
 	Addon: KkthnxUI
 	File: Modules/ActionBars/Keybind.lua
 	Purpose:
-		Shorten hotkey text so it fits the small corner of a button. LAB owns the
+		Shorten hotkey text so it fits the small corner of a button. The library owns the
 		HotKey font string and rewrites it on rebind, so we hook its SetText and
 		re-apply the abbreviations. Localized key names are resolved first with an
 		English fallback so it reads correctly on every client.

@@ -35,4 +35,4 @@ Open an issue and include your build number and the error text. An error catcher
 
 ## Credits
 
-Written by Josh "Kkthnx" Russell. Bundled libraries keep their own licenses, including oUF, LibActionButton, LibCustomGlow and LibSharedMedia.
+Written by Josh "Kkthnx" Russell. Bundled libraries keep their own licenses, including oUF, LibCustomGlow and LibSharedMedia. The action buttons use LibActionButtonKit, our own library in `Libraries/LibActionButtonKit-1.0`.

@@ -3,7 +3,7 @@
 	File: Modules/ActionBars/Bars.lua
 	Purpose:
 		Bar creation, grid layout, paging, and mouseover fade. Each bar always
-		spawns 12 LAB buttons once. UpdateBar then lays out and shows only the
+		spawns 12 library buttons once. UpdateBar then lays out and shows only the
 		configured count, applies size/spacing/opacity, and refreshes button
 		config live. This keeps count and size changes working out of combat
 		without recreating secure frames.
@@ -105,9 +105,9 @@ function Module:CreateBar(def)
 	bar.bindName = def.bindName
 	bar.buttons = {}
 
-	local config = self:GetButtonConfig(def.key)
 	for i = 1, MAX_BUTTONS do
-		local button = self.LAB:CreateButton(i, format("%sButton%d", barName, i), bar, config)
+		local options = self:GetButtonOptions(def.key, def.bindName and (def.bindName .. i))
+		local button = self.Kit:CreateButton(bar, i, format("%sButton%d", barName, i), options)
 		self:StyleButton(button)
 		bar.buttons[i] = button
 		self.buttons[#self.buttons + 1] = button
@@ -121,22 +121,6 @@ end
 -- Layout / live update
 -- ---------------------------------------------------------------------------
 
--- Which way a flyout opens from this bar, chosen the way the stock bars do it:
--- a wide bar opens up or down toward the middle of the screen, a tall bar opens
--- sideways toward the middle, so a flyout never lands on top of its own bar.
--- Before the bar has a position there is nothing to go on, so it opens upward.
-function Module:GetFlyoutDirection(bar, cfg)
-	local x, y = bar:GetCenter()
-	if not (x and y) then
-		return "UP"
-	end
-	local rows = ceil(cfg.Buttons / cfg.PerRow)
-	if cfg.PerRow >= rows then
-		return y < GetScreenHeight() / 2 and "UP" or "DOWN"
-	end
-	return x > GetScreenWidth() / 2 and "LEFT" or "RIGHT"
-end
-
 -- The "cast on key press" choice for our buttons. "Default" hands it back to the
 -- game's own setting. An older boolean in a saved profile still counts.
 function Module:GetKeyDownSetting()
@@ -149,8 +133,8 @@ function Module:GetKeyDownSetting()
 	return nil
 end
 
--- The pet, stance and possess bars reuse Blizzard's own buttons instead of LAB
--- ones, so each lays itself out through its own function.
+-- The pet, stance and possess bars reuse Blizzard's own buttons instead of
+-- library ones, so each lays itself out through its own function.
 local AUX_LAYOUT = { PetBar = "LayoutPetBar", StanceBar = "LayoutStanceBar", PossessBar = "LayoutPossessBar" }
 
 -- Grid layout shared by those three. `shown` is how many buttons are in use, which
@@ -228,8 +212,6 @@ function Module:UpdateBar(key)
 		mover:SetSize(bar:GetWidth(), bar:GetHeight())
 	end
 
-	local buttonConfig = self:GetButtonConfig(key)
-	buttonConfig.flyoutDirection = self:GetFlyoutDirection(bar, cfg)
 	local keyDown = self:GetKeyDownSetting()
 	for i, button in ipairs(bar.buttons) do
 		if i <= count then
@@ -238,24 +220,37 @@ function Module:UpdateBar(key)
 			local row = floor((i - 1) / perRow)
 			button:ClearAllPoints()
 			button:SetPoint("TOPLEFT", bar, "TOPLEFT", col * (size + space), -row * (size + space))
-			-- Point LAB at the matching Blizzard binding so it shows the hotkey.
-			-- merge copies this into each button's own config, so reusing the
-			-- shared table per iteration is fine.
-			buttonConfig.keyBoundTarget = bar.bindName and (bar.bindName .. i) or false
-			button:UpdateConfig(buttonConfig)
-			-- nil leaves the choice to the game's own "cast on key press" setting.
-			button:SetAttribute("useOnKeyDown", keyDown)
-			-- LAB has no count hide flag, so toggle its alpha per bar.
-			if button.Count then
-				button.Count:SetAlpha(cfg.Count and 1 or 0)
-			end
+			-- The matching Blizzard binding gives the hotkey text.
+			self.Kit:SetOptions(button, self:GetButtonOptions(key, bar.bindName and (bar.bindName .. i)))
+			self:ApplyButtonFonts(button)
+			-- For key presses only. nil leaves it to the game's own "cast on key
+			-- press" setting. Mouse clicks always cast on release, so picking a
+			-- spell up never casts it.
+			self.Kit:SetKeyDown(button, keyDown)
 			button:Show()
 		else
 			button:Hide()
 		end
 	end
 
+	self.Kit:SetFlyoutDirection(bar, self:GetFlyoutDirection(bar, cfg))
 	self:SetupFade(bar, cfg)
+end
+
+-- Which way a flyout opens from this bar, chosen the way the stock bars do it:
+-- a wide bar opens up or down toward the middle of the screen, a tall bar opens
+-- sideways toward the middle, so a flyout never lands on top of its own bar.
+-- Before the bar has a position there is nothing to go on, so it opens upward.
+function Module:GetFlyoutDirection(bar, cfg)
+	local x, y = bar:GetCenter()
+	if not (x and y) then
+		return "UP"
+	end
+	local rows = ceil(cfg.Buttons / cfg.PerRow)
+	if cfg.PerRow >= rows then
+		return y < GetScreenHeight() / 2 and "UP" or "DOWN"
+	end
+	return x > GetScreenWidth() / 2 and "LEFT" or "RIGHT"
 end
 
 -- Update every bar (used after a global change like font or texture).
@@ -284,7 +279,8 @@ function Module:ReassignBindings()
 				for k = 1, select("#", GetBindingKey(binding)) do
 					local key = select(k, GetBindingKey(binding))
 					if key and key ~= "" then
-						SetOverrideBindingClick(bar, false, key, button:GetName())
+						-- "Keybind" tells the library this click is a key press.
+						SetOverrideBindingClick(bar, false, key, button:GetName(), "Keybind")
 					end
 				end
 			end
@@ -323,25 +319,16 @@ local FadeTick
 -- Work out where a bar should be resting and start the glide if it is not there.
 -- Called when something that decides that changes: a hover, or combat starting or
 -- ending. Between those the bar has no per frame cost at all.
--- True while the pointer is on the bar, or on the flyout popup one of its buttons
--- opened. The popup is one shared frame parented to the button that opened it and
--- sits outside the bar's own rectangle, so the bar alone reads as "left" the moment
--- the pointer steps onto it.
+-- True while the pointer is on the bar, or on the flyout one of its buttons
+-- opened. The flyout sits outside the bar's own rectangle, so the bar alone
+-- reads as "left" the moment the pointer steps onto it.
 local function IsOverBar(bar)
 	if bar:IsMouseOver() then
 		return true
 	end
-	local lab = Module.LAB
-	local flyout = lab and lab.flyoutHandler
-	if flyout and flyout:IsShown() and flyout:IsMouseOver() then
-		local owner = flyout:GetParent()
-		for _, button in ipairs(bar.buttons or {}) do
-			if button == owner then
-				return true
-			end
-		end
-	end
-	return false
+	local kit = Module.Kit
+	local opener = kit:GetFlyoutOpener()
+	return opener ~= nil and opener:GetParent() == bar and kit:IsMouseOverFlyout()
 end
 
 -- Set while the cursor carries a spell or item, so a faded bar shows its empty slots
@@ -501,12 +488,29 @@ function Module:SetupFade(bar, cfg)
 	Retarget(bar)
 end
 
+-- Flyout buttons belong to no bar, so entering or leaving one rechecks the bar
+-- whose button opened the flyout. Hooked once per flyout button.
+local function RecheckFlyoutBar()
+	local opener = Module.Kit:GetFlyoutOpener()
+	local bar = opener and opener:GetParent()
+	local s = bar and faders[bar]
+	if s then
+		s.hovered = IsOverBar(bar)
+		Retarget(bar)
+	end
+end
+
+function Module:HookFlyoutFade(button)
+	button:HookScript("OnEnter", RecheckFlyoutBar)
+	button:HookScript("OnLeave", RecheckFlyoutBar)
+end
+
 -- ---------------------------------------------------------------------------
 -- Paging
 -- ---------------------------------------------------------------------------
 
--- Main bar paging using LAB's state system. Each button carries an action for
--- every page state, the secure header switches states through the page driver.
+-- Main bar paging. The page driver picks a page and the library sets it on the
+-- bar, where the buttons' secure clicks read it.
 -- Ask the game which page a form or stance really pages to, once, and remember
 -- it. This is how a form that is not in the starting table gets its page without
 -- anyone guessing. It only learns while nothing else is overriding the bar, with
@@ -562,28 +566,15 @@ local function LearnBonusBars()
 
 	local main = Module.bars.Bar1
 	if main then
-		RegisterStateDriver(main, "page", GetPageDriver())
+		Module.Kit:SetPaging(main, GetPageDriver())
 	end
 end
 
+-- Forever puts the vehicle, temp shapeshift and override pages at 31, 32 and 33
+-- (read live on 1.60.1). The library works out any page's slots from the page
+-- number, so no page range has to be prepared.
 function Module:SetupMainBar(bar)
-	-- Every page the driver can pick needs an action mapping, or the bar shows
-	-- empty on it. Forever puts the vehicle, temp shapeshift and override pages
-	-- at 31, 32 and 33 (read live on 1.60.1), far past the 18 the bar used to
-	-- cover, so the range is taken from the client.
-	local api = C_ActionBar
-	local lastPage = math.max(18, api.GetVehicleBarIndex(), api.GetTempShapeshiftBarIndex(), api.GetOverrideBarIndex())
-	for _, page in pairs(BonusPages()) do
-		lastPage = math.max(lastPage, page)
-	end
-	for i, button in ipairs(bar.buttons) do
-		for state = 1, lastPage do
-			button:SetState(state, "action", (state - 1) * 12 + i)
-		end
-		button:SetState(0, "action", i)
-	end
-	bar:SetAttribute("_onstate-page", [[ control:ChildUpdate("state", newstate) ]])
-	RegisterStateDriver(bar, "page", GetPageDriver())
+	self.Kit:SetPaging(bar, GetPageDriver())
 
 	self:RegisterEvent("UPDATE_BONUS_ACTIONBAR", LearnBonusBars)
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", function()
@@ -593,9 +584,5 @@ end
 
 -- Point every button on a bar at a fixed page of the action table.
 function Module:AssignPage(bar, page)
-	local base = (page - 1) * 12
-	for i, button in ipairs(bar.buttons) do
-		button:SetState(0, "action", base + i)
-		button:SetAttribute("action", base + i)
-	end
+	self.Kit:SetFixedPage(bar, page)
 end

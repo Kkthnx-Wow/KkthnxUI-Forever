@@ -2,7 +2,7 @@
 	Addon: KkthnxUI
 	File: Modules/ActionBars/StanceBar.lua
 	Purpose:
-		The stance / shapeshift bar. Stances are not a LibActionButton type, so we
+		The stance / shapeshift bar. Stances are not action slots, so we
 		reuse Blizzard's stance buttons: reparent them onto our own bar, skin them,
 		and re-lay the row whenever the available forms change.
 

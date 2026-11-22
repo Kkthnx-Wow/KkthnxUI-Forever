@@ -5,7 +5,7 @@
 		ActionBars module entry point. Defines the module, resolves the action
 		button library, and orchestrates enable: hide the stock bars, then build
 		each configured bar. Concerns live in sibling files:
-			ButtonStyle.lua     LAB config and per button styling
+			ButtonStyle.lua     button options and per button styling
 			Bars.lua            bar creation, layout, paging, fade
 			DisableBlizzard.lua removing the default bars
 -----------------------------------------------------------------------------]]
@@ -14,9 +14,8 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 
 local Module = K:NewModule("ActionBars")
 
--- Our embedded copy registers under a KkthnxUI suffixed name to avoid clashing
--- with any other addon's LibActionButton.
-Module.LAB = LibStub and LibStub("LibActionButton-1.0-KkthnxUI", true)
+-- Our own secure action button library (Libraries/LibActionButtonKit-1.0).
+Module.Kit = LibStub and LibStub("LibActionButtonKit-1.0", true)
 
 Module.bars = {}
 Module.buttons = {}
@@ -116,8 +115,8 @@ function Module:OnEnable()
 	if not C.ActionBar.Enable then
 		return
 	end
-	if not self.LAB then
-		K.Print("LibActionButton is missing, action bars disabled.")
+	if not self.Kit then
+		K.Print("LibActionButtonKit is missing, action bars disabled.")
 		return
 	end
 
@@ -157,14 +156,17 @@ function Module:OnEnable()
 		end
 	end
 
-	-- Flyout popup buttons (mount, class ability, and profession flyouts) are
-	-- created lazily by LibActionButton, so they never pass through CreateBar.
-	-- Skin each one as it is built so the popup matches the bars.
-	if self.LAB.RegisterCallback then
-		self.LAB.RegisterCallback(self, "OnFlyoutButtonCreated", function(_, button)
-			Module:StyleButton(button)
-		end)
+	-- The library's flyout buttons get the same skin as the stock buttons we
+	-- reuse, and keep a mouseover bar shown while the pointer is on them. Some
+	-- may exist already, the rest arrive through the callback.
+	for _, button in ipairs(self.Kit.Flyout.buttons) do
+		self:StyleAuxButton(button)
+		self:HookFlyoutFade(button)
 	end
+	self.Kit.RegisterCallback(self, "FlyoutButtonCreated", function(_, button)
+		Module:StyleAuxButton(button)
+		Module:HookFlyoutFade(button)
+	end)
 
 	-- Pet, stance, possess, and the extra/zone/vehicle buttons.
 	self:CreatePetBar()

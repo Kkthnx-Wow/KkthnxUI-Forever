@@ -2,9 +2,9 @@
 	Addon: KkthnxUI
 	File: Modules/ActionBars/ButtonStyle.lua
 	Purpose:
-		The LibActionButton config and per button styling. hideElements.border
-		tells LAB to stop drawing the Blizzard art (normal texture, icon mask,
-		slot background) on every state update, so only our border shows.
+		Button options for LibActionButtonKit and per button styling. The library
+		draws state only (icon, tints, cooldowns, text) and never touches fonts,
+		anchors or art, so everything visual is set here once per button.
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
@@ -15,7 +15,7 @@ local _G = _G
 
 -- The border set's button states, so every button reads the same: a soft
 -- inner glow on hover, an inner shadow while pressed, and a gold inner ring
--- while checked (active stance, toggled-on pet ability). Shared by the LAB
+-- while checked (active stance, toggled-on pet ability). Shared by the library
 -- buttons and the stock buttons we reuse. The icon is inset 1, so are these.
 function Module:StyleInteractionTextures(button)
 	K.StyleButtonStates(button, 1)
@@ -53,7 +53,7 @@ function Module:SkinAutoCast(button)
 end
 
 -- Skin a stock Blizzard button (stance, extra, zone) with our slot + border,
--- for buttons we reuse rather than build through LibActionButton.
+-- for buttons we reuse rather than build through LibActionButtonKit.
 function Module:StyleAuxButton(button)
 	if not button or button.__auxStyled then
 		return
@@ -119,43 +119,41 @@ function Module:StyleAuxButton(button)
 	end
 end
 
--- Build the LAB button config for a specific bar. Text visibility is per-bar.
--- The font and grid are global. Rebuilt each call so live edits take effect.
-function Module:GetButtonConfig(key)
+-- The options setting's out of range choice, in the library's terms.
+local RANGE_TINT = { button = "icon", hotkey = "hotkey", none = false }
+
+-- Library options for one button. Text visibility is per bar, the tints and the
+-- grid are global. Rebuilt each call so live edits take effect.
+function Module:GetButtonOptions(key, bindName)
 	local db = C.ActionBar
 	local bar = db[key] or db.Bar1
-	local font = K.GetFont(db.Font)
-	local size = db.FontSize
-	local flag = db.FontFlag ~= "NONE" and db.FontFlag or ""
+	local tint = RANGE_TINT[db.RangeColoring or "button"]
 	return {
 		showGrid = db.ShowGrid,
-		outOfRangeColoring = db.RangeColoring or "button",
-		-- Out-of-range and out-of-mana tints, tunable from the options.
+		rangeTint = tint == nil and "icon" or tint,
 		colors = {
 			range = db.RangeColor or { 0.8, 0.1, 0.1 },
 			mana = db.ManaColor or { 0.5, 0.5, 1.0 },
 		},
-		-- Register with the assisted-combat manager so the one-button rotation
-		-- assistant can glow the next suggested ability on our buttons. The
-		-- highlight only works when actionButtonUI is on, so both are set together.
-		actionButtonUI = true,
-		assistedHighlight = true,
-		hideElements = {
-			border = true,
-			borderIfEmpty = true,
-			macro = not bar.MacroName,
-			hotkey = not bar.HotKey,
-			equipped = false,
-		},
-		text = {
-			hotkey = { font = { font = font, size = size, flags = flag } },
-			count = { font = { font = font, size = size, flags = flag } },
-			macro = { font = { font = font, size = size - 2, flags = flag } },
-		},
+		showMacroName = bar.MacroName and true or false,
+		showHotKey = bar.HotKey and true or false,
+		showCount = bar.Count ~= false,
+		bindingName = bindName,
 	}
 end
 
--- Apply our border and anchor the icon and text on a single LAB button.
+-- Fonts for a button's text, from the action bar font settings.
+function Module:ApplyButtonFonts(button)
+	local db = C.ActionBar
+	local font = K.GetFont(db.Font)
+	local size = db.FontSize
+	local flag = db.FontFlag ~= "NONE" and db.FontFlag or ""
+	button.HotKey:SetFont(font, size, flag)
+	button.Count:SetFont(font, size, flag)
+	button.Name:SetFont(font, size - 2, flag)
+end
+
+-- Apply our border, fonts and anchors on a single library button.
 function Module:StyleButton(button)
 	if button.__styled then
 		return
@@ -166,15 +164,6 @@ function Module:StyleButton(button)
 	local count = button.Count
 	local hotkey = button.HotKey
 	local macro = button.Name
-
-	-- Backstop for the leftover slot art from the 12.0 ActionButtonTemplate,
-	-- which LAB does not touch even with hideElements.border.
-	if button.SlotArt then
-		button.SlotArt:SetAlpha(0)
-	end
-	if button.SlotBackground then
-		button.SlotBackground:SetAlpha(0)
-	end
 
 	-- Blizzard slot atlas as the button background. The atlas has transparent
 	-- padding, so we stretch it a couple pixels past every edge to make the
@@ -194,23 +183,32 @@ function Module:StyleButton(button)
 		icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 	end
 
-	-- Cooldown: crop to the icon and make sure the dark radial swipe draws. The
-	-- retail LibActionButton path only calls SetCooldownFromDurationObject and
-	-- never sets the swipe, so a fresh cooldown frame can come up with no swipe.
-	local cooldown = button.cooldown
-	if cooldown then
+	-- Cooldowns: crop to the icon and give the dark radial swipe a real texture,
+	-- since SetCooldownFromDurationObject never sets one. Charges keep their edge
+	-- only. Loss of control gets the swipe in a dark red.
+	for _, cooldown in ipairs({ button.cooldown, button.chargeCooldown, button.lossOfControlCooldown }) do
 		cooldown:ClearAllPoints()
 		cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
 		cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-		K.StyleCooldownSwipe(cooldown)
 	end
-
-	-- Loss-of-control cooldown gets the same swipe in a dark red, for the wipe while
-	-- you are crowd controlled.
+	K.StyleCooldownSwipe(button.cooldown)
 	K.StyleCooldownSwipe(button.lossOfControlCooldown, 0.35, 0, 0)
+
+	-- The equipped-item wash, in the border green at a softer strength.
+	button.Border:ClearAllPoints()
+	button.Border:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+	button.Border:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+	button.Border:SetColorTexture(0, 1, 0, 0.2)
+
+	-- The attack and auto repeat flash, inside the border and above the icon.
+	button.Flash:SetDrawLayer("ARTWORK", 1)
+	button.Flash:ClearAllPoints()
+	button.Flash:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+	button.Flash:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 
 	-- Clean interaction-state textures: pushed and hover glow, checked outline.
 	self:StyleInteractionTextures(button)
+	self:ApplyButtonFonts(button)
 
 	K.CreateBorder(button)
 	self:AttachBorderGlow(button)
@@ -218,7 +216,7 @@ function Module:StyleButton(button)
 	-- Shorten the hotkey text and keep it shortened on rebind.
 	Module:StyleHotKey(button)
 
-	-- Text placement. LAB owns the fonts (from GetButtonConfig), we anchor.
+	-- Text placement.
 	if count then
 		count:ClearAllPoints()
 		count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)

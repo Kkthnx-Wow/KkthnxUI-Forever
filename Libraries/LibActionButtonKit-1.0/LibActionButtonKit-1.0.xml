@@ -1,0 +1,10 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Core first: it registers the library and holds the shared state. -->
+	<Script file="Core.lua" />
+	<Script file="Button.lua" />
+	<Script file="Secure.lua" />
+	<Script file="Flyout.lua" />
+	<!-- Update before Events: the event handlers call straight into it. -->
+	<Script file="Update.lua" />
+	<Script file="Events.lua" />
+</Ui>

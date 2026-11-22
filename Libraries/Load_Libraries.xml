@@ -5,7 +5,7 @@
 	<Script file="CallbackHandler-1.0\CallbackHandler-1.0.lua" />
 	<Script file="LibSharedMedia-3.0\LibSharedMedia-3.0.lua" />
 	<Script file="LibCustomGlow-1.0\LibCustomGlow-1.0.lua" />
-	<Script file="LibActionButton-1.0\LibActionButton-1.0.lua" />
+	<Include file="LibActionButtonKit-1.0\LibActionButtonKit-1.0.xml" />
 	<Script file="LibUnfit-1.0\LibUnfit-1.0.lua" />
 	<Include file="oUF\oUF.xml" />
 </Ui>
