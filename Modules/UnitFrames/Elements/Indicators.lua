@@ -152,14 +152,24 @@ end
 -- Dispellable debuff highlight (party / raid)
 -- ---------------------------------------------------------------------------
 
--- ColorMixins for each dispel type, built once from the game table so the border
--- refresh can call color:GetRGB() like it does for threat.
+-- ColorMixins for each dispel type, built once so the border refresh can call
+-- color:GetRGB() like it does for threat. Forever has no DebuffTypeColor table,
+-- only the per-type DEBUFF_TYPE_<TYPE>_COLOR constants, so those come first and
+-- the old table fills anything they leave out.
+local DISPEL_TYPES = { Magic = "MAGIC", Curse = "CURSE", Disease = "DISEASE", Poison = "POISON", Bleed = "BLEED" }
+
 local dispelColors
 local function DispelColor(name)
 	if not dispelColors then
 		dispelColors = {}
+		for kind, key in pairs(DISPEL_TYPES) do
+			local c = _G["DEBUFF_TYPE_" .. key .. "_COLOR"]
+			if type(c) == "table" and c.GetRGB then
+				dispelColors[kind] = CreateColor(c:GetRGB())
+			end
+		end
 		for kind, c in pairs(DebuffTypeColor or {}) do
-			if type(c) == "table" and c.r then
+			if not dispelColors[kind] and type(c) == "table" and c.r then
 				dispelColors[kind] = CreateColor(c.r, c.g, c.b)
 			end
 		end
