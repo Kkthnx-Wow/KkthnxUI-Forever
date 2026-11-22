@@ -13,8 +13,28 @@ local Module = K:GetModule("ActionBars")
 
 local _G = _G
 local InCombatLockdown = InCombatLockdown
+local max = math.max
 
 local NUM_PET_SLOTS = NUM_PET_ACTION_SLOTS or 10
+
+-- Blizzard hides an empty pet button unless the grid is showing, and its own bar
+-- draws slot art behind it. Ours has none, so an empty slot left a hole in the
+-- row. A plain frame under each button, anchored to it, draws the same empty slot
+-- the other bars show. It is not protected, so the button's own show and hide in
+-- combat is left alone.
+local function CreateEmptySlot(bar, button)
+	local backing = CreateFrame("Frame", nil, bar)
+	backing:SetAllPoints(button)
+	backing:SetFrameLevel(max(button:GetFrameLevel() - 1, 0))
+
+	local slot = backing:CreateTexture(nil, "BACKGROUND", nil, -8)
+	slot:SetPoint("TOPLEFT", backing, "TOPLEFT", -2, 2)
+	slot:SetPoint("BOTTOMRIGHT", backing, "BOTTOMRIGHT", 2, -2)
+	slot:SetAtlas("UI-HUD-ActionBar-IconFrame-Slot")
+
+	K.CreateBorder(backing)
+	return backing
+end
 
 function Module:CreatePetBar()
 	local cfg = C.ActionBar.PetBar
@@ -31,6 +51,9 @@ function Module:CreatePetBar()
 		if button then
 			button:SetParent(bar)
 			self:StyleAuxButton(button)
+			if C.ActionBar.ShowGrid then
+				CreateEmptySlot(bar, button)
+			end
 			bar.buttons[i] = button
 		end
 	end
