@@ -195,18 +195,28 @@ local function Skin(button)
 		end)
 		-- The free slot button holds no item, so the template has nothing to show
 		-- for it. This explains it. Hooked after the template's own handler.
+		-- The tooltip is owned by the holder frame, which covers the button
+		-- exactly. GameTooltip refreshes itself through its owner's UpdateTooltip
+		-- several times a second, and the button's own one finds an empty slot and
+		-- hides the tooltip. The holder has none, so the tooltip stays up.
 		button:HookScript("OnEnter", function(self)
 			local free = self.__kkuiFree
 			if not free then
 				return
 			end
-			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetOwner(self:GetParent(), "ANCHOR_RIGHT")
 			GameTooltip:SetText(L["Free Slots"], 1, 1, 1)
 			if self.__kkuiTotal then
 				GameTooltip:AddLine(string.format(L["%d of %d slots free"], free, self.__kkuiTotal), K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 			end
 			GameTooltip:AddLine(L["Drop an item here to put it in the first free slot."], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3], true)
 			GameTooltip:Show()
+		end)
+		-- The template's leave handler only knows about tooltips the button owns.
+		button:HookScript("OnLeave", function(self)
+			if GameTooltip:IsOwned(self:GetParent()) then
+				GameTooltip:Hide()
+			end
 		end)
 	end
 end
