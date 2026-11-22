@@ -16,6 +16,10 @@
 		what keeps it right through the mana five second rule and at full energy,
 		when no event arrives at all.
 
+		Forever keeps the player's mana secret, so there a rise cannot be read
+		from the value. Any power update the player's own casts do not explain
+		is taken as the candidate instead, and the same beat rules judge it.
+
 		If regen turns out to be continuous rather than a beat (rises that come
 		less than a second apart, over and over), there is no tick to show, so
 		the spark steps aside instead of lying.
@@ -35,6 +39,7 @@ local Module = K:GetModule("UnitFrames")
 local Build = Module.Build
 
 local CreateFrame = CreateFrame
+local C_Timer = C_Timer
 local GetTime = GetTime
 local UnitIsDeadOrGhost = UnitIsDeadOrGhost
 local UnitPower = UnitPower
@@ -66,6 +71,12 @@ local SPARK_WIDTH = 16
 
 -- How long spending mana stops spirit regen.
 local FIVE_SECOND_RULE = 5
+
+-- Forever keeps the player's current mana secret, even out of combat, so a rise
+-- cannot be told from a spend by comparing values. Then every power update is a
+-- candidate tick, held this long, and dropped if one of the player's casts lands
+-- within it either side. The spend and the cast event can arrive in either order.
+local SPEND_WINDOW = 0.25
 
 -- Only these two have a tick worth showing.
 local TICKING = { MANA = true, ENERGY = true }
@@ -211,24 +222,51 @@ local function OnRise(tick, now)
 	UpdateShown(tick)
 end
 
+-- Settles a held power update once the spend window has passed. Anything the
+-- player cast or channelled near it was the cost going out, not a tick.
+local function SettlePending(tick)
+	local at = tick.pendingAt
+	tick.pendingAt = nil
+	if not at or tick.channeling then
+		return
+	end
+	local spent = tick.lastCast
+	if spent and abs(spent - at) <= SPEND_WINDOW then
+		Log("power update at %.2f was a spend, skipped", at)
+		return
+	end
+	OnRise(tick, at)
+end
+
 local function OnEvent(driver, event, unit, token, spellID)
 	local tick = driver.tick
 
 	if event == "UNIT_SPELLCAST_SUCCEEDED" or event == "UNIT_SPELLCAST_CHANNEL_START" then
 		-- token is the cast GUID here.
+		tick.lastCast = GetTime()
+		if event == "UNIT_SPELLCAST_CHANNEL_START" then
+			tick.channeling = true
+		end
 		if tick.ruleSpark and CostsMana(spellID) then
 			tick.ruleEnd = GetTime() + FIVE_SECOND_RULE
 			Log("mana spent, five second rule until %.1f", tick.ruleEnd)
 			UpdateShown(tick)
 		end
+	elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+		tick.channeling = false
+		tick.lastCast = GetTime()
 	elseif event == "UNIT_POWER_UPDATE" then
 		if not tick.enabled or token ~= tick.token then
 			return
 		end
 		local value = UnitPower("player", tick.powerType)
 		if IsSecret(value) then
-			-- A protected reading cannot be compared. The beat carries on.
+			-- Nothing to compare, so hold it and let the spend window decide.
 			tick.lastValue = nil
+			if not tick.channeling and not tick.pendingAt then
+				tick.pendingAt = GetTime()
+				C_Timer.After(SPEND_WINDOW, tick.settle)
+			end
 			return
 		end
 		local last = tick.lastValue
@@ -278,6 +316,10 @@ function Build.PowerTick(self)
 	local driver = CreateFrame("Frame", nil, bar)
 	local tick = { bar = bar, spark = spark, driver = driver, showTick = db.PowerTick and true or false }
 	driver.tick = tick
+	-- Made once, so a held power update does not build a closure each time.
+	tick.settle = function()
+		SettlePending(tick)
+	end
 
 	if showRule then
 		local gold = K.Colors.gold or K.Colors.accent
@@ -302,10 +344,12 @@ function Build.PowerTick(self)
 		ruleText:SetTextColor(gold[1], gold[2], gold[3])
 		ruleText:Hide()
 		tick.ruleText = ruleText
-
-		driver:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-		driver:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
 	end
+	-- Casts feed the five second rule and, with secret mana, tell a spend from a
+	-- tick, so they are watched either way.
+	driver:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+	driver:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+	driver:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 	driver:SetScript("OnEvent", OnEvent)
 	driver:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
 	driver:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
