@@ -106,7 +106,7 @@ function Module:CreateChatBar()
 	-- row lines up flush with the chat text above it. The button is just wide enough
 	-- for its label plus a little breathing room for the hover wash.
 	local PADDING = 8
-	local GAP = 8
+	local GAP = 6
 	local buttons = BuildButtons()
 	RefreshColors(buttons)
 	local x = 0

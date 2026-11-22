@@ -52,7 +52,7 @@ local TOP_BAND = 40
 local BOTTOM_BAND = 44 -- money / free slots on one line, currencies above them
 Module.BOTTOM_BAND = BOTTOM_BAND -- exposed so the bag strip can sit above it
 local HEADER_H = 16
-local GROUP_GAP = 8
+local GROUP_GAP = 6
 
 -- The dedicated reagent pouch, so its free slots can sit under its own shelf.
 local REAGENT_BAG = Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
@@ -1107,9 +1107,9 @@ end
 -- the window is placed just left of whichever of them are on. With neither on it
 -- sits near the edge. The width comes from the same config the bars are laid out
 -- from, so it follows their size and spacing.
-local EDGE_GAP = 4
+local EDGE_GAP = 4 -- matches the side bars' own inset from the screen edge
 local BAR_GAP = 6
-local BAG_CLEARANCE = 14
+local BAG_CLEARANCE = 6
 
 local function SideBarsWidth()
 	local bars = C.ActionBar

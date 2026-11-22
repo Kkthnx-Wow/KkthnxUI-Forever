@@ -105,11 +105,11 @@ K.ConfigDefaults = {
 			[8] = { 0.25, 0.72, 0.30 },
 		},
 
-		Player = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, AutoShotBar = true, AutoShotWidth = 242, AutoShotHeight = 12, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
-		Target = { Enable = true, Width = 220, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true },
+		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, AutoShotBar = true, AutoShotWidth = 242, AutoShotHeight = 12, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
+		Target = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true },
 		TargetOfTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true },
-		Focus = { Enable = true, Width = 200, Height = 34, PowerHeight = 14, ShowPower = true, Debuffs = true },
+		Focus = { Enable = true, Width = 204, Height = 34, PowerHeight = 14, ShowPower = true, Debuffs = true },
 		FocusTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Party = { Enable = true, Width = 150, Height = 26, PowerHeight = 10, ShowPower = true, ShowSolo = false, ShowPlayer = true, Debuffs = true, DispelHighlight = true, Portrait = true, Castbar = true, RaidStyle = false, Spacing = 24, RoleIcon = true, HealthText = "Default", NameLength = 0 },
 		-- Height is the health bar, the power bar (PowerHeight) sits below it with a
@@ -120,6 +120,9 @@ K.ConfigDefaults = {
 		Boss = { Enable = true, Width = 150, Height = 24, PowerHeight = 10, ShowPower = true, Spacing = 34, Debuffs = true, Castbar = true, Portrait = true },
 
 		Auras = {
+			-- Spacing is the UI's one 6 pixel gap. The frame widths are picked so a
+			-- full row ends flush: seven 26 pixel icons span the 218 pixel player and
+			-- target, seven 24 pixel ones the 204 pixel focus.
 			BuffSize = 26,
 			DebuffSize = 26,
 			PerRow = 7,
@@ -185,7 +188,7 @@ K.ConfigDefaults = {
 
 	Nameplate = {
 		Enable = true,
-		Width = 150,
+		Width = 154, -- five 26 pixel debuffs with the 6 pixel gap span it exactly
 		Height = 14,
 		NameSize = 12,
 		ClassColor = true,
@@ -220,8 +223,8 @@ K.ConfigDefaults = {
 		NonTargetAlpha = 1, -- alpha of the other plates while you have a target, 1 is off
 		ExecuteColor = { 0.9, 0.2, 0.2 },
 		MaxDistance = 60,
-		MaxAuras = 5, -- five 24 pixel icons fill the 150 pixel plate without running past it
-		AuraSize = 24,
+		MaxAuras = 5,
+		AuraSize = 26,
 		AuraSpacing = 6,
 		PrivateAuras = true, -- Blizzard private auras (boss mechanics) on the plate
 		PrivateAuraSize = 28,

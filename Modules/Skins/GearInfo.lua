@@ -35,7 +35,7 @@ local IsSecret = K.IsSecret
 local crimson = K.Colors.crimson
 
 local ICON_SIZE = 14
-local ICON_GAP = 3
+local ICON_GAP = 6
 local MAX_GEMS = 3
 local MISSING_ICON = 134400 -- inv_misc_questionmark
 local EMPTY_SOCKET_ATLAS = "character-emptysocket" -- Blizzard's own, used by the slot socket display
@@ -135,11 +135,11 @@ local function Place(slot, overlay, id)
 	local step = (index - 1) * (ICON_SIZE + ICON_GAP)
 	frame:ClearAllPoints()
 	if WEAPONS[id] then
-		frame:SetPoint("BOTTOMLEFT", slot, "TOPLEFT", step, 4)
+		frame:SetPoint("BOTTOMLEFT", slot, "TOPLEFT", step, ICON_GAP)
 	elseif LEFT_COLUMN[id] then
-		frame:SetPoint("TOPLEFT", slot, "TOPRIGHT", 4 + step, -2)
+		frame:SetPoint("TOPLEFT", slot, "TOPRIGHT", ICON_GAP + step, -2)
 	else
-		frame:SetPoint("TOPRIGHT", slot, "TOPLEFT", -4 - step, -2)
+		frame:SetPoint("TOPRIGHT", slot, "TOPLEFT", -ICON_GAP - step, -2)
 	end
 	frame.gemID, frame.isMissing, frame.slotName = nil, nil, nil
 	frame:Show()

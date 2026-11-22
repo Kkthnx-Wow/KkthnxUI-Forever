@@ -190,7 +190,7 @@ function Module:CollectButtons()
 	-- size rather than whatever the addon authored, so a row reads evenly however
 	-- mixed the sources are.
 	local SIZE = C.Minimap.CollectedButtonSize or 22
-	local GAP = 4
+	local GAP = 6
 	local PAD = 6
 	local PER_ROW = 8
 

@@ -24,7 +24,7 @@ local GetProfessions, GetProfessionInfo = GetProfessions, GetProfessionInfo
 local C_SpellBook, C_Spell = C_SpellBook, C_Spell
 
 local SIZE = 32
-local GAP = 4
+local GAP = 6
 
 -- Professions whose first spell is the whole profession. The rest list extra
 -- spells worth having, like the cooking fire.
@@ -65,7 +65,7 @@ local function AddTab(spellID)
 	tab:SetScript("OnLeave", GameTooltip_Hide)
 
 	if #tabs == 0 then
-		tab:SetPoint("TOPLEFT", window, "TOPRIGHT", 4, -36)
+		tab:SetPoint("TOPLEFT", window, "TOPRIGHT", GAP, -36)
 	else
 		tab:SetPoint("TOPLEFT", tabs[#tabs], "BOTTOMLEFT", 0, -GAP)
 	end
