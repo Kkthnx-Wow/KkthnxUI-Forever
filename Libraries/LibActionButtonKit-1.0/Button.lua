@@ -30,6 +30,7 @@ local Button = {}
 Kit.Button = Button
 
 local DEFAULT_SIZE = 36
+local FLYOUT_ARROW_ATLAS = "UI-Journeys-Delve-Arrow-Big-Left"
 
 -- Option defaults. A host passes only what it changes.
 Kit.defaults = {
@@ -128,13 +129,22 @@ local function BuildRegions(button)
 	button.Name = name
 
 	-- Marks a button whose action is a flyout. Placed and turned by Update.
+	-- baseTurn is the turn that makes the art point up, since the art sets differ.
 	local arrow = text:CreateTexture(nil, "OVERLAY")
-	if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("UI-HUD-ActionBar-Flyout") then
+	local hasAtlas = C_Texture and C_Texture.GetAtlasInfo
+	if hasAtlas and C_Texture.GetAtlasInfo(FLYOUT_ARROW_ATLAS) then
+		-- Points left.
+		arrow:SetAtlas(FLYOUT_ARROW_ATLAS)
+		arrow:SetSize(12, 19)
+		arrow.baseTurn = -math.pi / 2
+	elseif hasAtlas and C_Texture.GetAtlasInfo("UI-HUD-ActionBar-Flyout") then
 		arrow:SetAtlas("UI-HUD-ActionBar-Flyout", true)
+		arrow.baseTurn = 0
 	else
 		arrow:SetTexture("Interface\\Buttons\\ActionBarFlyoutButton")
 		arrow:SetTexCoord(0.625, 0.984375, 0.7421875, 0.828125)
 		arrow:SetSize(18, 8)
+		arrow.baseTurn = 0
 	end
 	arrow:Hide()
 	button.FlyoutArrow = arrow

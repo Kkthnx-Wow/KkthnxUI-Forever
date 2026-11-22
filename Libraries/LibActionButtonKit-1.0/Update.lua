@@ -423,13 +423,14 @@ end
 -- Flyout arrow
 -- ---------------------------------------------------------------------------
 
--- Point, edge offset and turn for each direction the bar's flyouts open. The
--- arrow art points up.
+-- Edge, offset and turn for each direction the bar's flyouts open. The turn is
+-- from pointing up, and the art's own baseTurn (set in Button.lua) is added on.
+-- The arrow is centred on the edge so it sits half over the border.
 local ARROW = {
-	UP = { "TOP", 0, 2, 0 },
-	DOWN = { "BOTTOM", 0, -2, math.pi },
-	LEFT = { "LEFT", -2, 0, math.pi / 2 },
-	RIGHT = { "RIGHT", 2, 0, -math.pi / 2 },
+	UP = { "TOP", 0, 0, 0 },
+	DOWN = { "BOTTOM", 0, 0, math.pi },
+	LEFT = { "LEFT", 0, 0, math.pi / 2 },
+	RIGHT = { "RIGHT", 0, 0, -math.pi / 2 },
 }
 
 function Update.FlyoutArrow(button)
@@ -442,8 +443,8 @@ function Update.FlyoutArrow(button)
 	end
 	local place = ARROW[buttonData.bar:GetAttribute("kit-flyoutdir") or "UP"] or ARROW.UP
 	arrow:ClearAllPoints()
-	arrow:SetPoint(place[1], button, place[1], place[2], place[3])
-	arrow:SetRotation(place[4])
+	arrow:SetPoint("CENTER", button, place[1], place[2], place[3])
+	arrow:SetRotation(place[4] + (arrow.baseTurn or 0))
 	arrow:Show()
 end
 
