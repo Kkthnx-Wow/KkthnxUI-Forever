@@ -1218,7 +1218,7 @@ GUI.schema = {
 				end },
 
 				{ kind = "header", label = L["Objective Tracker"] },
-				{ kind = "check", label = L["Skin Objective Tracker"], path = { "Skins", "ObjectiveTracker" }, reload = true, tooltip = L["Hide the quest tracker header backgrounds, tidy the minimise button, and recolour its bars."] },
+				{ kind = "check", label = L["Skin Objective Tracker"], path = { "Skins", "ObjectiveTracker" }, reload = true, tooltip = L["Strip the quest tracker to text with our font and collapse arrows, border its quest item buttons, and recolour its bars."] },
 				{ kind = "check", label = L["Class-Coloured Bars"], path = { "Skins", "ObjectiveTrackerClassColor" }, tooltip = L["Tint quest progress and timer bars with your class colour instead of the accent colour."], dependsOn = { "Skins", "ObjectiveTracker" } },
 		},
 	},
