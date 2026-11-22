@@ -65,25 +65,12 @@ local function NewFakeAura(host, size, harmful, i, shadow)
 	button:SetSize(size, size)
 	local c = FAKE_DISPEL[(i - 1) % #FAKE_DISPEL + 1]
 	if shadow then
-		-- Nameplate icons wear the soft shadow, with the dispel school as a thin
-		-- coloured edge, the same as the real ones.
+		-- Nameplate icons wear the soft shadow, tinted by dispel school the way the
+		-- real ones are. The undispellable stand-in keeps the plain black shadow,
+		-- as a real debuff with no school does.
 		K.CreateShadow(button, 3)
-		if harmful then
-			local function Edge(p1, p2, w, h)
-				local edge = button:CreateTexture(nil, "OVERLAY")
-				edge:SetColorTexture(c[1], c[2], c[3], 1)
-				edge:SetPoint(p1, button, p1, p1:find("RIGHT") and 1 or -1, p1:find("TOP") and 1 or -1)
-				edge:SetPoint(p2, button, p2, p2:find("RIGHT") and 1 or -1, p2:find("TOP") and 1 or -1)
-				if w then
-					edge:SetWidth(w)
-				else
-					edge:SetHeight(h)
-				end
-			end
-			Edge("TOPLEFT", "TOPRIGHT", nil, 2)
-			Edge("BOTTOMLEFT", "BOTTOMRIGHT", nil, 2)
-			Edge("TOPLEFT", "BOTTOMLEFT", 2)
-			Edge("TOPRIGHT", "BOTTOMRIGHT", 2)
+		if harmful and i % #FAKE_DISPEL ~= 0 then
+			K.SetShadowColor(button, c[1], c[2], c[3], 1)
 		end
 	else
 		-- The addon's own border, with a debuff tinting its segments by dispel

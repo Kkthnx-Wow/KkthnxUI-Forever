@@ -1179,7 +1179,10 @@ local function BuildIndicators(self)
 	if db.ShowClassification then
 		local icon = self.Health:CreateTexture(nil, "OVERLAY")
 		icon:SetSize(db.NameSize + 6, db.NameSize + 6)
-		icon:SetPoint("RIGHT", self.Name, "LEFT", -2, 0)
+		-- Off the left end of the bar, mirroring the quest marker on the right.
+		-- The name is centred on a strip wider than its text, so hanging the icon
+		-- off the name left it floating well away from short names.
+		icon:SetPoint("RIGHT", self.Health, "LEFT", -1, 0)
 		icon:Hide()
 		self.Classification = icon
 	end

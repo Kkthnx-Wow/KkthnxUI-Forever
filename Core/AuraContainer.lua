@@ -34,6 +34,9 @@ local unpack = unpack
 local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
 
+-- The eight edge and corner textures BackdropTemplate builds for a border.
+local SHADOW_PIECES = { "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner", "TopEdge", "BottomEdge", "LeftEdge", "RightEdge" }
+
 -- Feature probe: the intrinsic and its enums only exist on the Midnight client.
 local function Available()
 	return CreateFrame and CustomAuraContainerAuraProcessingPolicy and AuraContainerSortMethod and AnchorUtil and AnchorUtil.FlowDirection
@@ -216,12 +219,28 @@ local function MakeInitializer(opts)
 						pcall(button.AddDispelTypeTexture, button, segments[i], dispelOpts)
 					end
 				end
+			elseif button.KKUI_Shadow and button.KKUI_Shadow.TopEdge then
+				-- Shadow buttons (nameplates): tint the shadow's own backdrop pieces, so
+				-- a poison or magic debuff glows in its school colour and an untyped one
+				-- keeps the plain black shadow. The backdrop tiles its edges itself, so
+				-- this avoids the ragged bars a single stretched glow texture gave.
+				local shadow = button.KKUI_Shadow
+				local dispelOpts = {
+					style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
+					showWhenHarmful = true,
+					showWithoutDispelType = true,
+					customDispelColorMap = { None = CreateColor(0, 0, 0, 1) },
+				}
+				for _, key in ipairs(SHADOW_PIECES) do
+					local piece = shadow[key]
+					if piece then
+						pcall(button.AddDispelTypeTexture, button, piece, dispelOpts)
+					end
+				end
 			else
-				-- Shadow buttons (nameplates) keep their soft shadow, so the dispel
-				-- cue is a thin coloured edge on all four sides rather than a border.
-				-- A stretched glow texture rendered as ragged vertical bars, so these
-				-- are plain solid slivers the engine tints per dispel school. Untyped
-				-- debuffs map "None" to transparent, so only real schools light up.
+				-- Fallback when the shadow has no backdrop pieces: a thin coloured
+				-- edge on all four sides. Untyped debuffs map "None" to transparent,
+				-- so only real schools light up.
 				local dispelOpts = {
 					style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
 					showWhenHarmful = true,
