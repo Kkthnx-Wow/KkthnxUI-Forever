@@ -428,7 +428,6 @@ K.ConfigDefaults = {
 		RareAlertChat = true, -- print a map link in chat with the rare alert
 		BlockInvites = false, -- turn away group invites from strangers
 		BlockRequests = false, -- also turn away requests to join your group
-		CopyName = false, -- add Copy Name to player right click menus
 		QuickDelete = false, -- fill in the typed word on the delete good item dialog
 		LootSparkle = false, -- keep the sparkle on lootable quest items through graphics presets
 		FastLoot = false, -- take all loot at once when the game would auto loot

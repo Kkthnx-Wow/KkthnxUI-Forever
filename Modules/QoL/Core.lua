@@ -15,7 +15,6 @@
 			SecondaryStats.lua   class combat stats readout
 			RareAlert.lua        announce rares that appear on the minimap
 			BlockInvites.lua     turn away group invites from strangers
-			CopyName.lua         "Copy Name" on player right click menus
 			TradeTabs.lua        profession icons down the side of the professions window
 			Crosshair.lua        a small crosshair in the middle of the screen
 			QuestAnnounce.lua    tell the group about accepted and finished quests
@@ -170,7 +169,6 @@ local FEATURES = {
 	{ "SecondaryStats", "SetupSecondaryStats" },
 	{ "RareAlert", "SetupRareAlert" },
 	{ "BlockInvites", "SetupBlockInvites" },
-	{ "CopyName", "SetupCopyName" },
 	{ "TradeTabs", "SetupTradeTabs" },
 	{ "Crosshair", "SetupCrosshair" },
 	{ "QuestAnnounce", "SetupQuestAnnounce" },

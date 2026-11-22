@@ -1140,7 +1140,6 @@ GUI.schema = {
 			{ kind = "check", label = L["Faster Auto Loot"], path = { "QoL", "FastLoot" }, since = "1.0.0-beta7", reload = true, tooltip = L["Take everything at once when you auto loot, instead of one item at a time. Follows the game's Auto Loot setting and its modifier key. Locked items and group rolls are left alone."] },
 			{ kind = "check", label = L["Block Stranger Invites"], path = { "QoL", "BlockInvites" }, reload = true, tooltip = L["Turn away group invites from anyone who is not a friend, Battle.net friend or guild member. Not used while you have a group finder application or listing."] },
 			{ kind = "check", label = L["Block Join Requests"], path = { "QoL", "BlockRequests" }, dependsOn = { "QoL", "BlockInvites" }, tooltip = L["Also turn away requests from strangers to join your group."] },
-			{ kind = "check", label = L["Copy Name Menu Entry"], path = { "QoL", "CopyName" }, reload = true, tooltip = L["Add Copy Name to the right click menu of players."] },
 			{ kind = "check", label = L["Quick Item Delete"], path = { "QoL", "QuickDelete" }, since = "1.0.0-beta6", reload = true, tooltip = L["Fill in DELETE for you when destroying a good or quest item, so it only takes a click on Yes. The dialog still asks first."] },
 			{ kind = "check", label = L["Trade Partner Info"], path = { "QoL", "TradeInfo" }, since = "1.0.0-beta6", reload = true, tooltip = L["Show under the trade partner's name whether they are a friend, a Battle.net friend, a guild member or a stranger."] },
 
