@@ -9,8 +9,12 @@
 		overlays. A labelled checkbox on the world map's title bar quick-toggles it
 		on and off, and the choice is saved.
 
-		The heavy function is hooked onto each MapExplorationPin's RefreshOverlays,
-		so it runs whenever the map redraws its exploration layer.
+		The drawing is a post hook on each MapExplorationPin's RefreshOverlays, so
+		it runs whenever the map redraws its exploration layer. It draws only into
+		textures it created itself on the pin. Blizzard's overlay pool, texture
+		load group and pin fields are never touched, and no Blizzard map method is
+		called from here, since writing that state from addon code taints the map
+		refresh that reads it.
 -----------------------------------------------------------------------------]]
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
@@ -19,6 +23,7 @@ local Module = K:GetModule("WorldMap")
 
 local _G = _G
 local pairs = pairs
+local ipairs = ipairs
 local wipe = wipe
 local ceil = math.ceil
 local tinsert = table.insert
@@ -33,9 +38,12 @@ local C_MapExplorationInfo = C_MapExplorationInfo
 local WorldMapFrame = _G.WorldMapFrame
 local GameTooltip = _G.GameTooltip
 
--- Scratch tables reused across refreshes so a redraw never churns garbage. shown
--- holds the overlays we drew this pass (so the toggle can show/hide them live).
-local shown, exploredKeys, fileIDs, active = {}, {}, {}, {}
+-- Scratch tables reused across refreshes so a redraw never churns garbage.
+local exploredKeys, fileIDs = {}, {}
+
+-- Our own tile textures, per pin, kept here rather than as a field on the pin.
+-- A redraw reuses them from the start and hides whatever is left over.
+local tilesByPin = {}
 
 -- The overlay data keys a region as "W<w>H<h>X<x>Y<y>". These turn a live explored
 -- texture into that key, and a key back into its numbers.
@@ -65,37 +73,62 @@ local function NextPow2(n)
 	return size
 end
 
--- Hooked onto a MapExplorationPin's RefreshOverlays, so `pin` is that pin. For the
--- current map it walks our raw overlay data and draws every region the player has
--- not explored, tiling each region exactly the way the client does its own
--- exploration overlays.
-local function RefreshOverlays(pin, fullUpdate)
-	wipe(shown)
-	wipe(exploredKeys)
-	for _, tex in pairs(active) do
-		tex:SetVertexColor(1, 1, 1)
+-- Hide every tile from index first onwards.
+local function HideFrom(tiles, first)
+	for i = first, #tiles do
+		tiles[i]:Hide()
 	end
-	wipe(active)
+end
 
-	-- With reveal off, do no further work in this hook. Running the overlay draw
-	-- here taints the map's refresh, which then breaks Blizzard's own secret sized
-	-- widget tooltips on area points of interest. Off means untouched.
+local function AcquireTile(pin, tiles, index)
+	local texture = tiles[index]
+	if not texture then
+		-- A region on the pin, drawn just under Blizzard's own explored overlays,
+		-- so it scales and fades with the map like they do.
+		texture = pin:CreateTexture(nil, "ARTWORK", nil, -1)
+		tiles[index] = texture
+	end
+	texture:ClearAllPoints()
+	return texture
+end
+
+-- Draws every region of the current map the player has not explored, tiled
+-- exactly the way the client tiles its own exploration overlays. Runs after
+-- Blizzard's RefreshOverlays, and straight from the checkbox.
+local function DrawReveal(pin)
+	local tiles = tilesByPin[pin]
+	if not tiles then
+		tiles = {}
+		tilesByPin[pin] = tiles
+	end
+
 	if not C.WorldMap.Reveal then
+		HideFrom(tiles, 1)
+		return
+	end
+
+	-- The scroll container builds its zoom levels when a map first loads into it.
+	-- Before that, at login, asking for the current layer reads a nil table.
+	local scroll = WorldMapFrame.ScrollContainer
+	if not (scroll and scroll.zoomLevels) then
+		HideFrom(tiles, 1)
 		return
 	end
 
 	local mapID = WorldMapFrame:GetMapID()
-	if not mapID then
-		return
-	end
-	local artID = C_Map.GetMapArtID(mapID)
+	local artID = mapID and C_Map.GetMapArtID(mapID)
 	local data = artID and Module.RawMapData[artID]
-	if not data then
+	local layers = data and C_Map.GetMapArtLayers(mapID)
+	local layer = layers and layers[scroll:GetCurrentLayerIndex()]
+	if not layer then
+		HideFrom(tiles, 1)
 		return
 	end
+	local tileW, tileH = layer.tileWidth, layer.tileHeight
 
 	-- Regions the player already explored are drawn by the client, so skip ours for
 	-- those or they would double up.
+	wipe(exploredKeys)
 	local explored = C_MapExplorationInfo.GetExploredMapTextures(mapID)
 	if explored then
 		for _, info in pairs(explored) do
@@ -103,18 +136,8 @@ local function RefreshOverlays(pin, fullUpdate)
 		end
 	end
 
-	if not pin.__kkuiLayer then
-		pin.__kkuiLayer = WorldMapFrame.ScrollContainer:GetCurrentLayerIndex()
-	end
-	local layers = C_Map.GetMapArtLayers(mapID)
-	local layer = layers and layers[pin.__kkuiLayer]
-	if not layer then
-		return
-	end
-	local tileW, tileH = layer.tileWidth, layer.tileHeight
-
-	local reveal = C.WorldMap.Reveal
 	local shade = C.WorldMap.RevealDim and 0.7 or 1
+	local used = 0
 
 	for key, idString in pairs(data) do
 		if not exploredKeys[key] then
@@ -137,38 +160,28 @@ local function RefreshOverlays(pin, fullUpdate)
 					end
 					local fileW = (col < wide) and tileW or NextPow2(pixelW)
 
-					local texture = pin.overlayTexturePool:Acquire()
-					tinsert(active, texture)
-					texture:SetWidth(pixelW)
-					texture:SetHeight(pixelH)
+					used = used + 1
+					local texture = AcquireTile(pin, tiles, used)
+					texture:SetSize(pixelW, pixelH)
 					texture:SetTexCoord(0, pixelW / fileW, 0, pixelH / fileH)
-					texture:SetPoint("TOPLEFT", offsetX + tileW * (col - 1), -(offsetY + tileH * (row - 1)))
+					texture:SetPoint("TOPLEFT", pin, "TOPLEFT", offsetX + tileW * (col - 1), -(offsetY + tileH * (row - 1)))
 					texture:SetTexture(fileIDs[(row - 1) * wide + col], nil, nil, "TRILINEAR")
-
-					if reveal then
-						texture:SetVertexColor(shade, shade, shade)
-						texture:SetDrawLayer("ARTWORK", -1)
-						texture:Show()
-						if fullUpdate and pin.textureLoadGroup then
-							pin.textureLoadGroup:AddTexture(texture)
-						end
-					else
-						texture:Hide()
-					end
-					tinsert(shown, texture)
+					texture:SetVertexColor(shade, shade, shade)
+					texture:Show()
 				end
 			end
 		end
 	end
+
+	HideFrom(tiles, used + 1)
 end
 
 -- The pins are created when the map first draws, so hooking may need a retry on
 -- the first show. Runs once successfully.
 --
--- There used to be a line here that assigned a reset function onto the pin's
--- texture pool. In 12.1 those pools are secure variants reached through a proxy
--- and their reset hook is a private field called resetFunc, so that assignment
--- wrote a key nothing reads. It did nothing and is gone.
+-- No reset function is assigned onto the pin's texture pool. In 12.1 those pools
+-- are secure variants reached through a proxy and their reset hook is a private
+-- field called resetFunc, so such an assignment writes a key nothing reads.
 local hooked
 local function HookPins()
 	-- Only take the hook while reveal is on, so an off setting leaves the map
@@ -178,7 +191,10 @@ local function HookPins()
 	end
 	for pin in WorldMapFrame:EnumeratePinsByTemplate("MapExplorationPinTemplate") do
 		hooked = true
-		hooksecurefunc(pin, "RefreshOverlays", RefreshOverlays)
+		hooksecurefunc(pin, "RefreshOverlays", DrawReveal)
+		-- The map's own refresh for this showing has already run, so draw once now
+		-- instead of waiting for the next one.
+		DrawReveal(pin)
 	end
 end
 
@@ -227,27 +243,26 @@ function Module:SetupReveal()
 	local gold = K.Colors.highlight
 	label:SetTextColor(gold[1], gold[2], gold[3])
 
-	-- Quick toggle: flip the saved setting and show or hide what is already drawn,
+	-- Quick toggle. Flip the saved setting and show or hide what is already drawn,
 	-- so it applies instantly without waiting for the next map redraw.
 	check:SetScript("OnClick", function(self)
 		local on = self:GetChecked() and true or false
 		-- Through SetConfig so the choice lands in the saved profile, not only the
 		-- live table, which is rebuilt from the profile on every reload.
 		K:SetConfig({ "WorldMap", "Reveal" }, on)
+		-- Take the hook the first time it goes on, then draw or clear our own
+		-- tiles on the pins already there. Blizzard's refresh is not called.
 		if on then
-			-- Take the hook now if this is the first time on, then draw for the pins
-			-- already on the map so it applies without waiting for a redraw.
 			HookPins()
-			if WorldMapFrame.EnumeratePinsByTemplate then
-				for pin in WorldMapFrame:EnumeratePinsByTemplate("MapExplorationPinTemplate") do
-					if pin.RefreshOverlays then
-						pin:RefreshOverlays(true)
-					end
+		end
+		for pin in pairs(tilesByPin) do
+			DrawReveal(pin)
+		end
+		if on and WorldMapFrame.EnumeratePinsByTemplate then
+			for pin in WorldMapFrame:EnumeratePinsByTemplate("MapExplorationPinTemplate") do
+				if not tilesByPin[pin] then
+					DrawReveal(pin)
 				end
-			end
-		else
-			for i = 1, #shown do
-				shown[i]:SetShown(false)
 			end
 		end
 	end)
