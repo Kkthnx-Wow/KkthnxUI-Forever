@@ -398,15 +398,24 @@ end
 -- Completion state + lifecycle
 -- ---------------------------------------------------------------------------
 
--- Setup is a first run greeting. Any recorded version counts as done, so an
--- update does not put the window back on screen. /kk install reopens it.
+-- Setup runs once per character, since the chat windows and several game
+-- settings it applies are saved per character. Any recorded version counts as
+-- done, so an update does not put the window back on screen. /kk install
+-- reopens it. installedVersion stays account wide for the What's New baseline.
+local function CharKey()
+	return K.Name .. " - " .. K.Realm
+end
+
 function Module:IsInstalled()
-	return KkthnxUIDB and KkthnxUIDB.installedVersion ~= nil
+	local done = KkthnxUIDB and KkthnxUIDB.installedChars
+	return done ~= nil and done[CharKey()] ~= nil
 end
 
 function Module:MarkInstalled()
 	KkthnxUIDB = KkthnxUIDB or {}
 	KkthnxUIDB.installedVersion = K.Version
+	KkthnxUIDB.installedChars = KkthnxUIDB.installedChars or {}
+	KkthnxUIDB.installedChars[CharKey()] = K.Version
 end
 
 function Module:OnEnable()
