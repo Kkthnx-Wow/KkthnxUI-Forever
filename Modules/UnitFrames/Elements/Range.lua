@@ -8,7 +8,8 @@
 		boss or raid member outside your own subgroup was always drawn at full
 		alpha. This replaces its update with one that works for every unit:
 			group members   the game's group range check (about 40 yards)
-			enemies         your own attack spells: in range of any of them
+			enemies         your own attack spells: in range of any of them,
+			                or within duel distance (a hunter in melee)
 			friends         your own healing or buff spells
 			anything else   follow distance, outside combat only
 		A check that cannot be answered counts as in range, so a frame never
@@ -46,6 +47,8 @@ local IsSecret = K.IsSecret
 local POLL = 0.2
 -- CheckInteractDistance index 4 is follow distance, about 28 yards.
 local FOLLOW = 4
+-- Index 3 is duel distance, about 10 yards.
+local DUEL = 3
 
 -- Spells used as range probes, lowest rank. A unit counts as in range when any
 -- known probe reaches it, so a hunter in melee is caught by Wing Clip and a
@@ -135,6 +138,16 @@ local function UnitRange(unit)
 	local result
 	if UnitCanAttack("player", unit) then
 		result = Probe(harm, unit)
+		-- A probe can miss a unit that is too close rather than too far, like Auto
+		-- Shot inside its minimum range for a hunter without Wing Clip yet. The
+		-- game still answers distance checks on enemies in combat (only friendly
+		-- ones are held back), so a unit inside duel range counts as in range.
+		if result == false then
+			local close = CheckInteractDistance(unit, DUEL)
+			if close and not IsSecret(close) then
+				result = true
+			end
+		end
 	elseif UnitCanAssist("player", unit) then
 		result = Probe(help, unit)
 	end
