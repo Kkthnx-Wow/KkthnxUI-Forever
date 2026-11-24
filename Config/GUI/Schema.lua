@@ -11,7 +11,7 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local GUI = K.GUI
 
--- Marking a setting as new: give it `since = "<version>"`, the release that adds
+-- To mark a setting as new, give it `since = "<version>"`, the release that adds
 -- it, for example `since = "1.0.0-beta5"`. Until its page is opened it carries
 -- Blizzard's NEW label and shows on the What's New page. A player who installs
 -- at or after that version sees nothing marked, so a tag is safe to leave in
@@ -23,7 +23,7 @@ local function ActionBarModule()
 	return K:GetModule("ActionBars", true)
 end
 
--- Live-apply helper: relayout one bar after a setting changes.
+-- Live-apply helper. Relayout one bar after a setting changes.
 local function ApplyBar(key)
 	return function()
 		local AB = ActionBarModule()
@@ -217,7 +217,7 @@ local function BarButton(title, key, tooltip)
 	}
 end
 
--- Generic flyout button: opens a panel laid out from a fixed control list.
+-- Generic flyout button. Opens a panel laid out from a fixed control list.
 local function ExtraButton(title, name, controls, tooltip)
 	return {
 		kind = "extra",
@@ -399,7 +399,7 @@ local function UnitControls(key, opts)
 		Add({ kind = "check", label = L["Show Portrait"], path = { "Unitframe", key, "Portrait" }, reload = true, dependsOn = dep })
 	end
 	if opts.raidStyle then
-		Add({ kind = "check", label = L["Raid-Style Frames"], path = { "Unitframe", key, "RaidStyle" }, reload = true, dependsOn = dep, tooltip = L["Use compact raid frames for the party: five healing frames that match the raid look and use the raid settings."] })
+		Add({ kind = "check", label = L["Raid-Style Frames"], path = { "Unitframe", key, "RaidStyle" }, reload = true, dependsOn = dep, tooltip = L["Use compact raid frames for the party, five healing frames that match the raid look and use the raid settings."] })
 	end
 	if opts.pvp then
 		Add({ kind = "check", label = L["Show PvP Icon"], path = { "Unitframe", key, "PvPIcon" }, reload = true, dependsOn = dep, tooltip = L["The faction or free for all badge beside the portrait while the unit is flagged for PvP."] })
@@ -509,7 +509,8 @@ GUI.schema = {
 				K.ToggleMovers(true)
 			end },
 			{ kind = "button", label = L["Reset Positions"], onClick = function()
-				K.ResetMovers()
+				-- Clears every saved position and the undo list, so it asks first.
+				K.Confirm(L["Put every frame back in its default place?"], K.ResetMovers)
 			end },
 			{ kind = "header", label = L["Border"] },
 			{ kind = "dropdown", label = L["Border Style"], path = { "General", "BorderStyle" }, options = BORDER_STYLES, reload = true, tooltip = L["The border texture used around frames and panels."] },
@@ -728,7 +729,7 @@ GUI.schema = {
 
 				{ kind = "header", label = L["World Map"] },
 				{ kind = "check", label = L["Enable World Map Tweaks"], path = { "WorldMap", "Enable" }, reload = true, tooltip = L["Shrink the maximized world map and show coordinates."] },
-				{ kind = "check", label = L["Smaller World Map (Experimental)"], path = { "WorldMap", "SmallerMap" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Scale the maximized map down so it no longer covers the whole screen. Experimental: resizing the map from addon code can block map pin clicks."] },
+				{ kind = "check", label = L["Smaller World Map (Experimental)"], path = { "WorldMap", "SmallerMap" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Scale the maximized map down so it no longer covers the whole screen. This is experimental, since resizing the map from addon code can block map pin clicks."] },
 				{ kind = "slider", label = L["Map Scale"], path = { "WorldMap", "Scale" }, min = 0.6, max = 1, step = 0.05, reload = true, dependsOn = { "WorldMap", "Enable" } },
 				{ kind = "check", label = L["Map Coordinates"], path = { "WorldMap", "Coordinates" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Show player and cursor coordinates in a corner of the map."] },
 				{ kind = "dropdown", label = L["Coordinate Position"], path = { "WorldMap", "CoordPosition" }, options = {
@@ -783,7 +784,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Font Outline"], path = { "Chat", "FontOutline" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "header", label = L["Behaviour"] },
 			{ kind = "check", label = L["Mouse Wheel Scroll"], path = { "Chat", "MouseWheelScroll" }, reload = true, dependsOn = { "Chat", "Enable" } },
-			{ kind = "check", label = L["Sticky Whisper (Experimental)"], path = { "Chat", "StickyWhisper" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Keep the edit box on whisper after replying. Experimental: it changes a chat setting that the stock edit box reads when you press Enter, which can taint whisper handling."] },
+			{ kind = "check", label = L["Sticky Whisper (Experimental)"], path = { "Chat", "StickyWhisper" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Keep the edit box on whisper after replying. This is experimental. It changes a chat setting that the stock edit box reads when you press Enter, which can taint whisper handling."] },
 			{ kind = "check", label = L["Whisper Sound"], path = { "Chat", "WhisperSound" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Play a sound when you receive a whisper."] },
 			{ kind = "check", label = L["Remember Chat History"], path = { "Chat", "HistoryPersist" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replay your recent player chat after a reload or relog."] },
 			{ kind = "header", label = L["Chat Bubbles"] },
@@ -864,7 +865,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Level (name-only)"], path = { "Nameplate", "FriendlyLevel" }, since = "1.0.0-beta7", reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show the level in front of the name on name-only plates. Enemy plates always show it."] },
 			{ kind = "check", label = L["Guild or Title (name-only)"], path = { "Nameplate", "ShowGuildName" }, reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show a player's guild, or an NPC's title such as Butcher or Flight Master, under the name in name-only mode."] },
 			{ kind = "header", label = L["Threat and Colours"] },
-			{ kind = "check", label = L["Threat Coloring"], path = { "Nameplate", "ThreatColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint the plate shadow by your threat: holding, losing, or pulling aggro."] },
+			{ kind = "check", label = L["Threat Coloring"], path = { "Nameplate", "ThreatColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint the plate shadow by your threat when you hold, lose or pull aggro."] },
 			{ kind = "check", label = L["Threat Health Color"], path = { "Nameplate", "ThreatHealthColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour the enemy health bar itself by your threat, role-aware, instead of by reaction."] },
 			{ kind = "check", label = L["Role Colors"], path = { "Nameplate", "RoleColors" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour hostile plates by caster or melee so casters stand out. A unit that runs on mana is read as a caster."] },
 			{ kind = "color", label = L["Caster Color"], path = { "Nameplate", "CasterColor" }, reload = true, dependsOn = { "Nameplate", "RoleColors" } },
@@ -972,7 +973,7 @@ GUI.schema = {
 		title = L["Group Tools"],
 		controls = {
 			{ kind = "header", label = L["Group Tools"] },
-			{ kind = "check", label = L["Enable Group Tools"], path = { "GroupTools", "Enable" }, reload = true, tooltip = L["A movable panel shown only in a group: ready check, role check, pull timer, world markers, target icons, and a role count."] },
+			{ kind = "check", label = L["Enable Group Tools"], path = { "GroupTools", "Enable" }, reload = true, tooltip = L["A movable panel shown only in a group, with ready check, role check, pull timer, world markers, target icons and a role count."] },
 			{ kind = "slider", label = L["Pull Timer Seconds"], path = { "GroupTools", "PullTime" }, min = 3, max = 30, step = 1, reload = true, dependsOn = { "GroupTools", "Enable" }, tooltip = L["Seconds counted down by the pull timer button."] },
 
 			{ kind = "header", label = L["Pull Command"] },

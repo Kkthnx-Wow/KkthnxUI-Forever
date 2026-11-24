@@ -444,7 +444,7 @@ function Module:SetupQuests()
 		if self.SetupGossip then
 			self:SetupGossip()
 		end
-		-- The failure guard: refusals, and the changes that lift a hold.
+		-- The failure guard. Refusals, and the changes that lift a hold.
 		self:RegisterEvent("UI_ERROR_MESSAGE", "OnQuestError")
 		self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagsChanged")
 		self:RegisterEvent("PLAYER_MONEY", "OnMoneyChanged")

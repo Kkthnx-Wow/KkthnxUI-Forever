@@ -130,7 +130,7 @@ local function CreateSlot(id)
 	-- A soft full-row highlight that only shows on hover.
 	local hover = slot:CreateTexture(nil, "BACKGROUND")
 	hover:SetAllPoints()
-	hover:SetColorTexture(1, 1, 1, 0.08)
+	hover:SetColorTexture(1, 1, 1, K.GradientAlpha.hover)
 	hover:Hide()
 	slot.hover = hover
 
@@ -347,6 +347,11 @@ end
 
 function Module:OnEnable()
 	if not C.Loot.Enable then
+		return
+	end
+	-- The Gamepad UI drives Blizzard's own loot window, and ours cannot be reached
+	-- by the controller. With it on, the stock window keeps its events.
+	if K.IsGamepadUI() then
 		return
 	end
 

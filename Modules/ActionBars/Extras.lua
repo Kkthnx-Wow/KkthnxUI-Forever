@@ -209,7 +209,7 @@ function Module:StyleVehicleLeave()
 	local bar1 = C.ActionBar.Bar1
 	button:SetSize(bar1.Size, bar1.Size)
 
-	-- Keep the original exit art: its icon IS the normal texture,
+	-- Keep the original exit art. Its icon IS the normal texture,
 	-- so instead of stripping it we crop the button-frame padding off and fit it
 	-- inside our border. Nuking it is what left the button blank.
 	local normal = button:GetNormalTexture()
@@ -221,7 +221,6 @@ function Module:StyleVehicleLeave()
 	end
 	local pushed = button:GetPushedTexture()
 	if pushed then
-		-- pushed:SetTexCoord(0.140625, 0.859375, 0.140625, 0.859375)
 		pushed:SetAllPoints(button)
 	end
 	-- Hover only. Its pushed texture is the icon art itself, so the square
@@ -234,7 +233,7 @@ function Module:StyleVehicleLeave()
 		-- The mixin sets its own highlight on every update, and a different one
 		-- after a taxi landing click, so put ours back each time.
 		hooksecurefunc(button, "SetHighlightTexture", StyleVehicleHighlight)
-		K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
+		K.CreateBackground(button, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 		K.CreateBorder(button)
 		-- These stock scripts taint through EditModeManager so we drop them. The
 		-- mixin still drives visibility through its own events.

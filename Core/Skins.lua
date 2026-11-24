@@ -28,6 +28,8 @@ K.Gradients = {
 	panel = { "VERTICAL", 0.050, 0.062, 0.080, 0.090, 0.114, 0.149, 0.95 },
 	buttonRest = { "VERTICAL", 0.090, 0.114, 0.149, 0.050, 0.065, 0.085, 0.9 },
 	buttonHover = { "VERTICAL", 0.220, 0.340, 0.520, 0.130, 0.200, 0.320, 1 },
+	-- The hover stops turned over, so a held button reads as pushed in.
+	buttonPressed = { "VERTICAL", 0.130, 0.200, 0.320, 0.220, 0.340, 0.520, 1 },
 	close = { "VERTICAL", 0.420, 0.120, 0.120, 0.680, 0.220, 0.220, 0.95 },
 	closeHover = { "VERTICAL", 0.600, 0.200, 0.200, 0.898, 0.325, 0.325, 1 },
 }
@@ -45,7 +47,7 @@ K.GradientAlpha = {
 	select = 0.22, -- this frame's unit is your target
 }
 
--- The tint those name strips wear. Deliberately dark and only faintly blue: the
+-- The tint those name strips wear. Deliberately dark and only faintly blue, the
 -- text sitting on it is class coloured, so a bright strip fights it. Kept here so
 -- both the unit frames and the group tools bar read the same value.
 K.StripColor = { 0.075, 0.094, 0.129 }
@@ -75,7 +77,7 @@ function K.ShadeGradient(texture, alpha)
 	K.FadeGradient(texture, 0, 0, 0, alpha or K.GradientAlpha.wash)
 end
 
--- A soft shade behind a piece of text: strongest in the middle, fading out to
+-- A soft shade behind a piece of text, strongest in the middle, fading out to
 -- both edges. A texture gradient only runs one way, so this is two mirrored
 -- halves that share one switch. Built from our own colours rather than a game
 -- atlas, so every one of these matches the rest of the UI and the colour and
@@ -83,7 +85,7 @@ end
 function K.CreateTextShade(parent, layer, subLevel)
 	local shade = {}
 
-	-- An invisible holder gives the pair one rectangle: the halves follow it, and
+	-- An invisible holder gives the pair one rectangle, the halves follow it, and
 	-- anything that needs to stack above the shade has a real frame to anchor to.
 	-- The textures stay on the parent so sitting on a child frame does not change
 	-- the draw layer they were asked for.
@@ -169,7 +171,7 @@ function K.StyleCooldownSwipe(cooldown, r, g, b, a)
 	end
 end
 
--- Panel backdrop: a subtle top-lit vertical gradient with a faint accent line at
+-- Panel backdrop. A subtle top-lit vertical gradient with a faint accent line at
 -- the top edge, so large frames read with depth instead of a flat black slab.
 -- Pair with K.CreateBorder. Returns the background texture.
 function K.CreateGradientBackground(frame, alpha, keepOffFrame)
@@ -194,6 +196,24 @@ local white = "Interface\\BUTTONS\\WHITE8X8"
 -- ---------------------------------------------------------------------------
 -- Button (UIPanelButtonTemplate and friends)
 -- ---------------------------------------------------------------------------
+
+-- The Gamepad UI shows its cursor by locking a button's highlight texture, and
+-- the skins below clear that texture. With the Gamepad UI on, a faint fill goes
+-- back in its place so the focused button can be seen. Off, the mouse hover the
+-- skins draw themselves stays the only one.
+local function GamepadFocus(button, color)
+	if not (button.SetHighlightTexture and K.IsGamepadUI()) then
+		return
+	end
+	button:SetHighlightTexture(white)
+	local hl = button:GetHighlightTexture()
+	if hl then
+		hl:SetVertexColor(color[1], color[2], color[3], 0.25)
+		hl:ClearAllPoints()
+		hl:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+		hl:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+	end
+end
 
 -- Hide every existing texture region on a frame (state textures included).
 local function StripTextures(frame)
@@ -224,17 +244,18 @@ function K.SkinButton(button, emphasize)
 	button.__skinned = true
 
 	StripTextures(button)
+	GamepadFocus(button, accent)
 
 	local bg = GradientBG(button)
 	K.ApplyGradient(bg, "buttonRest")
 	K.CreateBorder(button)
 
 	local restColor = emphasize and gold or K.Colors.offWhite
-	local hoverColor = emphasize and { 1, 0.92, 0.4 } or { 0.7, 0.85, 1 }
+	local hoverColor = emphasize and K.Colors.text or K.Colors.info
 	local hoverBorder = emphasize and gold or accent
 
 	local fs = button:GetFontString()
-	local dim = { 0.45, 0.47, 0.50 }
+	local dim = K.Colors.disabled
 	-- The border lights up on hover, in the same colour the border takes.
 	local glow = K.CreateHighlightBorder(button, hoverBorder[1], hoverBorder[2], hoverBorder[3], 0.45)
 	-- Marked as this button's hover glow, so K.AddBorderHover (from the square
@@ -250,9 +271,9 @@ function K.SkinButton(button, emphasize)
 	end
 	RestText(button)
 
-	-- Hover: lift the fill toward the accent and light the border, so every control
+	-- Hover. Lift the fill toward the accent and light the border, so every control
 	-- reacts the same and the hover reads at a glance.
-	-- Kept as a function so a caller can put the hover back: a frame that has its
+	-- Kept as a function so a caller can put the hover back, a frame that has its
 	-- OnEnter or OnLeave replaced with SetScript loses these hooks, which the game
 	-- menu does to its pooled buttons every time it rebuilds.
 	local function HookHover()
@@ -284,6 +305,18 @@ function K.SkinButton(button, emphasize)
 	end
 	button.KKUI_HookHover = HookHover
 	HookHover()
+
+	-- The skin strips the pushed texture, so a held button shows it here.
+	button:HookScript("OnMouseDown", function(self)
+		if self:IsEnabled() then
+			K.ApplyGradient(bg, "buttonPressed")
+		end
+	end)
+	button:HookScript("OnMouseUp", function(self)
+		if self:IsEnabled() then
+			K.ApplyGradient(bg, self:IsMouseOver() and "buttonHover" or "buttonRest")
+		end
+	end)
 
 	button:HookScript("OnEnable", RestText)
 	button:HookScript("OnDisable", function(self)
@@ -362,6 +395,8 @@ function K.SkinCloseButton(button)
 		button:SetDisabledTexture(0)
 	end
 
+	GamepadFocus(button, gold)
+
 	-- Red gradient background so the close button reads as a distinct action.
 	local bg = button:CreateTexture(nil, "BACKGROUND")
 	bg:SetPoint("TOPLEFT", 1, -1)
@@ -421,7 +456,7 @@ function K.SkinEditBox(edit)
 		end
 	end
 
-	K.CreateBackground(edit, 0.1, 0.1, 0.1, 0.85)
+	K.CreateBackground(edit, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.85)
 	K.CreateBorder(edit)
 	K.AddBorderHover(edit, accent[1], accent[2], accent[3], 0.6)
 	return edit
@@ -457,9 +492,8 @@ function K.SkinScrollBar(bar)
 		end
 	end
 
-	-- Track background.
 	if not bar.KKUI_Background then
-		K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.6)
+		K.CreateBackground(bar, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.6)
 	end
 
 	if thumb then

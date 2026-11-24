@@ -132,7 +132,7 @@ end
 -- MinimapCluster, which we hide most of, so out of the box they sit against the
 -- stock border rather than our square map.
 --
--- Blizzard re-anchors both from two places: MinimapCluster:SetHeaderUnderneath
+-- Blizzard re-anchors both from two places, MinimapCluster:SetHeaderUnderneath
 -- flips them when the header moves, and the global MiniMapIndicatorFrame_UpdatePosition
 -- re-points the indicator frame whenever the tracking button shows or hides. So
 -- pinning once is not enough, both re-anchor paths get a hook.
@@ -231,7 +231,7 @@ end
 
 -- The hybrid minimap (archaeology digsites and the like) draws over the minimap
 -- with its own circular canvas, so out of the box it ignores our wheel zoom and
--- keeps a round shape that clashes with our square map. Match it to ours: wheel
+-- keeps a round shape that clashes with our square map. Match it to ours, wheel
 -- zoom on the canvas and a square mask. Loaded on demand, so this runs once its
 -- addon is present.
 function Module:SetupHybridMinimap()

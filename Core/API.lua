@@ -14,6 +14,7 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 -- ---------------------------------------------------------------------------
 
 local _G = _G
+local next = next
 local select = select
 local type = type
 local tostring = tostring
@@ -353,6 +354,78 @@ function K.IgnoreGamepadNav(frame)
 	end
 end
 
+-- Whether the game's Gamepad UI is on. Modules that hand a job back to the
+-- game's own gamepad frames check this once when they enable, the same as the
+-- action bars, so switching it needs a reload.
+function K.IsGamepadUI()
+	local inputUtil = _G.InputUtil
+	return (inputUtil and inputUtil.IsGamepadUIEnabled and inputUtil.IsGamepadUIEnabled()) and true or false
+end
+
+-- Let the Gamepad UI cursor reach one of our windows. The game's frame manager
+-- only drives Blizzard panels and frames that tell it they are shown, so the
+-- window is handed to it on show and taken back on hide. B clicks the frame's
+-- CloseButton, so one is set when given. The manager refuses addon calls in
+-- combat, so a show or hide that lands in combat is passed on once it ends.
+-- Does nothing while the Gamepad UI is off.
+local gamepadPending = {}
+local gamepadWatcher
+
+local function GamepadManager()
+	local mode = _G.GamepadMode
+	return mode and mode.FrameControlsManager
+end
+
+local function SyncGamepadFrame(frame)
+	local manager = GamepadManager()
+	if not manager then
+		return
+	end
+	if frame:IsShown() then
+		manager:FrameShown(frame, frame.KKUI_GamepadPopup)
+	else
+		manager:FrameHidden(frame)
+	end
+end
+
+local function QueueGamepadFrame(frame)
+	if not K.IsGamepadUI() then
+		return
+	end
+	if not InCombatLockdown() then
+		SyncGamepadFrame(frame)
+		return
+	end
+	gamepadPending[frame] = true
+	if not gamepadWatcher then
+		gamepadWatcher = CreateFrame("Frame")
+		gamepadWatcher:SetScript("OnEvent", function(self)
+			self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+			for pending in next, gamepadPending do
+				gamepadPending[pending] = nil
+				SyncGamepadFrame(pending)
+			end
+		end)
+	end
+	gamepadWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+end
+
+function K.RegisterGamepadFrame(frame, closeButton, isPopup)
+	if not frame or frame.KKUI_GamepadFrame then
+		return
+	end
+	frame.KKUI_GamepadFrame = true
+	frame.KKUI_GamepadPopup = isPopup and true or nil
+	if closeButton then
+		frame.CloseButton = closeButton
+	end
+	frame:HookScript("OnShow", QueueGamepadFrame)
+	frame:HookScript("OnHide", QueueGamepadFrame)
+	if frame:IsShown() then
+		QueueGamepadFrame(frame)
+	end
+end
+
 -- Coordinates as text, in the precision the player asked for. "Game" follows the
 -- game's own coordinates setting (the same one its map panel and minimap readout
 -- use, a CVar from 12.1.5), so every readout on screen agrees. Tenths or whole
@@ -392,7 +465,7 @@ do
 end
 
 -- Threat colouring shared by nameplates and unit frames, so both read the same
--- way. The colour flips by role: a tank wants aggro (green while holding it), while
+-- way. The colour flips by role, a tank wants aggro (green while holding it), while
 -- everyone else wants none (red the moment they pull it). A nil result means the
 -- safe case, so the caller keeps the normal reaction colour.
 do
@@ -412,7 +485,7 @@ do
 			return true
 		end
 		-- Forever has no specializations, so a tank is read from what the player is
-		-- doing: a warrior in Defensive Stance, a druid in a bear form, or a paladin
+		-- doing, such as a warrior in Defensive Stance, a druid in a bear form, or a paladin
 		-- with Righteous Fury up.
 		local getAura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
 		if getAura then
@@ -491,7 +564,7 @@ function K.FontOutlineStyle()
 	return (C.General and C.General.FontOutline) and "OUTLINE" or ""
 end
 
--- Convenience: apply the addon font at a size to an existing FontString.
+-- Convenience. Apply the addon font at a size to an existing FontString.
 function K.SetFont(fontString, size, style)
 	fontString:SetFont(K.GetFont(C.General and C.General.Font), size or 12, style or "")
 	fontString:SetShadowColor(0, 0, 0, 1)

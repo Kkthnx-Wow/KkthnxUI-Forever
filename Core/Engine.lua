@@ -11,8 +11,8 @@
 
 local AddOnName, Engine = ...
 
--- Shared namespace. Every file pulls these out with:
---   local K, C, L = unpack(KkthnxUI)
+-- Shared namespace. Every file pulls these out by index, for example
+--   local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 local K = {}
 local C = {}
 local L = {}
@@ -108,7 +108,7 @@ local inOrder = {}
 
 local function CallHandler(module, handler, event, ...)
 	if handler == true then
-		-- No explicit handler: call self[event](self, event, ...)
+		-- No explicit handler. Call self[event](self, event, ...)
 		local fn = module[event]
 		if fn then
 			fn(module, event, ...)

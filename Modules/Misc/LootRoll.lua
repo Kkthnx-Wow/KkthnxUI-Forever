@@ -25,7 +25,6 @@ local Module = K:NewModule("LootRoll")
 local _G = _G
 local ipairs = ipairs
 local next = next
-local print = print
 local select = select
 local tonumber = tonumber
 local tostring = tostring
@@ -141,7 +140,7 @@ local function ButtonEnter(button)
 	GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
 	GameTooltip:SetText(button.tip)
 	if button.reason then
-		GameTooltip:AddLine(button.reason, 1, 0.2, 0.2, true)
+		GameTooltip:AddLine(button.reason, K.Colors.negative[1], K.Colors.negative[2], K.Colors.negative[3], true)
 	end
 	GameTooltip:Show()
 end
@@ -154,7 +153,7 @@ local function ButtonClick(button)
 	-- Buttons are parented to the timer bar, so the row is one level further up.
 	local row = button:GetParent():GetParent()
 	if row.fake then
-		print("|cff5cc4ffKkthnxUI|r test roll: clicked", button.tip)
+		K.Print("test roll clicked " .. tostring(button.tip))
 		return
 	end
 	if row.rollID then
@@ -356,7 +355,7 @@ local function SetItemLevel(row, link, r, g, b)
 	end
 end
 
--- fake is a test roll from /kkroll: its item info, with no roll behind it.
+-- fake is a test roll from /kkroll, its item info, with no roll behind it.
 local function AddRoll(rollID, rollTime, fake)
 	if not rollID or FindRow(rollID) then
 		return
@@ -446,7 +445,7 @@ function Module:CANCEL_ALL_LOOT_ROLLS()
 	Layout()
 end
 
--- A reload or loading screen mid roll: pick up whatever is still open.
+-- A reload or loading screen mid roll, pick up whatever is still open.
 function Module:PLAYER_ENTERING_WORLD()
 	if not GetActiveLootRollIDs then
 		return
@@ -508,11 +507,17 @@ local overlay
 local marks = {}
 local markRun = 0
 
+-- The same chat prefix every other message uses, with the parts joined by
+-- spaces like print would.
 local function Say(...)
-	print("|cff5cc4ffKkthnxUI|r roll test:", ...)
+	local parts = { ... }
+	for i = 1, select("#", ...) do
+		parts[i] = tostring(parts[i])
+	end
+	K.Print("roll test " .. tconcat(parts, " "))
 end
 
--- The frame that would take a click at this screen point: the highest strata,
+-- The frame that would take a click at this screen point, the highest strata,
 -- then the highest level, among shown frames that take mouse clicks.
 -- Some frames answer with secret values, which cannot be tested. They are
 -- skipped and counted, so a blocker hidden among them is not ruled out.
@@ -758,6 +763,12 @@ end
 function Module:OnEnable()
 	local db = C.Loot
 	if not (db and db.RollFrames) then
+		return
+	end
+	-- With the Gamepad UI on the game rolls through its own gamepad roll frame
+	-- (A Need, X Greed, B Pass) and skips the mouse roll frames we replace, so
+	-- our rows would only sit beside it out of the controller's reach.
+	if K.IsGamepadUI() and _G.GamepadGroupLootRollFrame then
 		return
 	end
 

@@ -141,7 +141,7 @@ oUF.Tags.Methods["kkui:nameparty"] = function(unit)
 end
 oUF.Tags.Events["kkui:nameparty"] = "UNIT_NAME_UPDATE"
 
--- Short name for the narrow raid frames: the first few characters, no ellipsis,
+-- Short name for the narrow raid frames, the first few characters, no ellipsis,
 -- so a whole group reads cleanly at a glance.
 oUF.Tags.Methods["kkui:nameshort"] = function(unit)
 	local name = UnitName(unit)

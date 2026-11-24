@@ -181,7 +181,7 @@ function Module:SetupWeaponEnchants()
 	local holder = CreateFrame("Frame", "KKUI_WeaponEnchantAnchor", UIParent)
 	holder:SetSize(#SLOTS * step, size)
 
-	-- Sit below the debuff block so the three rows stack: buffs, debuffs, enchants.
+	-- Sit below the debuff block so the three rows stack, buffs, debuffs, enchants.
 	local above = _G.KKUI_PlayerDebuffsAnchor or _G.KKUI_PlayerBuffsAnchor
 	local point = above and { "TOPRIGHT", above, "BOTTOMRIGHT", 0, -db.Spacing } or { "TOPRIGHT", _G.Minimap or UIParent, "BOTTOMRIGHT", 0, -db.Spacing }
 	K.CreateMover(holder, "WeaponEnchant", "Weapon Enchants", point, #SLOTS * step, size, "TOPRIGHT")

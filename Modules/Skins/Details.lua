@@ -71,7 +71,7 @@ local function BuildSkin(Details)
 
 	props.skin = SKIN_NAME
 
-	-- Window body: our panel colour, mostly opaque, no sidebars or status bar.
+	-- Window body. Our panel colour, mostly opaque, no sidebars or status bar.
 	props.bg_r, props.bg_g, props.bg_b = colors.voidDark[1], colors.voidDark[2], colors.voidDark[3]
 	props.bg_alpha = 0.9
 	props.color = { 1, 1, 1, 1 }
@@ -81,7 +81,7 @@ local function BuildSkin(Details)
 		props.wallpaper.enabled = false
 	end
 
-	-- Bars: our texture, class coloured, a dark track behind them.
+	-- Bars. Our texture, class coloured, a dark track behind them.
 	local row = props.row_info or {}
 	props.row_info = row
 	row.texture = MEDIA_NAME
@@ -93,7 +93,7 @@ local function BuildSkin(Details)
 	row.space = row.space or {}
 	row.space.between = 2
 
-	-- Bar text: our font, off white, outlined so it holds up on any class colour.
+	-- Bar text. Our font, off white, outlined so it holds up on any class colour.
 	row.font_face = MEDIA_NAME
 	row.font_size = 12
 	row.textL_class_colors = false

@@ -36,7 +36,7 @@ local function Smoothing()
 	return Enum.StatusBarInterpolation.Immediate
 end
 
--- A bordered status bar box: our gradient backdrop, border, and addon texture.
+-- A bordered status bar box. Our gradient backdrop, border, and addon texture.
 -- The empty part of the bar shows the gradient, matching the rest of the UI.
 local function CreateBox(parent, height)
 	local bar = CreateFrame("StatusBar", nil, parent)
@@ -53,7 +53,7 @@ Module.CreateBox = CreateBox
 -- ---------------------------------------------------------------------------
 -- Bar shading
 -- ---------------------------------------------------------------------------
--- Backdrop tint: the empty part of the bar tinted to a dark version of the fill
+-- Backdrop tint. The empty part of the bar tinted to a dark version of the fill
 -- colour, so an almost dead target still reads as its class. Run from the bar's
 -- PostUpdateColor so it always sees the colour oUF just applied.
 
@@ -138,7 +138,7 @@ local function AddPrediction(health)
 	healAbsorb:SetPoint("RIGHT", health:GetStatusBarTexture(), "RIGHT", 0, 0)
 	health.HealAbsorb = healAbsorb
 
-	-- Shield went past full health: a bright sliver straddling the right edge.
+	-- Shield went past full health. A bright sliver straddling the right edge.
 	local overAbsorb = health:CreateTexture(nil, "OVERLAY")
 	overAbsorb:SetColorTexture(0.62, 0.62, 1)
 	overAbsorb:SetBlendMode("ADD")
@@ -162,9 +162,10 @@ end
 -- ---------------------------------------------------------------------------
 -- Health border colour
 -- ---------------------------------------------------------------------------
--- Threat and the class colour option both want to own the health border, so
--- neither touches it directly. They set a field and call through here, and this
--- decides: threat first, then class, then the configured border colour.
+-- Dispel, threat and the class colour option all want to own the health border,
+-- so none touches it directly. They set a field and call through here, and this
+-- decides. Dispel first, then threat, then class, then the configured border
+-- colour.
 
 local function UnitBorderColor(frame, unit)
 	local colors = frame.colors
@@ -204,7 +205,7 @@ function Module.RefreshHealthBorder(self)
 		return
 	end
 
-	-- Border priority for a healer's eyes: a dispellable debuff wins over threat,
+	-- Border priority for a healer's eyes. A dispellable debuff wins over threat,
 	-- which wins over the optional class-coloured border.
 	local color = self.__dispelColor or self.__threatColor
 	if not color and C.Unitframe.ClassColorBorder then
@@ -265,7 +266,7 @@ local function ColorNPCFill(element, unit)
 	end
 
 	-- A readable reaction means oUF's colour stands, so only step in when it is
-	-- secret: use the hostile colour instead of the stock green.
+	-- secret, and then use the hostile colour instead of the stock green.
 	local reaction = UnitReaction(unit, "player")
 	if reaction and not IsSecret(reaction) then
 		return
@@ -278,7 +279,7 @@ end
 
 -- Your own pet reads its owner's class colour. oUF's class pet option asks the
 -- client for the pet's class instead, and a pet reports a fixed class of its own
--- (the warrior token), which is the tan brown the pet bar used to show.
+-- (the warrior token), which would draw the pet bar in warrior tan.
 local function ColorOwnPet(element, unit)
 	if unit ~= "pet" or not element.colorOwnerClass then
 		return false

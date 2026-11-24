@@ -18,7 +18,7 @@ local floor = math.floor
 local format = string.format
 local GetInventoryItemDurability = GetInventoryItemDurability
 
--- Slots that can wear: head through off hand, minus shirt (4) and tabard (19).
+-- Slots that can wear. Head through off hand, minus shirt (4) and tabard (19).
 local LAST_SLOT = 18
 local SKIP = { [4] = true }
 

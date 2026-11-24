@@ -4,8 +4,9 @@
 	Purpose:
 		The Tooltip module entry point. Creates the module and, on enable, wires up
 		the sibling files: skinning (Skin.lua), the health bar (HealthBar.lua), the
-		movable anchor (Anchor.lua), the unit enrichments (UnitInfo.lua), and the
-		inspect / id add-ons (Inspect.lua, IDs.lua).
+		movable anchor (Anchor.lua), the unit enrichments (UnitInfo.lua), the
+		inspect / id add-ons (Inspect.lua, IDs.lua), the bag and bank count
+		(ItemCount.lua), title icons (Icons.lua) and mount sources (MountSource.lua).
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]

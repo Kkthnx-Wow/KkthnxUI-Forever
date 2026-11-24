@@ -37,7 +37,7 @@ local InCombatLockdown = InCombatLockdown
 -- The eight edge and corner textures BackdropTemplate builds for a border.
 local SHADOW_PIECES = { "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner", "TopEdge", "BottomEdge", "LeftEdge", "RightEdge" }
 
--- Feature probe: the intrinsic and its enums only exist on the Midnight client.
+-- Feature probe. The intrinsic and its enums only exist on the Midnight client.
 local function Available()
 	return CreateFrame and CustomAuraContainerAuraProcessingPolicy and AuraContainerSortMethod and AnchorUtil and AnchorUtil.FlowDirection
 end
@@ -60,7 +60,7 @@ local function EnsureLoaded()
 	end
 end
 
--- A compact duration formatter: bare seconds (no "s"), then "1m", "2h", "3d".
+-- A compact duration formatter. Bare seconds (no "s"), then "1m", "2h", "3d".
 -- Built once, guarded, and reused for every button's duration text.
 local durationFormatter
 local function GetDurationFormatter()
@@ -194,7 +194,7 @@ local function MakeInitializer(opts)
 			K.CreateBorder(button)
 		end
 
-		-- Dispel-type border: the engine shows and tints this only on debuffs the
+		-- Dispel-type border. The engine shows and tints this only on debuffs the
 		-- player can act on, coloured by dispel school, so purgeable auras stand
 		-- out. It rides over our static border and Blizzard drives it, so it works
 		-- even though we cannot read the aura's dispel type from tainted code.
@@ -204,7 +204,7 @@ local function MakeInitializer(opts)
 		if opts.dispelBorder and button.AddDispelTypeTexture and Enum and Enum.CustomAuraButtonDispelTypeTextureStyle then
 			local border = button.KKUI_Border
 			if border then
-				-- Bordered buttons: tint our own eight border segments. Untyped
+				-- Bordered buttons. Tint our own eight border segments. Untyped
 				-- debuffs fall back to the normal border colour, not red.
 				local segments = { border.TOPLEFT, border.TOPRIGHT, border.BOTTOMLEFT, border.BOTTOMRIGHT, border.TOP, border.BOTTOM, border.LEFT, border.RIGHT }
 				local base = K.GetBorderColor()
@@ -220,7 +220,7 @@ local function MakeInitializer(opts)
 					end
 				end
 			elseif button.KKUI_Shadow and button.KKUI_Shadow.TopEdge then
-				-- Shadow buttons (nameplates): tint the shadow's own backdrop pieces, so
+				-- Shadow buttons (nameplates). Tint the shadow's own backdrop pieces, so
 				-- a poison or magic debuff glows in its school colour and an untyped one
 				-- keeps the plain black shadow. The backdrop tiles its edges itself, so
 				-- this avoids the ragged bars a single stretched glow texture gave.
@@ -238,7 +238,7 @@ local function MakeInitializer(opts)
 					end
 				end
 			else
-				-- Fallback when the shadow has no backdrop pieces: a thin coloured
+				-- Fallback when the shadow has no backdrop pieces, a thin coloured
 				-- edge on all four sides. Untyped debuffs map "None" to transparent,
 				-- so only real schools light up.
 				local dispelOpts = {
@@ -383,7 +383,7 @@ function K.CreateAuraContainer(parent, opts)
 	local init = MakeInitializer(opts)
 	local size = opts.size or 26
 	local spacing = opts.spacing or 6
-	-- Groups (not slots): a slot shows a single preferred aura, a group shows many
+	-- Groups (not slots). A slot shows a single preferred aura, a group shows many
 	-- (up to maxFrameCount), which is what a buff or debuff row wants.
 	for _, slot in ipairs(opts.slots or {}) do
 		Guarded(container.AddAuraGroup, container, slot.key, slot.filter, {
@@ -401,12 +401,12 @@ function K.CreateAuraContainer(parent, opts)
 		})
 	end
 
-	-- Unit LAST: assigning it re-evaluates event registration, which is gated on
+	-- Unit LAST. Assigning it re-evaluates event registration, which is gated on
 	-- the container already having slots.
 	if opts.unit then
 		Guarded(container.SetUnit, container, opts.unit)
 	end
-	-- A container starts disabled: Blizzard only registers it for aura events while
+	-- A container starts disabled. Blizzard only registers it for aura events while
 	-- IsEnabled() is true, and nothing but SetEnabled turns that on. Without this the
 	-- groups exist and the unit is set, yet no aura is ever drawn on WoW Forever.
 	if container.SetEnabled then

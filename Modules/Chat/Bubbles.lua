@@ -151,7 +151,7 @@ local function TintShadow(mirror, r, g, b)
 	end
 end
 
--- New words in a bubble: set the text, size the box around it, fade it in.
+-- New words in a bubble. Set the text, size the box around it, fade it in.
 local function SetMirrorText(mirror, message, r, g, b)
 	local fs = mirror.text
 	local size = FontSize()

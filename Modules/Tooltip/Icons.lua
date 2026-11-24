@@ -24,7 +24,7 @@ local C_Item = C_Item
 local C_Spell = C_Spell
 local C_MountJournal = C_MountJournal
 
--- |T texcoord tail: full 64x64 texture cropped 5..59 on both axes to shave the
+-- |T texcoord tail, full 64x64 texture cropped 5..59 on both axes to shave the
 -- default icon border. Reused for every inline icon so they all crop the same.
 local CROP = "0:0:64:64:5:59:5:59"
 

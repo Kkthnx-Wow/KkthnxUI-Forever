@@ -64,7 +64,7 @@ function Module:DeleteCheapestJunk()
 		return
 	end
 	K.Confirm(format(L["Delete %s\nworth %s?"], item.link, GetCoinTextureString(price or 0)), function()
-		-- Re-check combat: the dialog stays open across a pull, and the pickup and
+		-- Re-check combat. The dialog stays open across a pull, and the pickup and
 		-- delete pair is blocked once the player is in combat.
 		if InCombatLockdown() then
 			return

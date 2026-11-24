@@ -28,7 +28,7 @@ local UnitIsDeadOrGhost = UnitIsDeadOrGhost
 local SCALE_TO_100 = CurveConstants and CurveConstants.ScaleTo100
 local UnitHealthMissing = UnitHealthMissing
 
--- A value centred on a bar sits about a pixel high: the font's line box keeps
+-- A value centred on a bar sits about a pixel high, the font's line box keeps
 -- room for descenders below the glyphs, and numbers have none. Measured on the
 -- player health bar (text centre 1 pixel above the fill centre), so bar values
 -- are set this much lower.
@@ -59,8 +59,8 @@ function Module.GradientLabel(self, anchor, size, yOffset)
 	-- not be touched. Two mirrored halves give the same fade out to both edges.
 	local shade = K.CreateTextShade(self, "BACKGROUND", -2)
 	local height = (size or 12) + 6
-	-- The strip starts just clear of the border. It used to start 3 above and
-	-- the text 6 above, which left the name riding high with a wide gap under it.
+	-- The strip starts just clear of the border, so the name sits low on it with
+	-- no wide gap underneath.
 	local bottom = (yOffset or 6) - 5
 
 	-- Span the anchor width and sit above it at a fixed height. Sizing from the
@@ -107,7 +107,7 @@ function Build.Name(self, size, tag)
 	return name
 end
 
--- Name on the health bar itself. Group and companion frames use this: they are
+-- Name on the health bar itself. Group and companion frames use this, they are
 -- laid out by a header or packed tight, so nothing may spill outside the frame.
 function Build.NameCenter(self, size, yOffset, tag, rightPad)
 	local name = NewText(self.Health, size or 11)
@@ -202,7 +202,7 @@ function Build.HealthText(self, size, yOffset, anchor)
 end
 
 -- Raid frame health value. Three looks, none of which compare or do arithmetic on
--- a hidden number: the missing health is handed to AbbreviateNumbers as it is,
+-- a hidden number, the missing health is handed to AbbreviateNumbers as it is,
 -- and a curve turns the health fraction into an alpha so the deficit fades out at
 -- full health without ever testing it.
 local deficitAlpha

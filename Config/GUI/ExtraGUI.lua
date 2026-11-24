@@ -37,7 +37,7 @@ function GUI.CreateExtraGUI(name, title, build)
 	frame:SetFrameStrata("HIGH")
 	-- The window can sit near the right edge, so keep the flyout on screen.
 	frame:SetClampedToScreen(true)
-	K.CreateBackground(frame, 0.05, 0.05, 0.05, 0.96)
+	K.CreateBackground(frame, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.96)
 	K.CreateBorder(frame)
 
 	local header = frame:CreateFontString(nil, "OVERLAY")
@@ -62,6 +62,10 @@ function GUI.CreateExtraGUI(name, title, build)
 
 	if build then
 		build(child)
+		-- The page is built on first open, after the window's own dependency
+		-- pass, so its controls are greyed here or they stay live until some
+		-- other setting changes.
+		GUI.RefreshDependencies()
 	end
 
 	frame:Hide()
@@ -69,7 +73,7 @@ function GUI.CreateExtraGUI(name, title, build)
 	return frame
 end
 
--- Widget: a button that toggles an extra flyout panel.
+-- Widget. A button that toggles an extra flyout panel.
 function GUI.CreateExtraButton(parent, control)
 	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
 	button:SetSize(control.width or 160, 24)

@@ -133,7 +133,7 @@ local function Filter(_, event, message, ...)
 		return false, message, ...
 	end
 
-	-- Payload after the text: author is 1, line ID is 10 (see CHAT_MSG_SAY).
+	-- Payload after the text. Author is 1, line ID is 10 (see CHAT_MSG_SAY).
 	local author, lineID = select(1, ...), select(10, ...)
 
 	CurrentHex()

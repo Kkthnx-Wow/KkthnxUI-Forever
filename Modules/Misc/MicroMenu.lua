@@ -217,7 +217,7 @@ local function Skin(btn, name)
 		btn.PushedBackground:SetTexture()
 	end
 
-	K.CreateBackground(btn, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBackground(btn, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	CropButton(btn, name)
 
 	-- The game swaps the hover atlas on every state change (and the main menu button

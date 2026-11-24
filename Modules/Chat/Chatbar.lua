@@ -80,7 +80,7 @@ function Module:CreateChatBar()
 	bar:SetHeight(20)
 
 	-- The same horizontal gradient the chat window wears, so the channel row reads
-	-- as a continuation of the chat skin: dark on the left fading to clear on the
+	-- as a continuation of the chat skin, dark on the left fading to clear on the
 	-- right, with a class-coloured hairline along the top and bottom.
 	-- The chat gradient reaches about 4px left of the frame, so the bar gradient is
 	-- extended the same amount to sit flush under it.

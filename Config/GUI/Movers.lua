@@ -21,14 +21,9 @@ end
 GUI.CustomPanels = GUI.CustomPanels or {}
 
 function GUI.CustomPanels.Movers(parent)
-	local title = parent:CreateFontString(nil, "OVERLAY")
-	K.SetFont(title, 14, "OUTLINE")
-	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
-	title:SetPoint("TOPLEFT", 12, -8)
-	title:SetText(L["Movers"])
-
+	-- The window already titles the page, so the panel starts with its controls.
 	local toggle = MakeButton(parent, L["Toggle Move Mode"], 160)
-	toggle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+	toggle:SetPoint("TOPLEFT", 12, -8)
 	toggle:SetScript("OnClick", function()
 		K.ToggleMovers()
 	end)
@@ -36,7 +31,8 @@ function GUI.CustomPanels.Movers(parent)
 	local resetAll = MakeButton(parent, L["Reset All"], 120)
 	resetAll:SetPoint("LEFT", toggle, "RIGHT", 8, 0)
 	resetAll:SetScript("OnClick", function()
-		K.ResetMovers()
+		-- Clears every saved position and the undo list, so it asks first.
+		K.Confirm(L["Put every frame back in its default place?"], K.ResetMovers)
 	end)
 
 	local listHeader = parent:CreateFontString(nil, "OVERLAY")
@@ -45,9 +41,8 @@ function GUI.CustomPanels.Movers(parent)
 	listHeader:SetPoint("TOPLEFT", toggle, "BOTTOMLEFT", 0, -16)
 	listHeader:SetText(L["Individual Frames"])
 
-	-- Rows are rebuilt every time the panel is shown. The list used to be a single
-	-- snapshot taken when the config window was first opened, so any mover created
-	-- after that never appeared here. Rows are pooled so reopening costs nothing.
+	-- Rows are rebuilt every time the panel is shown, so a mover created after the
+	-- window first opened still appears. Rows are pooled so reopening costs nothing.
 	local rows = {}
 
 	local function AcquireRow(index)
@@ -59,7 +54,7 @@ function GUI.CustomPanels.Movers(parent)
 
 		row = CreateFrame("Frame", nil, parent)
 		row:SetSize(460, 26)
-		K.CreateBackground(row, 0.15, 0.15, 0.15, 0.5)
+		K.CreateBackground(row, K.Colors.raised[1], K.Colors.raised[2], K.Colors.raised[3], 0.5)
 		K.CreateBorder(row)
 
 		row.Label = row:CreateFontString(nil, "OVERLAY")

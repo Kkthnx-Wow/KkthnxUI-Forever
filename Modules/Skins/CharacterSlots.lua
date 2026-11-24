@@ -74,7 +74,7 @@ end
 -- Skinning
 -- ---------------------------------------------------------------------------
 
--- One time: take the stock slot art off, crop the icon, and add our border and
+-- One time. Take the stock slot art off, crop the icon, and add our border and
 -- item level text. The icon is kept, the game draws the item into it.
 local function Style(slot)
 	if slot.KKUI_Styled then
@@ -121,7 +121,7 @@ local function Style(slot)
 		icon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
 	end
 
-	K.CreateBackground(slot, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBackground(slot, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateBorder(slot)
 
 	local level = slot:CreateFontString(nil, "OVERLAY")

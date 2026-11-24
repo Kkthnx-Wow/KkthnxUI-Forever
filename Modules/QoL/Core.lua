@@ -27,6 +27,8 @@
 			Reminders.lua        clickable icons for missing buffs, enchants, pet and talents
 			TrainAll.lua         a Train All button on class and profession trainers
 			QuestLevels.lua      quest levels in NPC quest lists and quest text titles
+			QuickDelete.lua      fill in the word the game asks for before deleting a good item
+			TradeInfo.lua        say who you are trading with on the trade window
 
 		A feature only registers its events when its toggle is on, so a switched
 		off feature costs nothing. Toggles apply on reload.
@@ -123,7 +125,7 @@ function alertMixin:Restyle()
 		return
 	end
 	local size = C.QoL.AlertSize or 24
-	K.SetFont(frame.Text, size, "OUTLINE")
+	K.SetFont(frame.Text, size, K.FontOutlineStyle())
 	frame:SetSize(size * 8, size + 14)
 end
 
@@ -192,7 +194,7 @@ function Module:OnEnable()
 		end
 	end
 
-	-- Runs either way: when off it puts back a game setting it changed before.
+	-- Runs either way. When off it puts back a game setting it changed before.
 	if self.UpdateLootSparkle then
 		self:UpdateLootSparkle()
 	end

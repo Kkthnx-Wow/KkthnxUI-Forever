@@ -425,7 +425,7 @@ function K.TintWithBorder(texture)
 	texture:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
 end
 
--- A soft outer shadow: a backdrop frame sitting a few pixels
+-- A soft outer shadow. A backdrop frame sitting a few pixels
 -- outside the target whose only art is a fuzzy edge glow. Used where the hard
 -- eight-section border is too heavy, such as nameplates. The colour can be
 -- changed later with K.SetShadowColor (target highlight, threat).
@@ -458,7 +458,7 @@ function K.SetShadowColor(frame, r, g, b, a)
 	end
 end
 
--- Convenience: give a frame a dark background plus the border in one call.
+-- Convenience. Give a frame a dark background plus the border in one call.
 function K.CreateBackdrop(frame, colorTable)
 	if frame.KKUI_Background then
 		return frame

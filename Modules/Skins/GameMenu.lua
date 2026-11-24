@@ -10,7 +10,7 @@
 		flavours use the fixed, named-button menu, which is a separate job.
 -----------------------------------------------------------------------------]]
 
-local K, C = KkthnxUI[1], KkthnxUI[2]
+local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local Module = K:NewModule("GameMenu")
 
@@ -33,7 +33,7 @@ local floor = math.floor
 -- Our button is inserted into the stack just under Options and the frame regrows.
 local kkuiButton
 
--- Give a pool button our flat look: strip its art, add our background and border,
+-- Give a pool button our flat look, strip its art, add our background and border,
 -- and tint the highlight to the accent colour.
 local function StyleMenuButton(button)
 	if button.__kkuiStyled then
@@ -45,11 +45,13 @@ local function StyleMenuButton(button)
 		button:DisableDrawLayer("BACKGROUND")
 	end
 	if K.SkinButton then
+		-- The button skin brings its own hover, so the highlight texture is left
+		-- alone. Tinting it as well made these buttons light up twice.
 		K.SkinButton(button)
-	else
-		K.CreateGradientBackground(button, 0.85)
-		K.CreateBorder(button)
+		return
 	end
+	K.CreateGradientBackground(button, 0.85)
+	K.CreateBorder(button)
 
 	local hl = button.GetHighlightTexture and button:GetHighlightTexture()
 	if hl then
@@ -83,7 +85,7 @@ local function SkinFrame(frame)
 			K.StripTextures(header)
 		end
 		if header.Text then
-			header.Text:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+			header.Text:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 		end
 		-- A thin accent divider under the header, like the rest of our panels.
 		local line = header:CreateTexture(nil, "ARTWORK")
@@ -101,11 +103,14 @@ local function EnsureButton(frame)
 		return kkuiButton
 	end
 	local button = CreateFrame("Button", "KKUI_GameMenuButton", frame, "UIPanelButtonTemplate")
-	button:SetText(K.ColorText("accent", "KkthnxUI"))
+	-- Plain text, so the button skin's rest and hover colours apply. Accent
+	-- markup measured 4.33:1 on the button and froze the hover colour.
+	button:SetText("KkthnxUI")
 	StyleMenuButton(button)
 	button.__kkuiStyled = true
 	button:SetScript("OnClick", function()
 		if InCombatLockdown() then
+			K.Print(L["The options cannot open during combat."])
 			return
 		end
 		HideUIPanel(frame)

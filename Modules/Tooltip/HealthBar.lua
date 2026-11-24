@@ -67,7 +67,7 @@ function Module:StyleHealthBar()
 	end
 
 	if not bar.KKUI_Background then
-		K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.9)
+		K.CreateBackground(bar, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.9)
 		K.CreateBorder(bar)
 	end
 

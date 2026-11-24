@@ -22,7 +22,7 @@ local ClearOverrideBindings = ClearOverrideBindings
 local SetOverrideBindingClick = SetOverrideBindingClick
 local GetBindingKey = GetBindingKey
 
--- Mirrors Blizzard's own paging. Its order of precedence is: a vehicle or
+-- Mirrors Blizzard's own paging. Its order of precedence is a vehicle or
 -- override bar, a temporary shapeshift bar, the page chosen by hand, and only
 -- then the bonus bar of a form or stance, which applies on page 1 alone. The
 -- override, vehicle and shapeshift page numbers are read from the client the
@@ -317,7 +317,7 @@ local fadeEvents
 local FadeTick
 
 -- Work out where a bar should be resting and start the glide if it is not there.
--- Called when something that decides that changes: a hover, or combat starting or
+-- Called when something that decides that changes, a hover, or combat starting or
 -- ending. Between those the bar has no per frame cost at all.
 -- True while the pointer is on the bar, or on the flyout one of its buttons
 -- opened. The flyout sits outside the bar's own rectangle, so the bar alone
@@ -417,7 +417,7 @@ local function OnFadeEvent(_, event)
 end
 
 -- One shared frame for the combat events. It is its own frame rather than the
--- module's event registry on purpose: a split module can lose a handler when
+-- module's event registry on purpose, a split module can lose a handler when
 -- another file unregisters the same event by name.
 local function EnsureFadeEvents()
 	if fadeEvents then
@@ -433,7 +433,7 @@ end
 
 -- Apply a static alpha, or a fader that shows the bar on hover and in combat.
 function Module:SetupFade(bar, cfg)
-	-- No fader: a plain static alpha.
+	-- No fader. A plain static alpha.
 	if not (cfg.Mouseover or cfg.FadeCombat) then
 		faders[bar] = nil
 		bar:SetScript("OnUpdate", nil)

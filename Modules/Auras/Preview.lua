@@ -38,7 +38,7 @@ local DISPEL_ATLASES = {
 }
 
 -- Fill a holder with count placeholder icons laid out the way the real container
--- grows: from the top-right, leftwards, wrapping down after perRow. When tints is
+-- grows, from the top-right, leftwards, wrapping down after perRow. When tints is
 -- given, each icon's border cycles through those colours.
 local function FillBlock(store, holder, count, size, perRow, spacing, tints)
 	if not holder then

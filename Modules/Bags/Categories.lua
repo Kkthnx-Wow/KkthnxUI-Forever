@@ -9,7 +9,7 @@
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
--- Match Core.lua: load wherever C_Container is present, not only on retail.
+-- Match Core.lua and load only where C_Container is present.
 if not (C_Container and C_Container.GetContainerNumSlots) then
 	return
 end
@@ -116,7 +116,7 @@ local TRADE_CLASS = {
 	[ItemClass.Reagent] = true,
 }
 
--- Gems and enchants: things you slot or apply to gear, kept apart from raw
+-- Gems and enchants. Things you slot or apply to gear, kept apart from raw
 -- trade goods so upgrade mats are easy to find.
 local ENHANCE_CLASS = {
 	[ItemClass.Gem] = true,

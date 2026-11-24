@@ -55,7 +55,7 @@ local function CreateGradient(frame)
 	-- the frame's top is pushed down by the quick-filter bar, but Blizzard sizes the
 	-- background region to still cover that bar (its top point carries the quick
 	-- button height). Tracking that region keeps our gradient covering the full chat
-	-- on every tab, so the Combat Log no longer shows a light gap up top. Falls back
+	-- on every tab, so the Combat Log shows no light gap up top. Falls back
 	-- to the frame on any window without a background region.
 	local region = frame.Background or _G[frame:GetName() .. "Background"] or frame
 	local holder = CreateFrame("Frame", nil, frame)
@@ -107,7 +107,7 @@ end
 -- white, guild green, and so on), read from Blizzard's own ChatTypeInfo, the same
 -- way the chat frame carries a class-coloured line. In 12.x the header refreshes
 -- through the edit box mixin method UpdateHeader, not the old global, so we read
--- the type and channel off the box the same way it does: GetChatType and, for a
+-- the type and channel off the box the same way it does, GetChatType and, for a
 -- numbered channel, its per-channel colour. Falls back to the class colour.
 local function ColorEditBox(editBox)
 	local lines = editBox.KKUI_Lines
@@ -144,7 +144,7 @@ end
 local COUNTER_ROOM = 30 -- right inset kept clear of typed text for the count
 local WARN_AT = 60 -- the count starts warming up from here
 
--- Visible bytes in the box: colour codes, links and texture tags take no room.
+-- Visible bytes in the box. Colour codes, links and texture tags take no room.
 local function VisibleBytes(text)
 	text = gsub(text, "|c%x%x%x%x%x%x%x%x", "")
 	text = gsub(text, "|r", "")
@@ -220,9 +220,9 @@ local function SkinEditBox(editBox)
 
 	local fullName = editBox:GetName()
 
-	-- Kill the stock chrome: the Left/Mid/Right backdrop and, crucially, the
-	-- FocusLeft/Mid/Right glow Blizzard lights up when the box activates. That glow
-	-- is the faded ghost that used to sit over the tabs on a tab switch.
+	-- Kill the stock chrome. The Left/Mid/Right backdrop and, crucially, the
+	-- FocusLeft/Mid/Right glow Blizzard lights up when the box activates. Left in
+	-- place, that glow sits as a faded ghost over the tabs on a tab switch.
 	for _, suffix in ipairs({ "Left", "Mid", "Right", "FocusLeft", "FocusMid", "FocusRight" }) do
 		local tex = _G[fullName .. suffix]
 		if tex then
@@ -275,7 +275,7 @@ local function SkinEditBox(editBox)
 	-- Visibility is driven purely by focus. The tricky part is that Blizzard
 	-- re-activates an already-shown box on a tab click by fading its alpha up, with
 	-- no OnShow or focus event to hook, which is what left it faded over the tabs.
-	-- So we intercept SetAlpha itself: any alpha above zero while the box is not
+	-- So we intercept SetAlpha itself. Any alpha above zero while the box is not
 	-- focused is forced back to zero. Our own focus-in alpha is allowed because the
 	-- box holds focus by then.
 	editBox:SetAlpha(0)
@@ -698,7 +698,7 @@ function Module:CreateCopyWindow()
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	K.CreateBackground(frame, 0.05, 0.05, 0.05, 0.95)
+	K.CreateBackground(frame, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.95)
 	K.CreateBorder(frame)
 	frame:Hide()
 
@@ -731,7 +731,7 @@ function Module:CreateCopyWindow()
 		frame:Hide()
 	end)
 	-- Show the newest lines when fresh text is set (userInput is nil then). One jump
-	-- to the end of the range, where it used to replay a mouse wheel step per unit.
+	-- to the end of the range rather than a mouse wheel step per unit.
 	edit:SetScript("OnTextChanged", function(_, userInput)
 		if userInput then
 			return
@@ -785,7 +785,7 @@ local function AddCopyButton(chatFrame)
 	button:SetSize(20, 20)
 	button:SetPoint("TOPRIGHT", chatFrame, "TOPRIGHT", -2, 20)
 	button:SetAlpha(0)
-	K.CreateBackground(button, 0.1, 0.1, 0.1, 0.8)
+	K.CreateBackground(button, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.8)
 	K.CreateBorder(button)
 	local icon = button:CreateTexture(nil, "ARTWORK")
 	icon:SetAllPoints()
@@ -863,7 +863,7 @@ end
 -- Combat log (load-on-demand)
 -- ---------------------------------------------------------------------------
 
--- Skin the Combat Log once its addon is present: strip and reskin the quick
+-- Skin the Combat Log once its addon is present, strip and reskin the quick
 -- filter bar, and re-hide the combat-log frame's own background, which the addon
 -- re-shows when it loads (this is what washed our gradient out on that tab).
 function Module:StyleCombatLog()
@@ -895,7 +895,7 @@ function Module:StyleCombatLog()
 		end)
 	end
 
-	K.CreateBackground(quickButtons, 0.05, 0.05, 0.05, 0.85)
+	K.CreateBackground(quickButtons, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.85)
 	K.CreateBorder(quickButtons)
 	local progress = _G.CombatLogQuickButtonFrame_CustomProgressBar
 	if progress then
@@ -990,7 +990,7 @@ function Module:StyleFrame(index, target)
 	-- Park the minimal scroll bar and the jump-to-bottom button on the hidden
 	-- parent. Scrolling is on the mouse wheel and the side strip has its own
 	-- jump-to-newest button, so both are just clutter down the right edge of the
-	-- messages. Hiding or zeroing their alpha was not enough: the game fades the
+	-- messages. Hiding or zeroing their alpha was not enough, the game fades the
 	-- bar back in whenever the mouse is over the chat. On the hidden parent they
 	-- are never drawn, and the game's own calls on them still work.
 	if frame.ScrollBar then
@@ -1042,7 +1042,7 @@ function Module:StyleFrame(index, target)
 	end
 end
 
--- One-click chat layout: reset to a single window,
+-- One-click chat layout. Reset to a single window,
 -- then dock General, Combat Log, Whispers, Trade, and Loot tabs with sensible
 -- message groups, and set a few chat CVars. Run from the installer or /kk.
 function Module:InstallChat()
@@ -1051,7 +1051,7 @@ function Module:InstallChat()
 	FCF_SetWindowName(_G.ChatFrame1, GENERAL or "General")
 	_G.ChatFrame1:Show()
 
-	-- General: everything but trade and the recruitment channels.
+	-- General. Everything but trade and the recruitment channels.
 	_G.ChatFrame1:RemoveAllMessageGroups()
 	for _, channel in ipairs({ TRADE, GENERAL, "LocalDefense", "LookingForGroup", "GuildRecruitment", "Services" }) do
 		if channel then
@@ -1098,7 +1098,6 @@ function Module:InstallChat()
 	FCF_SetWindowName(_G.ChatFrame2, COMBAT_LOG or "Combat Log")
 	_G.ChatFrame2:Show()
 
-	-- Whispers.
 	local whispers = FCF_OpenNewWindow(L["Whispers"])
 	FCF_SetLocked(whispers, true)
 	FCF_DockFrame(whispers)
@@ -1219,7 +1218,7 @@ function Module:OnEnable()
 	holder:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 6, bottom)
 
 	-- Edit Mode owns the chat frame's clamp insets and rewrites them on every system
-	-- update (a teleport, a layout swap, anything that reapplies the layout): the
+	-- update (a teleport, a layout swap, anything that reapplies the layout), the
 	-- chat template is clamped to the screen, and UpdateClampOffsets sets the insets
 	-- to the Selection overlay's rect, which reaches 32 out to the left, 32 below
 	-- and 60 above the window. The engine then keeps that whole rect on screen, so a
@@ -1272,8 +1271,8 @@ function Module:OnEnable()
 	-- a dragged position is the one thing here that cannot be fought over.
 	K.CreateMover(holder, "Chat", L["Chat"], { "BOTTOMLEFT", UIParent, "BOTTOMLEFT", 6, bottom }, C.Chat.Width, C.Chat.Height)
 	hooksecurefunc(_G.ChatFrame1, "SetPoint", AnchorChat)
-	-- Re-pin straight after Edit Mode re-applies its own anchor, which is the call
-	-- that used to put the window back under the frame manager.
+	-- Re-pin straight after Edit Mode re-applies its own anchor, since that call
+	-- puts the window back under the frame manager.
 	if _G.ChatFrame1.ApplySystemAnchor then
 		hooksecurefunc(_G.ChatFrame1, "ApplySystemAnchor", AnchorChat)
 	end
@@ -1342,7 +1341,7 @@ function Module:OnEnable()
 		end)
 	end
 
-	-- Restore the unread cue the stripped glow used to give.
+	-- The stripped tab glow was the unread cue, so give that cue back here.
 	if _G.FCF_StartAlertFlash then
 		hooksecurefunc("FCF_StartAlertFlash", TabAlertStart)
 	end
@@ -1455,7 +1454,7 @@ function Module:OnEnable()
 		self:SetupHistory()
 	end
 
-	-- Idle fade: dim the whole chat to a resting alpha when the mouse is away and
+	-- Idle fade. Dim the whole chat to a resting alpha when the mouse is away and
 	-- lift it back on hover or while the edit box is focused. Only our own frames
 	-- are faded (the message frame and the channel bar) - the tab dock is left to
 	-- Blizzard, since writing tab alpha taints the dock update on 12.1.
@@ -1531,7 +1530,7 @@ function Module:OnEnable()
 		end)
 	end
 
-	-- Sticky whispers: keep the edit box on WHISPER after you reply, so a back and
+	-- Sticky whispers. Keep the edit box on WHISPER after you reply, so a back and
 	-- forth does not need re-selecting the channel each line.
 	-- ChatFrameEditBoxMixin:OnEnterPressed reads ChatTypeInfo[type].sticky, so a flag
 	-- written here is read by Blizzard's secure Enter handler as a tainted value.

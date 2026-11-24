@@ -33,16 +33,11 @@ end
 GUI.CustomPanels = GUI.CustomPanels or {}
 
 function GUI.CustomPanels.NameplateColors(parent)
-	local title = parent:CreateFontString(nil, "OVERLAY")
-	K.SetFont(title, 14, "OUTLINE")
-	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
-	title:SetPoint("TOPLEFT", 12, -8)
-	title:SetText(L["Custom Unit Colors"])
-
+	-- The flyout already titles the page, so the panel starts with its help line.
 	local help = parent:CreateFontString(nil, "OVERLAY")
 	K.SetFont(help, 12)
 	help:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
-	help:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+	help:SetPoint("TOPLEFT", 12, -8)
 	help:SetText(L["Paint a mob's health bar by npcID, for kill-first or focus targets."])
 
 	-- The colour being staged for the next Add.
@@ -92,6 +87,19 @@ function GUI.CustomPanels.NameplateColors(parent)
 	local add = MakeButton(parent, L["Add"], 90)
 	add:SetPoint("LEFT", swatch, "RIGHT", 8, 0)
 
+	-- Why an Add did nothing, shown under the box rather than in chat behind
+	-- the window.
+	local status = parent:CreateFontString(nil, "OVERLAY")
+	K.SetFont(status, 11)
+	status:SetTextColor(K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3])
+	status:SetPoint("TOPLEFT", edit, "BOTTOMLEFT", -6, -6)
+
+	local empty = parent:CreateFontString(nil, "OVERLAY")
+	K.SetFont(empty, 12)
+	empty:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	empty:SetPoint("TOPLEFT", edit, "TOPLEFT", 0, -48)
+	empty:SetText(L["No custom colours yet. Type an npcID above, pick a colour and press Add."])
+
 	local rows = {}
 	local function ClearRows()
 		for _, row in ipairs(rows) do
@@ -139,17 +147,26 @@ function GUI.CustomPanels.NameplateColors(parent)
 			rows[#rows + 1] = row
 			y = y - 22
 		end
+		empty:SetShown(#ids == 0)
 	end
 
-	add:SetScript("OnClick", function()
+	local function Add()
 		local id = tonumber(edit:GetText())
-		if id and id > 0 then
-			K:SetConfig({ "Nameplate", "CustomColors", id }, { pending[1], pending[2], pending[3] })
-			ApplyColors()
-			edit:SetText("")
-			edit:ClearFocus()
-			Refresh()
+		if not id or id <= 0 then
+			status:SetText(L["Type an npcID first."])
+			return
 		end
+		status:SetText("")
+		K:SetConfig({ "Nameplate", "CustomColors", id }, { pending[1], pending[2], pending[3] })
+		ApplyColors()
+		edit:SetText("")
+		edit:ClearFocus()
+		Refresh()
+	end
+	add:SetScript("OnClick", Add)
+	edit:SetScript("OnEnterPressed", Add)
+	edit:HookScript("OnTextChanged", function()
+		status:SetText("")
 	end)
 
 	Refresh()

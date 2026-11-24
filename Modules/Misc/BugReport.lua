@@ -31,11 +31,11 @@ local function CreateField(parent, label, hint, multiline, height)
 	local title = parent:CreateFontString(nil, "OVERLAY")
 	K.SetFont(title, 12, K.FontOutlineStyle())
 	title:SetText(label)
-	title:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 
 	local box = CreateFrame("Frame", nil, parent)
 	box:SetHeight(height or 22)
-	K.CreateBackground(box, 0.05, 0.05, 0.05, 0.85)
+	K.CreateBackground(box, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.85)
 	K.CreateBorder(box)
 
 	-- A multiline box scrolls. An EditBox does not clip its own text, so anchoring a
@@ -92,7 +92,7 @@ local function CreateField(parent, label, hint, multiline, height)
 		edit:SetScript("OnEnterPressed", edit.ClearFocus)
 	end
 
-	-- Placeholder: a soft grey example that hides while the box has text or focus.
+	-- Placeholder. A soft grey example that hides while the box has text or focus.
 	if hint then
 		-- Draw the hint on the scroll frame for a multiline box. A child frame covers
 		-- its parent's textures, so a hint left on the box would sit behind it.
@@ -102,7 +102,8 @@ local function CreateField(parent, label, hint, multiline, height)
 		ghost:SetPoint("BOTTOMRIGHT", -8, 5)
 		ghost:SetJustifyH("LEFT")
 		ghost:SetJustifyV(multiline and "TOP" or "MIDDLE")
-		ghost:SetTextColor(K.Colors.disabled[1], K.Colors.disabled[2], K.Colors.disabled[3])
+		-- Muted, not disabled grey. The hint is an instruction and needs 4.5:1.
+		ghost:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 		ghost:SetText(hint)
 
 		local function Refresh()
@@ -138,7 +139,8 @@ function Module:BuildReport()
 	tinsert(_G.UISpecialFrames, "KKUI_BugReport")
 
 	local title = frame:CreateFontString(nil, "OVERLAY")
-	K.SetFont(title, 16, K.FontOutlineStyle())
+	K.SetFont(title, 15, K.FontOutlineStyle())
+	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 	title:SetPoint("TOP", 0, -12)
 	title:SetText(L["Bug Report"] or "Bug Report")
 
@@ -193,14 +195,14 @@ function Module:BuildReport()
 	local outLabel = frame:CreateFontString(nil, "OVERLAY")
 	K.SetFont(outLabel, 12, K.FontOutlineStyle())
 	outLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, y)
-	outLabel:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+	outLabel:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 	outLabel:SetText(L["Generated report (copy this)"] or "Generated report (copy this)")
 
 	local outBox = CreateFrame("Frame", nil, frame)
 	outBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, y - 16)
 	outBox:SetPoint("RIGHT", frame, "RIGHT", -14, 0)
 	outBox:SetPoint("BOTTOM", frame, "BOTTOM", 0, 48)
-	K.CreateBackground(outBox, 0.05, 0.05, 0.05, 0.85)
+	K.CreateBackground(outBox, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.85)
 	K.CreateBorder(outBox)
 
 	local scroll = CreateFrame("ScrollFrame", "KKUI_BugReportScroll", outBox, "UIPanelScrollFrameTemplate")
@@ -223,7 +225,7 @@ function Module:BuildReport()
 	local outHint = outBox:CreateFontString(nil, "ARTWORK")
 	K.SetFont(outHint, 12, K.FontOutlineStyle())
 	outHint:SetPoint("TOPLEFT", 10, -8)
-	outHint:SetTextColor(K.Colors.disabled[1], K.Colors.disabled[2], K.Colors.disabled[3])
+	outHint:SetTextColor(K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 	outHint:SetText(L["Your report appears here after you press Generate."] or "Your report appears here after you press Generate.")
 	out:HookScript("OnTextChanged", function(self)
 		outHint:SetShown(self:GetText() == "")
@@ -273,7 +275,7 @@ function Module:BuildReport()
 		out:SetHeight(120)
 		out:ClearFocus()
 		outLabel:SetText(outLabelText)
-		outLabel:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+		outLabel:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 	end)
 
 	self.frame = frame

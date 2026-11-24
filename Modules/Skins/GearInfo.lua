@@ -43,7 +43,7 @@ local EMPTY_SOCKET_ATLAS = "character-emptysocket" -- Blizzard's own, used by th
 
 -- Slots that take a permanent enchant, by inventory slot id. This is the Retail
 -- list (head, shoulder, chest, legs, feet, both rings, both weapons). UNKNOWN for
--- Forever: no source for its enchantable slots was found, so edit this one table
+-- Forever. No source for its enchantable slots was found, so edit this one table
 -- if the game differs and nothing else needs to change.
 local ENCHANTABLE = {
 	[1] = "HEADSLOT",

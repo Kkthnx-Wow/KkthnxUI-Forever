@@ -43,7 +43,7 @@ local GATES = { "showRaid", "showParty", "showSolo" }
 -- casting, so a forced frame would show neither. These put fake ones where the
 -- real ones go, built from the same sizes and anchors, so spacing, wrapping and
 -- overlap can be judged without a group, a pull or a caster. Everything here is
--- cosmetic: it is torn down on exit and never touches a real aura or cast.
+-- cosmetic. It is torn down on exit and never touches a real aura or cast.
 
 local FAKE_ICONS = {
 	"Interface\\Icons\\Spell_Holy_PowerWordShield",
@@ -101,7 +101,7 @@ local function NewFakeAura(host, size, harmful, i, shadow)
 	return button
 end
 
--- Lay stand-in icons out the way the flow layout does: from the anchor corner,
+-- Lay stand-in icons out the way the flow layout does, from the anchor corner,
 -- along the horizontal growth, wrapping to the vertical growth after perRow.
 local function PreviewContainer(container)
 	local opts = container.__kkuiOpts
@@ -230,7 +230,7 @@ local function SampleHealthText(mode, pct)
 	return pct >= 100 and AbbreviateNumbers(cur) or (AbbreviateNumbers(cur) .. " - " .. pct .. "%")
 end
 
--- Made up members for the group frames: a random class, name, role, health and
+-- Made up members for the group frames, a random class, name, role, health and
 -- the odd leader, marker, dead, offline or dispellable member, different every
 -- time test mode is switched on. Frames are all pointed at the player, so this
 -- paints over the pieces that would otherwise read the same everywhere. Names go
@@ -375,7 +375,7 @@ local function PreviewWatch(frame, on)
 	end
 end
 
--- Boss frames: a random boss, mostly long names, since those are what clip. The
+-- Boss frames. A random boss, mostly long names, since those are what clip. The
 -- bar is the hostile red, the level reads as a skull-level "??", and the cast is
 -- an ability name rather than a placeholder.
 local FAKE_BOSSES = {

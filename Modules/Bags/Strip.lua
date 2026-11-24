@@ -49,7 +49,7 @@ local KEYRING_WIDTH = math.floor(SLOT * 33 / 45 + 0.5)
 -- The default pack icon, used for the backpack.
 local DEFAULT_ICON = 133633
 
--- The keyring art the game uses on its own bag bar: the key once the player has ever
+-- The keyring art the game uses on its own bag bar, the key once the player has ever
 -- held one (the showKeyring setting), the plain small slot frame before that. Both
 -- are 27 by 40, so they are drawn at that shape and not stretched square.
 local KEYRING_ATLAS = "UI-HUD-ActionBar-Keyring-Small"
@@ -381,7 +381,7 @@ local function UpdateAmmoButton(button)
 end
 
 local function UpdateKeyringButton(button)
-	-- Same rule as the game's bag bar: the key art once the player has held a key.
+	-- Same rule as the game's bag bar, the key art once the player has held a key.
 	button.Icon:SetAtlas(GetCVarBool("showKeyring") and KEYRING_ATLAS or KEYRING_EMPTY_ATLAS)
 	button.Icon:SetAlpha(1)
 	button.__q = nil

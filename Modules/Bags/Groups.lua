@@ -52,7 +52,7 @@ end
 -- Tree
 -- ---------------------------------------------------------------------------
 
--- Every real section in its default place: the built-in ones, with the player's
+-- Every real section in its default place, the built-in ones, with the player's
 -- own categories dropped in just ahead of the Miscellaneous catch-all.
 function Module:SectionList()
 	local custom = C.Bags.CustomCategories

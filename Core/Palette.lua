@@ -124,7 +124,7 @@ end
 -- with pure primaries softened so they do not glare on the dark bars. The same
 -- treatment as the power and reaction colours in the config defaults.
 
--- Cast bars, as Blizzard paints them: gold while casting, green while channelling,
+-- Cast bars, as Blizzard paints them. Gold while casting, green while channelling,
 -- grey when it cannot be interrupted, red when it fails or is interrupted. Shared
 -- by the unit frame and nameplate castbars and the mirror timers.
 K.CastColors = {

@@ -27,7 +27,7 @@ local GetMoney = GetMoney
 local GetCoinTextureString = C_CurrencyInfo.GetCoinTextureString
 local IsInGuild = IsInGuild
 
--- The repair in flight: the bill, whether guild funds were asked for, and the
+-- The repair in flight. The bill, whether guild funds were asked for, and the
 -- purse before the attempt so the real spend can be read back afterwards.
 local pending
 
@@ -39,7 +39,7 @@ end
 
 local function Attempt(cost, useGuild)
 	pending = { cost = cost, guild = useGuild, money = GetMoney() }
-	-- Registered per attempt rather than for the session: outside a repair these
+	-- Registered per attempt rather than for the session, outside a repair these
 	-- events are pure noise, and durability ticks constantly in combat.
 	Module:RegisterEvent("UPDATE_INVENTORY_DURABILITY", Module.UPDATE_INVENTORY_DURABILITY)
 	Module:RegisterEvent("MERCHANT_CLOSED", Module.MERCHANT_CLOSED)

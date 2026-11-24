@@ -82,7 +82,7 @@ local function BestSchool(fn)
 	return best
 end
 
--- Each stat: how to read it, its label, its colour and how to print it.
+-- Each stat. How to read it, its label, its colour and how to print it.
 local STATS = {
 	ap = { read = function() return TotalPower(UnitAttackPower) end, label = L["Attack Power"], color = K.Colors.warning, fmt = "%d" },
 	rap = { read = function() return TotalPower(UnitRangedAttackPower) end, label = L["Ranged Power"], color = K.Colors.warning, fmt = "%d" },
@@ -149,7 +149,7 @@ end
 
 function Module:RestyleStats()
 	if frame then
-		K.SetFont(frame.Text, C.QoL.StatsSize or 13, "OUTLINE")
+		K.SetFont(frame.Text, C.QoL.StatsSize or 13, K.FontOutlineStyle())
 		Render()
 	end
 end

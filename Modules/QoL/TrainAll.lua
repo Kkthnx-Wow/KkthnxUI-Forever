@@ -169,11 +169,13 @@ local function OnEnter(self)
 	EachTrainable(function(_, name, cost, subText)
 		total = total + cost
 		local label = (subText and subText ~= "") and format("%s (%s)", name, subText) or name
-		GameTooltip:AddDoubleLine(label, cost > 0 and GetMoneyString(cost, true) or "", 0.8, 0.8, 0.8, 1, 1, 1)
+		local soft = K.Colors.secondary
+		GameTooltip:AddDoubleLine(label, cost > 0 and GetMoneyString(cost, true) or "", soft[1], soft[2], soft[3], 1, 1, 1)
 	end)
 	if total > 0 then
 		GameTooltip:AddLine(" ")
-		GameTooltip:AddDoubleLine(L["Total"], GetMoneyString(total, true), 1, 0.82, 0, 1, 1, 1)
+		local gold = K.Colors.highlight
+		GameTooltip:AddDoubleLine(L["Total"], GetMoneyString(total, true), gold[1], gold[2], gold[3], 1, 1, 1)
 	end
 	GameTooltip:Show()
 end

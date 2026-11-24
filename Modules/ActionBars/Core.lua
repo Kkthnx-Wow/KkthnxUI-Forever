@@ -8,6 +8,15 @@
 			ButtonStyle.lua     button options and per button styling
 			Bars.lua            bar creation, layout, paging, fade
 			DisableBlizzard.lua removing the default bars
+			Keybind.lua         shortened hotkey text
+			BindMode.lua        hover a button and press a key to bind it
+			PetBar.lua          the pet bar
+			StanceBar.lua       the stance bar
+			PossessBar.lua      the possess bar
+			ProcGlow.lua        the proc glow on our buttons
+			Extras.lua          extra action, zone ability and leave vehicle buttons
+			RankUpgrade.lua     swap a newly learned spell rank into the bars
+			Debug.lua           cooldown readings for checking the library
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
@@ -21,10 +30,10 @@ Module.bars = {}
 Module.buttons = {}
 Module.enableAfterCombat = true
 
--- Static definition of each bar: which config key it reads, its action page
+-- Static definition of each bar. Which config key it reads, its action page
 -- (or "main" for the paged primary bar), and where it anchors by default. Anchor
 -- targets that are strings resolve to another bar created earlier.
--- Layout matches the original KkthnxUI: three stacked bars along the bottom
+-- Layout matches the original KkthnxUI. Three stacked bars along the bottom
 -- (main, then bar 2, then bar 3), and two vertical bars on the right.
 -- bindName is the Blizzard binding prefix for that bar's action page, it drives
 -- both the hotkey text and the override bindings that make keys click our
@@ -51,7 +60,7 @@ function Module:ResolveAnchor(token)
 end
 
 -- The mover of the highest stacked bar (bar 3, then 2, then 1), which is where the
--- pet and stance bars sit by default: on its top left corner, out of the way of
+-- pet and stance bars sit by default, on its top left corner, out of the way of
 -- the bar rows. Falls back to the screen bottom if no bar has a mover yet.
 function Module:TopBarAnchor()
 	for _, key in ipairs({ "Bar3", "Bar2", "Bar1" }) do

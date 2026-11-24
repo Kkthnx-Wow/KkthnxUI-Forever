@@ -11,7 +11,7 @@
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
--- Match Core.lua: load wherever C_Container is present, not only on retail.
+-- Match Core.lua and load only where C_Container is present.
 if not (C_Container and C_Container.GetContainerNumSlots) then
 	return
 end
@@ -61,7 +61,7 @@ local function SetBorder(button, r, g, b, custom)
 	border:SetVertexColor(r, g, b, 1)
 end
 
--- One-time skin: strip Blizzard's slot art and give the button our look. The
+-- One-time skin. Strip Blizzard's slot art and give the button our look. The
 -- template's own regions (Count, Cooldown, JunkIcon, quest, glow) are kept and
 -- reused, only repositioned to sit inside our border.
 local function Skin(button)
@@ -109,7 +109,7 @@ local function Skin(button)
 		icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 	end
 
-	K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBackground(button, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateBorder(button)
 	-- The border set's hover, pressed and checked looks, on the icon.
 	K.StyleButtonStates(button, 1)
@@ -167,7 +167,7 @@ local function Skin(button)
 	star:Hide()
 	button.KKUI_Fav = star
 
-	-- Equipment set marker: a small accent square on the bottom edge, shown on any
+	-- Equipment set marker. A small accent square on the bottom edge, shown on any
 	-- item that belongs to a saved equipment set, so a set piece is not sold or
 	-- deleted by mistake. A plain square needs no atlas to exist.
 	local setMark = button:CreateTexture(nil, "OVERLAY", nil, 2)
@@ -408,7 +408,7 @@ function Module:UpdateSlot(button, bag, slot)
 	holder:SetSize(size, size)
 
 	if not info then
-		-- Empty slot: clear everything, keep it as a drop target.
+		-- Empty slot. Clear everything, keep it as a drop target.
 		SetItemButtonTexture(button, nil)
 		-- The game's own empty slot art, so an empty square reads like the rest of
 		-- the client's bags. The next item texture replaces it.
@@ -488,7 +488,7 @@ function Module:UpdateSlot(button, bag, slot)
 		button.JunkIcon:SetShown(C.Bags.JunkIcon and isJunk or false)
 	end
 
-	-- Quest items: a quest-coloured border, plus our own ! bang on items that
+	-- Quest items. A quest-coloured border, plus our own ! bang on items that
 	-- start a quest (a quest id that is not yet an active objective).
 	local quest = C_Container.GetContainerItemQuestInfo(bag, slot)
 	local isStarter = quest and quest.questID and not quest.isActive

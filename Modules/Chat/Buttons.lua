@@ -36,7 +36,7 @@ local function MakeButton(parent, texture, tooltip, onClick, texCoord, opts)
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	button:SetSize(SIZE, SIZE)
 
-	-- Same gradient skin as the chat, bar, and edit box: a horizontal fade with a
+	-- Same gradient skin as the chat, bar, and edit box, a horizontal fade with a
 	-- class-coloured hairline top and bottom, no border. Hover brightens the lines.
 	local color = K.ClassColor or { r = 0.4, g = 0.6, b = 1 }
 	local grad = button:CreateTexture(nil, "BACKGROUND")
@@ -136,16 +136,12 @@ function Module:CreateSideButtons()
 	buttons[#buttons + 1] = scroll
 	self.scrollButton = scroll
 
-	buttons[#buttons + 1] = MakeButton(bar, "Interface\\Buttons\\UI-GroupLoot-Dice-Up", L["Quick Roll"] or "Quick Roll", function(_, mouseButton)
-		if mouseButton == "RightButton" then
-			-- The tooltip swears a right-click is a guaranteed perfect roll. It is
-			-- not. Print a local-only troll result so nobody but the roller sees it.
-			local troll = -math.random(1, 100)
-			K.Print(string.format(L["You roll a perfect %d out of 100. Flawless."] or "You roll a perfect %d out of 100. Flawless.", troll))
-		elseif RandomRoll then
+	buttons[#buttons + 1] = MakeButton(bar, "Interface\\Buttons\\UI-GroupLoot-Dice-Up", L["Quick Roll"] or "Quick Roll", function()
+		-- Either button rolls, and the tooltip says only what the click does.
+		if RandomRoll then
 			RandomRoll(1, 100)
 		end
-	end, nil, { atlas = "charactercreate-icon-dice", subtext = L["Right-click for a guaranteed perfect roll."] or "Right-click for a guaranteed perfect roll." })
+	end, nil, { atlas = "charactercreate-icon-dice", subtext = L["Roll from 1 to 100."] or "Roll from 1 to 100." })
 
 	buttons[#buttons + 1] = MakeButton(bar, "Interface\\Buttons\\UI-OptionsButton", L["Config"] or "Config", function()
 		if K.ToggleConfigGUI then

@@ -44,7 +44,7 @@ end
 -- Enable
 -- ---------------------------------------------------------------------------
 
--- One movable aura block: a fixed-size holder carries the mover grab box, and the
+-- One movable aura block. A fixed-size holder carries the mover grab box, and the
 -- (dynamically sized) container hangs off the holder's top-right corner, growing
 -- left then down.
 local function BuildBlock(key, label, filter, size, point, cancel)

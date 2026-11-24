@@ -44,7 +44,7 @@ function Build.Totems(self)
 		local totem = CreateFrame("Button", nil, holder)
 		totem:SetSize(TOTEM_SIZE, TOTEM_SIZE)
 		totem:SetPoint("LEFT", holder, "LEFT", (i - 1) * (TOTEM_SIZE + Module.GAP), 0)
-		K.CreateBackground(totem, 0.06, 0.06, 0.06, 0.9)
+		K.CreateBackground(totem, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 		K.CreateBorder(totem)
 
 		local icon = totem:CreateTexture(nil, "ARTWORK")

@@ -39,7 +39,7 @@ local CHEVRON = K.MediaFolder .. "Textures\\DropdownArrow.tga"
 local CHEVRON_SIZE = 16
 
 -- Fallback tint when the class-colour option is off.
-local ACCENT = { 0.36, 0.55, 0.81 }
+local ACCENT = K.Colors.accent
 
 local function GetBarColor()
 	if C.Skins.ObjectiveTrackerClassColor then
@@ -269,7 +269,7 @@ function Module:Style()
 		hooksecurefunc(manager, "SetTextSize", ApplyFonts)
 	end
 
-	-- The container header: its bar is hidden like the rest. Only its regions are
+	-- The container header. Its bar is hidden like the rest. Only its regions are
 	-- touched, never the container or its update.
 	SkinHeader(container.Header, function()
 		return container.isCollapsed and true or false

@@ -77,7 +77,9 @@ local function Walk(announce)
 	if IsInRaid() then
 		for index = 1, GetNumGroupMembers() do
 			local unit = RAID_UNITS[index]
-			if not UnitIsUnit(unit, "player") then
+			-- A secret answer cannot be read, so that member is still checked.
+			local isPlayer = UnitIsUnit(unit, "player")
+			if IsSecret(isPlayer) or not isPlayer then
 				Check(unit, announce)
 			end
 		end

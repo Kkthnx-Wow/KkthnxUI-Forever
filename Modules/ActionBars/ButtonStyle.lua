@@ -13,7 +13,7 @@ local Module = K:GetModule("ActionBars")
 
 local _G = _G
 
--- The border set's button states, so every button reads the same: a soft
+-- The border set's button states, so every button reads the same, a soft
 -- inner glow on hover, an inner shadow while pressed, and a gold inner ring
 -- while checked (active stance, toggled-on pet ability). Shared by the library
 -- buttons and the stock buttons we reuse. The icon is inset 1, so are these.
@@ -183,7 +183,7 @@ function Module:StyleButton(button)
 		icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 	end
 
-	-- Cooldowns: crop to the icon and give the dark radial swipe a real texture,
+	-- Cooldowns. Crop to the icon and give the dark radial swipe a real texture,
 	-- since SetCooldownFromDurationObject never sets one. Charges keep their edge
 	-- only. Loss of control gets the swipe in a dark red.
 	for _, cooldown in ipairs({ button.cooldown, button.chargeCooldown, button.lossOfControlCooldown }) do
@@ -206,7 +206,7 @@ function Module:StyleButton(button)
 	button.Flash:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
 	button.Flash:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
 
-	-- Clean interaction-state textures: pushed and hover glow, checked outline.
+	-- Clean interaction-state textures. Pushed and hover glow, checked outline.
 	self:StyleInteractionTextures(button)
 	self:ApplyButtonFonts(button)
 

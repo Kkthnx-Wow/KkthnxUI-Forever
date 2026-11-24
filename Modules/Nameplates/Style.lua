@@ -58,7 +58,7 @@ oUF.Tags.Methods["kkui:nphealth"] = function(unit)
 end
 oUF.Tags.Events["kkui:nphealth"] = "UNIT_HEALTH UNIT_MAXHEALTH"
 
--- Name colour for plates: class colour for players, reaction colour otherwise.
+-- Name colour for plates. Class colour for players, reaction colour otherwise.
 -- Always coloured (unlike the unit-frame tag, which defers to a class-coloured
 -- health bar) because a name-only plate has no bar to carry the colour.
 oUF.Tags.Methods["kkui:npnamecolor"] = function(unit)
@@ -94,7 +94,7 @@ oUF.Tags.Methods["kkui:npnamecolor"] = function(unit)
 end
 oUF.Tags.Events["kkui:npnamecolor"] = "UNIT_NAME_UPDATE UNIT_FACTION"
 
--- Whether a unit gets the name-only look: friendly, or a neutral NPC you cannot
+-- Whether a unit gets the name-only look, friendly, or a neutral NPC you cannot
 -- attack, such as a vendor on a yellow plate.
 local function IsNameOnlyUnit(unit)
 	if not C.Nameplate.FriendlyNameOnly or not unit then
@@ -205,12 +205,10 @@ local CAST_COLOR = K.CastColors.cast -- normal cast (gold / yellow)
 -- Bright accent that marks the current target's border (never black).
 local TARGET_ACCENT = { 1, 0.9, 0.2 }
 
--- Recolour the current target's border to the accent, and put every other
--- plate's border back to the configured colour. Guarded so a secret UnitIsUnit
--- result never errors in Midnight.
--- The shadow carries three cues, in priority order: the accent when this plate
+-- The shadow carries three cues, in priority order. The accent when this plate
 -- is your target, a threat colour when you hold or are pulling aggro, and plain
--- black otherwise. Replaces the old border recolour.
+-- black otherwise. Every read is guarded so a secret UnitIsUnit or threat result
+-- never errors.
 -- Runs on every health event of every plate, and the colour rarely changes, so
 -- the border is only repainted when it does.
 local function PaintShadow(shadow, r, g, b)
@@ -227,9 +225,10 @@ local function UpdateTargetHighlight(self)
 
 	-- Name-only plates carry no shadow to tint, so the name-select glow is the
 	-- target cue there.
+	local showTarget = C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget and true or false
 	if self.__nameOnly then
 		if self.NameSelect then
-			self.NameSelect:SetShown(C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget and true or false)
+			self.NameSelect:SetShown(showTarget)
 		end
 		return
 	end
@@ -246,14 +245,14 @@ local function UpdateTargetHighlight(self)
 		return
 	end
 
-	if C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget then
+	if showTarget then
 		PaintShadow(shadow, TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3])
 		return
 	end
 
 	if C.Nameplate.ThreatColor and unit then
 		local status = UnitThreatSituation("player", unit)
-		if status and not IsSecret(status) and status >= 2 then
+		if not IsSecret(status) and status and status >= 2 then
 			local r, g, b = GetThreatStatusColor(status)
 			PaintShadow(shadow, r, g, b)
 			return
@@ -292,7 +291,7 @@ local function UpdateClassification(self)
 	end
 end
 
--- Format an incomplete objective's text per the config: the completed count
+-- Format an incomplete objective's text per the config, the completed count
 -- ("3/7", "40%") or what remains ("4", "60%").
 local function FormatProgress(text)
 	local remaining = C.Nameplate.QuestProgressFormat == "Remaining"
@@ -314,7 +313,7 @@ end
 -- Quest objective marker. Outside instances we read
 -- the structured unit tooltip and return the first INCOMPLETE objective. Inside
 -- instances the tooltip is unreliable, so we fall back to the cheap relation
--- check and show the icon with no text. Returns (progress, fromParty): progress
+-- check and show the icon with no text. Returns (progress, fromParty), progress
 -- is a string ("" means icon only) or nil for no quest, fromParty flags an
 -- objective that belongs to a group member. Secret fields are checked first.
 local function ReadQuestTooltip(unit)
@@ -403,9 +402,9 @@ local function BumpQuestEpoch()
 	questEpoch = questEpoch + 1
 end
 
--- Quest events come in bursts, and each plate used to rebuild its unit tooltip on
--- every one of them. One shared watcher now bumps the epoch and, a moment after the
--- burst settles, refreshes the plates once.
+-- Quest events come in bursts, and rebuilding each plate's unit tooltip on every
+-- one of them is wasted work. One shared watcher bumps the epoch and, a moment
+-- after the burst settles, refreshes the plates once.
 local questWatcher
 local RefreshQuestPlates
 local questRefreshQueued
@@ -513,7 +512,7 @@ local function UpdateQuest(self, force)
 		return
 	end
 
-	-- Progress text: always, or only while this plate is your target.
+	-- Progress text. Always, or only while this plate is your target.
 	local text = progress
 	if text ~= "" and self.QuestCount and C.Nameplate.QuestProgressOnTarget then
 		local isTarget = UnitIsUnit(unit, "target")
@@ -549,7 +548,7 @@ local function UpdateQuest(self, force)
 	end
 end
 
--- The name over the bar, laid out like a unit frame name: centred on a dark
+-- The name over the bar, laid out like a unit frame name, centred on a dark
 -- strip that spans the bar and sits just above it. The text may run a little
 -- wider than the bar, but not without limit, or a long name spreads over the
 -- plate beside it. Used at build and whenever a plate leaves name-only mode,
@@ -586,7 +585,7 @@ local function UpdateNameOnly(self)
 		self.KKUI_Shadow:SetShown(not friendly)
 	end
 	-- Only force the castbar off for friendly name-only plates. For everyone else we
-	-- must not force it on: the oUF castbar element hides itself when idle and shows
+	-- must not force it on, the oUF castbar element hides itself when idle and shows
 	-- on cast start, so forcing SetShown(true) here left an empty bar sitting on
 	-- every enemy plate that was not casting.
 	if self.Castbar and friendly then
@@ -636,7 +635,7 @@ local function UpdateNameOnly(self)
 	end
 end
 
--- Execute range: a tint over the filled part of an enemy's health bar once its
+-- Execute range. A tint over the filled part of an enemy's health bar once its
 -- health drops under the chosen percent. Enemy health is a hidden number in
 -- instances, so nothing is compared. The health fraction goes through a curve
 -- that gives an alpha, and the alpha is handed straight to the texture.
@@ -680,7 +679,7 @@ local function PostUpdateHealth(health, unit)
 		return
 	end
 	UpdateExecute(self, unit)
-	-- Name-only first: the target highlight reads self.__nameOnly.
+	-- Name-only first. The target highlight reads self.__nameOnly.
 	UpdateNameOnly(self)
 	UpdateTargetHighlight(self)
 	UpdateClassification(self)
@@ -703,7 +702,7 @@ local function OnTargetChanged(self)
 	UpdateQuest(self)
 end
 
--- Name-only hover glow: lit while the cursor is over this plate's unit.
+-- Name-only hover glow. Lit while the cursor is over this plate's unit.
 --
 -- UPDATE_MOUSEOVER_UNIT fires when the cursor gains a unit but not reliably
 -- when it moves off to empty space, so the event alone would leave the glow
@@ -836,7 +835,7 @@ local function CustomHealthColor(health, unit)
 		return
 	end
 
-	-- Role colours: hostile plates read as caster or melee so casters stand out.
+	-- Role colours. Hostile plates read as caster or melee so casters stand out.
 	-- Sits above reaction colour so the split is visible, below the custom and threat
 	-- colours which the player set on purpose. When threat colouring is on we let a
 	-- live threat situation win, but the threat read can be a secret for an enemy in
@@ -877,7 +876,7 @@ local function CustomHealthColor(health, unit)
 		end
 	end
 
-	-- Reaction unknown (secret): fall back to the hostile colour, not stock green.
+	-- Reaction unknown (secret). Fall back to the hostile colour, not stock green.
 	local hostile = oUF.colors and oUF.colors.reaction and oUF.colors.reaction[2]
 	if hostile then
 		health:SetStatusBarColor(hostile:GetRGB())
@@ -970,7 +969,7 @@ local function BuildName(self)
 	-- only when the health bar happens to recolour (which needed a target/click).
 	self:Tag(name, "[kkui:nplevel][kkui:npnamecolor][kkui:name]")
 
-	-- Name-only highlights: a hover shade and a target shade framing the name text
+	-- Name-only highlights. A hover shade and a target shade framing the name text
 	-- (they only show in name-only mode, driven from the update handlers). These
 	-- were Blizzard search atlases, whose violet was baked into the art and matched
 	-- nothing else we draw. They are our own gradients now, so the colour and the
@@ -996,9 +995,9 @@ local function BuildName(self)
 	end
 end
 
--- Cast colour while interruptible, red while not (matching the unit frame
--- castbars). notInterruptible is a Midnight
--- secret boolean, so colour through SetVertexColorFromBoolean rather than an if.
+-- Cast colour while interruptible, the grey no-interrupt colour while not
+-- (matching the unit frame castbars). notInterruptible can be a secret boolean,
+-- so colour through SetVertexColorFromBoolean rather than an if.
 local CAST_CLR = CreateColor(CAST_COLOR[1], CAST_COLOR[2], CAST_COLOR[3])
 local CHANNEL_CLR = CreateColor(K.CastColors.channel[1], K.CastColors.channel[2], K.CastColors.channel[3])
 local NOINTERRUPT_CLR = CreateColor(K.CastColors.noInterrupt[1], K.CastColors.noInterrupt[2], K.CastColors.noInterrupt[3])
@@ -1007,7 +1006,7 @@ local NOINTERRUPT_CLR = CreateColor(K.CastColors.noInterrupt[1], K.CastColors.no
 -- be a Midnight secret boolean (enemy casts), a plain boolean, or nil. Only the
 -- secret path may use SetVertexColorFromBoolean, and a plain value would error
 -- there, so branch on it.
--- Cast in progress: gold while interruptible, silver while not. Shared by the
+-- Cast in progress, gold while interruptible and grey while not. Shared by the
 -- start callback and the mid-cast interruptibility change so a spell that flips (a
 -- kick immunity dropping, say) recolours instead of staying its start colour. A
 -- failed or interrupted cast goes red.
@@ -1028,8 +1027,8 @@ local function CastRecolor(cast, notInterruptible)
 end
 
 local function OnCastStart(cast, unit, _, notInterruptible)
-	-- A friendly name-only plate has no bar to hang a cast on, and the health event
-	-- that used to hide it again no longer runs on every update.
+	-- A friendly name-only plate has no bar to hang a cast on, and no health event
+	-- hides the cast again on every update, so it is hidden here.
 	local owner = cast.__owner
 	if owner and owner.__nameOnly then
 		cast:Hide()
@@ -1082,7 +1081,7 @@ local function BuildCastbar(self)
 	cast:SetHeight(height)
 	cast:SetPoint("TOPLEFT", self.Health, "BOTTOMLEFT", 0, -GAP)
 	cast:SetPoint("TOPRIGHT", self.Health, "BOTTOMRIGHT", 0, -GAP)
-	K.CreateBackground(cast, 0.08, 0.08, 0.08, 0.9)
+	K.CreateBackground(cast, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateShadow(cast)
 	cast.PostCastStart = OnCastStart
 	cast.PostCastInterruptible = OnCastInterruptible
@@ -1093,7 +1092,7 @@ local function BuildCastbar(self)
 	local iconHolder = CreateFrame("Frame", nil, cast)
 	iconHolder:SetSize(height, height)
 	iconHolder:SetPoint("RIGHT", cast, "LEFT", -GAP, 0)
-	K.CreateBackground(iconHolder, 0.05, 0.05, 0.05, 0.9)
+	K.CreateBackground(iconHolder, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateShadow(iconHolder)
 	local icon = iconHolder:CreateTexture(nil, "ARTWORK")
 	icon:SetPoint("TOPLEFT", 1, -1)
@@ -1169,7 +1168,7 @@ local function BuildDebuffs(self)
 	end
 end
 
--- Private auras: boss and encounter auras Blizzard only reveals to the affected
+-- Private auras. Boss and encounter auras Blizzard only reveals to the affected
 -- player. The oUF element hands the anchor frames to the client, which draws and
 -- times them, so this only sizes and positions the row. Sits above the debuffs
 -- (or the health bar when debuffs are off) and grows right from a centred row.

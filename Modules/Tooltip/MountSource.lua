@@ -54,7 +54,7 @@ local function IsCollected(info)
 end
 
 -- Scan the tooltip's left texts for a line, so the source block is added once.
--- The secret guard comes first: string ops throw on a secret line.
+-- The secret guard comes first. String ops throw on a secret line.
 local function HasLine(tt, text)
 	for i = 1, tt:NumLines() do
 		local line = _G[tt:GetName() .. "TextLeft" .. i]
@@ -127,7 +127,7 @@ function Module:SetupMountSource()
 			if tt:IsForbidden() then
 				return
 			end
-			-- Guarded like K.GetAuraData: this throws on a secret aura while tainted,
+			-- Guarded like K.GetAuraData, this throws on a secret aura while tainted,
 			-- so never call it bare.
 			local ok, data = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, auraInstanceID)
 			if not ok or not data or IsSecret(data) then

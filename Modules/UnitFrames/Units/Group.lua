@@ -19,7 +19,7 @@ local Build = Module.Build
 local UnitPowerType = UnitPowerType
 local IsSecret = K.IsSecret
 
--- Anchor the raid health bar: it fills from the top down to the power bar when
+-- Anchor the raid health bar. It fills from the top down to the power bar when
 -- power is shown, or to the frame bottom when it is not, so a hidden power bar
 -- never leaves a dead gap.
 local function RaidHealthFill(self, powerShown)
@@ -37,7 +37,7 @@ local function RaidHealthFill(self, powerShown)
 	end
 end
 
--- Mana-only mode: show the power bar for mana users and let health fill for the
+-- Mana-only mode. Show the power bar for mana users and let health fill for the
 -- rest. Fires from oUF's power PostUpdate, so it tracks form and unit changes.
 -- Enum.PowerType.Mana is 0, the type is guarded in case it ever reads secret.
 local function ManaPowerPostUpdate(power, unit)

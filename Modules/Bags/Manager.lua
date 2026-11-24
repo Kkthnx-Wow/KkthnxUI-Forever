@@ -42,6 +42,7 @@ local LIST_TOP = 96 -- below the title, the button row and the two line hint
 local ARROW = K.MediaFolder .. "Textures\\DropdownArrow.tga"
 
 local muted, gold, text, disabled = K.Colors.muted, K.Colors.gold, K.Colors.text, K.Colors.disabled
+local accent = K.Colors.accent
 
 -- Assign whatever item sits on the cursor to a section, then drop it back into
 -- its slot. The rows are plain frames, so reading the cursor here cannot taint.
@@ -247,7 +248,8 @@ local function CreateRow(panel)
 
 	local hover = row:CreateTexture(nil, "BACKGROUND")
 	hover:SetAllPoints()
-	hover:SetColorTexture(1, 1, 1, 0.06)
+	-- The shared hover strength, so every list row lights the same.
+	hover:SetColorTexture(1, 1, 1, K.GradientAlpha.hover)
 	hover:Hide()
 	row.Hover = hover
 
@@ -266,7 +268,7 @@ local function CreateRow(panel)
 
 	local fold = row:CreateFontString(nil, "OVERLAY")
 	K.SetFont(fold, 13, K.FontOutlineStyle())
-	fold:SetTextColor(gold[1], gold[2], gold[3])
+	fold:SetTextColor(accent[1], accent[2], accent[3])
 	fold:SetWidth(16)
 	row.Fold = fold
 

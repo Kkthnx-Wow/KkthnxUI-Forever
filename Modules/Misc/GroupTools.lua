@@ -166,7 +166,7 @@ function Module:BuildPanel(tab)
 	local panel = CreateFrame("Frame", "KKUI_GroupToolsPanel", tab)
 	-- Open below the role bar (which sits under the tab), or the tab if there is none.
 	panel:SetPoint("TOP", self.RoleBar or tab, "BOTTOM", 0, -4)
-	-- Wide enough for the marker rows: eight marks plus a clear button, evenly spaced.
+	-- Wide enough for the marker rows, eight marks plus a clear button, evenly spaced.
 	panel:SetWidth(9 * ICON + 8 * 4 + PAD * 2)
 	K.CreateGradientBackground(panel, 0.95)
 	K.CreateBorder(panel)
@@ -195,7 +195,7 @@ function Module:BuildPanel(tab)
 	self.leaderButtons[#self.leaderButtons + 1] = role
 	y = y - ROW - PAD
 
-	-- Pull timer: the configured default and a cancel.
+	-- Pull timer. The configured default and a cancel.
 	local pull = TextButton(panel, half, ROW, (L["Pull"] .. " " .. (C.GroupTools.PullTime or 8)), function()
 		if C_PartyInfo and C_PartyInfo.DoCountdown then
 			C_PartyInfo.DoCountdown(C.GroupTools.PullTime or 8)
@@ -235,7 +235,7 @@ function Module:BuildPanel(tab)
 	self:BuildCombatRes(panel, y)
 	y = y - ICON - PAD
 
-	-- World marker bar: secure worldmarker action, left places, right clears.
+	-- World marker bar. Secure worldmarker action, left places, right clears.
 	local wmLabel = panel:CreateFontString(nil, "OVERLAY")
 	K.SetFont(wmLabel, 11, K.FontOutlineStyle())
 	wmLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, y)
@@ -248,7 +248,7 @@ function Module:BuildPanel(tab)
 		local button = IconButton(panel, ICON, i, true)
 		button:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
 		button:RegisterForClicks("AnyUp")
-		-- Secure worldmarker action: left toggles the ground marker, right clears it.
+		-- Secure worldmarker action. Left toggles the ground marker, right clears it.
 		-- The ground flare is NOT numbered the same way as the raid target icon, so
 		-- placing marker i under icon i drops a different colour than the button
 		-- shows. Blizzard keeps the translation in WORLD_RAID_MARKER_ORDER and its
@@ -270,7 +270,7 @@ function Module:BuildPanel(tab)
 	SetTip(wmClear, L["Clear Markers"], L["Clear every ground marker."])
 	y = y - ICON - PAD
 
-	-- Target icon bar: mark the current target, or clear it.
+	-- Target icon bar. Mark the current target, or clear it.
 	local tiLabel = panel:CreateFontString(nil, "OVERLAY")
 	K.SetFont(tiLabel, 11, K.FontOutlineStyle())
 	tiLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, y)
@@ -283,7 +283,7 @@ function Module:BuildPanel(tab)
 		local button = IconButton(panel, ICON, i, true)
 		button:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
 		button:RegisterForClicks("AnyUp")
-		-- Secure raidtarget action: toggle mark i on the current target.
+		-- Secure raidtarget action. Toggle mark i on the current target.
 		button:SetAttribute("unit", "target")
 		button:SetAttribute("type1", "raidtarget")
 		button:SetAttribute("marker", i)
@@ -334,7 +334,7 @@ end
 -- and Rebirth is the spell the game exposes it through, so its charges are the
 -- group's charges whatever you play.
 --
--- Midnight note: GetSpellCharges is flagged secret when cooldowns are restricted,
+-- Midnight note. GetSpellCharges is flagged secret when cooldowns are restricted,
 -- and only maxCharges and isActive are never secret. So the count goes out through
 -- SetFormattedText, which is a C call that accepts a secret, the colour is only
 -- applied when the value can actually be compared, and the recharge time is drawn
@@ -590,7 +590,7 @@ function Module:OnEnable()
 		return
 	end
 
-	-- The tab: a small labelled button that folds the panel out. Movable, and shown
+	-- The tab. A small labelled button that folds the panel out. Movable, and shown
 	-- only in a group.
 	local tab = CreateFrame("Button", "KKUI_GroupToolsTab", UIParent)
 	tab:SetSize(120, 24)
@@ -615,7 +615,7 @@ function Module:OnEnable()
 			end
 			return
 		end
-		-- The role summary and the full panel swap: opening the panel hides the role
+		-- The role summary and the full panel swap, opening the panel hides the role
 		-- bar, closing it brings the role bar back.
 		local openPanel = not self.Panel:IsShown()
 		if self:SetPanelShown(openPanel) and self.RoleBar then

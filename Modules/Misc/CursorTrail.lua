@@ -55,7 +55,7 @@ local holder, watcher, ticker
 -- Point ring. Plain arrays rather than a table per point.
 local px, py, born = {}, {}, {}
 local capacity, live, head = 0, 0, 0
--- Ribbon pieces: lines[i] joins point i to the point before it in the same stroke.
+-- Ribbon pieces. Lines[i] joins point i to the point before it in the same stroke.
 local lines, joined = {}, {}
 local headLine
 -- Particles, one per point, with a drift velocity and a twinkle phase.
@@ -252,7 +252,7 @@ local function Paint(now)
 	return visible
 end
 
--- The pieces that follow the pointer: the last ribbon piece up to the pointer,
+-- The pieces that follow the pointer, the last ribbon piece up to the pointer,
 -- and the glow on it. Both fade out shortly after the pointer stops.
 local function PaintHead(now, x, y, blocked)
 	local strength = 0
@@ -422,7 +422,7 @@ function Module:PLAYER_ENTERING_WORLD()
 	turning, inCinematic = 0, false
 end
 
--- Combat only: come back up so the first swing of the mouse in combat draws.
+-- Combat only. Come back up so the first swing of the mouse in combat draws.
 function Module:PLAYER_REGEN_DISABLED()
 	if combatOnly then
 		Wake()
@@ -433,7 +433,7 @@ end
 -- Settings
 -- ---------------------------------------------------------------------------
 
--- Everything except the pool size applies live: the look, the art, the colours
+-- Everything except the pool size applies live, the look, the art, the colours
 -- and the timings. The trail is cleared so a change never leaves half a stroke
 -- drawn the old way.
 function Module:ApplySettings()

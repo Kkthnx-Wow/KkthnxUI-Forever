@@ -151,8 +151,8 @@ function Module:SetupTargetPower()
 	holder.bars = {}
 	for i = 1, MAX_SEGMENTS do
 		local bar = CreateFrame("Frame", nil, holder)
-		K.CreateBackground(bar, 0.06, 0.06, 0.06, 0.9)
-		-- Match the nameplate look: a soft shadow rather than the hard border.
+		K.CreateBackground(bar, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
+		-- Match the nameplate look. A soft shadow rather than the hard border.
 		K.CreateShadow(bar, 3)
 		local fill = bar:CreateTexture(nil, "ARTWORK")
 		K.SetTextureAsset(fill, K.GetTexture(C.Unitframe and C.Unitframe.Texture or "KkthnxUI"))

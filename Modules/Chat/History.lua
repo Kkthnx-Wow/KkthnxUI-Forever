@@ -47,7 +47,7 @@ local function CharKey()
 	return name .. " - " .. realm
 end
 
--- Only keep genuine player chat: those lines carry a player or Battle.net link.
+-- Only keep genuine player chat. Those lines carry a player or Battle.net link.
 -- System, loot, and combat text do not, so this keeps the log clean on its own.
 local function IsPlayerChat(text)
 	return text:find("|Hplayer:", 1, true) or text:find("|HBNplayer:", 1, true)
@@ -177,7 +177,7 @@ function Module:SetupHistory()
 
 	-- Capture the line as each frame prints it. The hook gets the same arguments the
 	-- frame did, before the channel shortening rewrites the stored line, which is
-	-- what we want: the replay goes back through AddMessage and is shortened again.
+	-- what we want, the replay goes back through AddMessage and is shortened again.
 	active = true
 	for i = 1, NUM_FRAMES do
 		local frame = _G["ChatFrame" .. i]

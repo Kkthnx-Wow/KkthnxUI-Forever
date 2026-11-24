@@ -55,7 +55,7 @@ local IsSecret = K.IsSecret
 local C_Reputation_GetWatchedFactionData = C_Reputation and C_Reputation.GetWatchedFactionData
 local C_GossipInfo_GetFriendshipReputation = C_GossipInfo and C_GossipInfo.GetFriendshipReputation
 
--- Midnight housing. GetCurrentHouseLevelFavor is a request: it returns nothing and
+-- Midnight housing. GetCurrentHouseLevelFavor is a request, it returns nothing and
 -- the client answers later with HOUSE_LEVEL_FAVOR_UPDATED, whose payload we cache.
 local C_Housing = _G.C_Housing
 local C_Housing_GetTrackedHouseGuid = C_Housing and C_Housing.GetTrackedHouseGuid
@@ -66,7 +66,6 @@ local C_NeighborhoodInitiative = _G.C_NeighborhoodInitiative
 local SPARK = C.Media.Textures.Spark
 local REPORT_COOLDOWN = 10
 local INFO_COLOR = K.ColorHex("info")
-local HEADER = { 0.9, 0.8, 0.5 }
 -- Blizzard's experience blue and rested purple, and its honor orange softened
 -- the same way as the power colours.
 local XP_COLOR = { 0.00, 0.39, 0.88 }
@@ -416,7 +415,7 @@ local function BuildHonorState()
 end
 
 -- WoW Forever has no housing, so nothing here asks the server for housing favor
--- or neighbourhood initiative data. Its own UI never does either: it loads no
+-- or neighbourhood initiative data. Its own UI never does either, it loads no
 -- housing addon and its status bars have no house favor bar. The state builders
 -- below only read, and return nothing when there is no tracked house.
 
@@ -588,7 +587,7 @@ local function AddHousingTooltip(addSpacing)
 	if addSpacing then
 		AddTooltipDivider()
 	end
-	_G.GameTooltip:AddDoubleLine(L["Housing Experience"], format("%s %d", _G.LEVEL or "Level", housingState.level or 1), HEADER[1], HEADER[2], HEADER[3], HEADER[1], HEADER[2], HEADER[3])
+	_G.GameTooltip:AddDoubleLine(K.ColorText("accent", L["Housing Experience"]), format("%s %d", _G.LEVEL or "Level", housingState.level or 1))
 	_G.GameTooltip:AddLine(" ")
 	if housingState.capped then
 		_G.GameTooltip:AddLine(housingState.display, 1, 1, 1, true)

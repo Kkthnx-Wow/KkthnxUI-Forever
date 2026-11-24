@@ -153,7 +153,7 @@ end
 -- Where a frame actually is, resolved. This is what the player sees, as opposed
 -- to what the anchors claim.
 --
--- Caution: reading a rect makes the layout engine resolve the frame, and that
+-- Caution. Reading a rect makes the layout engine resolve the frame, and that
 -- resolution may be attributed to this addon. A snapshot of a Blizzard frame can
 -- therefore taint the very frame it is measuring. Leave geometry streams off in
 -- normal play and use them only while chasing a specific problem.

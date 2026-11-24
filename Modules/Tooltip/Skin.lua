@@ -59,7 +59,7 @@ local function SkinInsetStatusBar(bar)
 		end
 	end
 	bar:SetStatusBarTexture(BarTexture())
-	K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.9)
+	K.CreateBackground(bar, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.9)
 	K.CreateBorder(bar)
 end
 
@@ -75,7 +75,7 @@ local function SkinInsetProgressBar(progressBar)
 		end
 	end
 	bar:SetStatusBarTexture(BarTexture())
-	K.CreateBackground(bar, 0.1, 0.1, 0.1, 0.9)
+	K.CreateBackground(bar, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.9)
 	K.CreateBorder(bar)
 end
 
@@ -188,7 +188,7 @@ function Module:SetupSkins()
 
 	-- GameTooltip is already skinned above through SKIN_LIST, and its backdrop stays
 	-- suppressed by the SharedTooltip_SetBackdropStyle hook. We deliberately do not
-	-- hook its OnShow: an insecure script hook runs inside the same execution that
+	-- hook its OnShow, an insecure script hook runs inside the same execution that
 	-- built the tooltip, so on a map POI (which then adds a widget set doing secret
 	-- arithmetic) it would taint that path and error. GitHub #138 and #134.
 

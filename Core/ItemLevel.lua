@@ -35,7 +35,7 @@ local LOAD_TIMEOUT = 3
 local SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
 local MAIN_HAND, OFF_HAND = 16, 17
 -- Empty slots count as zero, so the divisor is the full slot count. UNKNOWN for
--- Forever: whether its own average counts the ranged slot (17) or not (16). This
+-- Forever. Whether its own average counts the ranged slot (17) or not (16). This
 -- is only used when the game's number is not available.
 local DIVISOR = #SLOTS
 
@@ -153,7 +153,7 @@ function K.LoadMissingGear(unit, done)
 end
 
 -- Average for an inspected unit while its inspect data is held. Returns the
--- level, or nil and a reason: "partial" (links still arriving, wait on
+-- level, or nil and a reason, "partial" (links still arriving, wait on
 -- K.LoadMissingGear and read again), "loading" (links are in links, wait on
 -- K.LoadGearLinks) or "secret" (a link cannot be read, nothing to wait for).
 function K.GetInspectAverage(unit, links)

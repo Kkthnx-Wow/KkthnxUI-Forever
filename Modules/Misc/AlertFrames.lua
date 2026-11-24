@@ -60,7 +60,7 @@ end
 -- Stack ordering
 --   Enumerate the active alerts of a pool, drop hidden ones (a frame can still
 --   read active while its anchors are cleared mid-release), and order them by
---   appearance. Frame objects and GetTop() are never compared: tables cannot
+--   appearance. Frame objects and GetTop() are never compared, tables cannot
 --   use <, and cleared anchors make GetTop() nil or secret during release.
 -- ---------------------------------------------------------------------------
 local scratchAlerts = {}

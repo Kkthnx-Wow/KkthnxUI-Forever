@@ -42,7 +42,7 @@ function Module:HandleGossipSkip()
 		end
 	end
 
-	-- A quest giver whose quests were left alone: let you read them.
+	-- A quest giver whose quests were left alone, let you read them.
 	if (C_GossipInfo.GetNumActiveQuests() + C_GossipInfo.GetNumAvailableQuests()) > 0 then
 		return
 	end
@@ -83,5 +83,5 @@ function Module:HandleGossipSkip()
 end
 
 function Module:SetupGossip()
-	-- No event of its own: HandleGossipSkip runs from the gossip handler in Accept.lua.
+	-- No event of its own. HandleGossipSkip runs from the gossip handler in Accept.lua.
 end

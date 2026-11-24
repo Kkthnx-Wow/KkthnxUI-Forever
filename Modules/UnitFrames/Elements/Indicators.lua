@@ -283,7 +283,7 @@ function Build.PhaseIndicator(self)
 	return frame
 end
 
--- The animated "Zzz" sleep loop Blizzard plays on its player frame: a 7x6, 42
+-- The animated "Zzz" sleep loop Blizzard plays on its player frame, a 7x6, 42
 -- frame flipbook driven by Blizzard's own FlipBook animation, so it renders
 -- exactly the way the default frame does. We just wear it in the portrait corner
 -- and only run the loop while it is actually shown (resting).
@@ -326,7 +326,7 @@ local function BuildRestingFlipbook(self, anchor, size)
 	return rest
 end
 
--- Player only: combat and resting flags.
+-- Player only. Combat and resting flags.
 function Build.PlayerIndicators(self)
 	local health = self.Health
 
@@ -336,7 +336,7 @@ function Build.PlayerIndicators(self)
 	self.RestingIndicator = BuildRestingFlipbook(self, self.Portrait or health, 22)
 end
 
--- Target and focus: the quest badge, so quest mobs stand out at a glance.
+-- Target and focus. The quest badge, so quest mobs stand out at a glance.
 function Build.QuestIndicator(self)
 	self.QuestIndicator = Icon(self.Health, 14, "TOPLEFT", self.Health, "TOPLEFT", 1, -1)
 end
@@ -404,7 +404,7 @@ function Build.QuestieIcon(self)
 	self.KKUI_QuestieIcon = icon
 end
 
--- Party and raid: everything a healer needs to see on a roster.
+-- Party and raid. Everything a healer needs to see on a roster.
 function Build.GroupIndicators(self, cfg)
 	local health = self.Health
 

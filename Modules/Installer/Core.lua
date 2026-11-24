@@ -19,6 +19,7 @@ local pairs = pairs
 local pcall = pcall
 local max = math.max
 local min = math.min
+local format = string.format
 local tinsert = table.insert
 local C_Timer = C_Timer
 local CreateFrame = CreateFrame
@@ -32,11 +33,13 @@ local ReloadUI = ReloadUI
 local accent = K.Colors.accent
 local gold = K.Colors.gold
 local silver = K.Colors.silver
+local textColor = K.Colors.text
 
 -- System tweaks offered on the CVars step. Each is opt-in via its checkbox.
+-- Nameplate class colours are not offered here, since our plates follow the
+-- addon's own Class Colored Health option and ignore the game's setting.
 local CVAR_TWEAKS = {
-	{ key = "autoloot", cvar = "autoLootDefault", value = 1, label = L["Fast Auto-Loot"] },
-	{ key = "nameplateColors", cvar = "ShowClassColorInNameplate", value = 1, label = L["Class Colors on Nameplates"] },
+	{ key = "autoloot", cvar = "autoLootDefault", value = 1, label = L["Auto Loot"] },
 	{ key = "camera", cvar = "cameraDistanceMaxZoomFactor", value = 2.6, label = L["Max Camera Distance"] },
 	{ key = "combatText", cvar = "floatingCombatTextCombatDamage", value = 1, label = L["Floating Combat Text"] },
 	{ key = "questObjectives", cvar = "autoQuestProgress", value = 1, label = L["Auto Quest Tracking"] },
@@ -110,7 +113,7 @@ local STEPS = {
 			local ver = Header(panel, 11, K.Version .. " (" .. K.Build .. ")", silver)
 			ver:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
 
-			local body = Body(panel, L["Welcome, adventurer! KkthnxUI streamlines your interface with clean unit frames, action bars, bags, nameplates, and more. This short setup applies the layout and a few tweaks. Nothing changes until you click an apply button, so take your time."])
+			local body = Body(panel, L["KkthnxUI replaces the default unit frames, action bars, bags, nameplates and more. This setup applies its chat and frame layout and a few game settings. Nothing changes until you press an apply button."])
 			body:SetPoint("TOPLEFT", logo, "BOTTOMLEFT", 0, -16)
 			body:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 		end,
@@ -118,10 +121,10 @@ local STEPS = {
 	{
 		name = L["Features"],
 		build = function(_, panel)
-			local title = Header(panel, 15, L["What You Get"], accent)
+			local title = Header(panel, 15, L["Features"], accent)
 			title:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
 
-			local body = Body(panel, L["|cffF3B043Unit Frames & Nameplates|r  Clean, class-coloured frames with threat, auras, and class resources.\n\n|cffF3B043Action Bars|r  Eight paged bars, pet, stance, and possess bars, all movable.\n\n|cffF3B043Bags|r  An all-in-one, auto-categorised bag and bank.\n\n|cffF3B043Automation & Tools|r  Auto-quest, decline duels, a movable minimap, and a full options panel."])
+			local body = Body(panel, L["|cff5C8BCFUnit Frames & Nameplates|r  Class coloured frames with threat, auras and class resources.\n\n|cff5C8BCFAction Bars|r  Eight paged bars plus pet, stance and possess bars, all movable.\n\n|cff5C8BCFBags|r  One bag and one bank window that sort items into categories.\n\n|cff5C8BCFAutomation & Tools|r  Quest automation, duel declining, a movable minimap and an options window."])
 			body:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
 			body:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 		end,
@@ -149,8 +152,15 @@ local STEPS = {
 
 			local layoutDone = Header(panel, 12, "", gold)
 			local layout = Button(panel, 150, L["Apply UI Layout"], function()
-				K.ResetMovers()
-				layoutDone:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
+				-- Clears every saved position, so it asks first. Combat refuses
+				-- the reset, and the label says so instead of claiming success.
+				K.Confirm(L["Put every frame back in its default place?"], function()
+					if K.ResetMovers() then
+						layoutDone:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
+					else
+						layoutDone:SetText(K.ColorText("warning", L["Not applied in combat"]))
+					end
+				end)
 			end)
 			layout:SetPoint("TOPLEFT", chat, "BOTTOMLEFT", 0, -12)
 			layoutDone:SetPoint("LEFT", layout, "RIGHT", 10, 0)
@@ -162,7 +172,7 @@ local STEPS = {
 			local title = Header(panel, 15, L["System Tweaks"], accent)
 			title:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
 
-			local body = Body(panel, L["Tick the console tweaks you want, then apply. These are standard settings, safe to change."])
+			local body = Body(panel, L["Tick the game settings you want, then press apply. Each one can be changed back later in the game's own options."])
 			body:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
 			body:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 
@@ -172,7 +182,7 @@ local STEPS = {
 			local GAP = 6
 			local top = -14
 			for i, tweak in ipairs(CVAR_TWEAKS) do
-				local cb = Check(panel, tweak.label, true, BOX)
+				local cb = Check(panel, tweak.label, false, BOX)
 				cb:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, top - (i - 1) * (BOX + GAP))
 				cb.tweak = tweak
 				panel.checks[i] = cb
@@ -181,14 +191,25 @@ local STEPS = {
 			local done = Header(panel, 12, "", gold)
 			local apply = Button(panel, 170, L["Apply Selected Tweaks"], function()
 				if InCombatLockdown() then
+					done:SetText(K.ColorText("warning", L["Not applied in combat"]))
 					return
 				end
+				-- SetCVar reports whether the game took the value, so a refused
+				-- setting is not shown as applied.
+				local refused = 0
 				for _, cb in ipairs(panel.checks) do
 					if cb:GetChecked() then
-						pcall(SetCVar, cb.tweak.cvar, cb.tweak.value)
+						local ok, success = pcall(SetCVar, cb.tweak.cvar, cb.tweak.value)
+						if not ok or not success then
+							refused = refused + 1
+						end
 					end
 				end
-				done:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
+				if refused > 0 then
+					done:SetText(K.ColorText("warning", format(L["%d not applied"], refused)))
+				else
+					done:SetText(CHECK .. " " .. K.ColorText("positive", L["Applied"]))
+				end
 			end)
 			apply:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, top - #CVAR_TWEAKS * (BOX + GAP) - 8)
 			done:SetPoint("LEFT", apply, "RIGHT", 10, 0)
@@ -197,7 +218,7 @@ local STEPS = {
 	{
 		name = L["Finish"],
 		build = function(_, panel)
-			local title = Header(panel, 15, L["All Set!"], accent)
+			local title = Header(panel, 15, L["Finish"], accent)
 			title:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
 
 			local body = Body(panel, L["You are ready to go. Reload the UI to finish. Type |cff5C8BCF/kk|r any time to open the options, |cff5C8BCF/kk move|r to reposition frames, and |cff5C8BCF/kk install|r to run this wizard again."])
@@ -236,18 +257,18 @@ function Module:ShowStep(index)
 	end
 	self:GetPanel(index):Show()
 
-	-- Sidebar highlight.
 	for i, tab in ipairs(self.frame.tabs) do
 		local on = i == index
-		tab.Text:SetTextColor(on and accent[1] or silver[1], on and accent[2] or silver[2], on and accent[3] or silver[3])
+		-- The active step reads in body text on its accent tint. Accent text on
+		-- that tint fell below 4.5:1.
+		local color = on and textColor or silver
+		tab.Text:SetTextColor(color[1], color[2], color[3])
 		tab.Active:SetShown(on)
 	end
 
-	-- Progress bar.
 	self.frame.progress:SetValue(index)
 	self.frame.progress.Label:SetFormattedText("%d / %d", index, #STEPS)
 
-	-- Nav buttons.
 	self.frame.back:SetEnabled(index > 1)
 	self.frame.back:SetAlpha(index > 1 and 1 or 0.4)
 	self.frame.next.Text:SetText(index == #STEPS and L["Finish & Reload"] or L["Next"])
@@ -287,7 +308,7 @@ function Module:BuildFrame()
 	self.frame = f
 	self.panels = {}
 
-	local title = Header(f, 17, K.ColorText("accent", "KkthnxUI") .. "  " .. L["Setup"], nil)
+	local title = Header(f, 15, K.ColorText("accent", "KkthnxUI") .. "  " .. L["Setup"], nil)
 	title:SetPoint("TOP", f, "TOP", 0, -14)
 
 	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -296,6 +317,7 @@ function Module:BuildFrame()
 		Module:Close()
 	end)
 	K.SkinCloseButton(close)
+	K.RegisterGamepadFrame(f, close)
 
 	-- Sidebar with the five steps.
 	local nav = CreateFrame("Frame", nil, f)
@@ -315,6 +337,9 @@ function Module:BuildFrame()
 		tab.Active:SetAllPoints()
 		tab.Active:SetColorTexture(accent[1], accent[2], accent[3], 0.18)
 		tab.Active:Hide()
+		local hover = tab:CreateTexture(nil, "HIGHLIGHT")
+		hover:SetAllPoints()
+		hover:SetColorTexture(1, 1, 1, K.GradientAlpha.hover)
 		tab.Text = tab:CreateFontString(nil, "OVERLAY")
 		K.SetFont(tab.Text, 12, K.FontOutlineStyle())
 		tab.Text:SetPoint("LEFT", tab, "LEFT", 8, 0)
@@ -359,7 +384,7 @@ function Module:BuildFrame()
 	progress:SetStatusBarColor(accent[1], accent[2], accent[3], 0.9)
 	progress:SetMinMaxValues(0, #STEPS)
 	progress:SetValue(1)
-	K.CreateBackground(progress, 0.1, 0.1, 0.1, 0.8)
+	K.CreateBackground(progress, K.Colors.panel[1], K.Colors.panel[2], K.Colors.panel[3], 0.8)
 	K.CreateBorder(progress)
 	progress.Label = progress:CreateFontString(nil, "OVERLAY")
 	K.SetFont(progress.Label, 11, K.FontOutlineStyle())

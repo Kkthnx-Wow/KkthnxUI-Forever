@@ -102,7 +102,7 @@ local function FindLine(tt, predicate)
 	end
 end
 
--- Colour for a unit: class colour for players, reaction colour otherwise.
+-- Colour for a unit. Class colour for players, reaction colour otherwise.
 local function UnitColor(unit)
 	if UnitIsPlayer(unit) then
 		local _, class = UnitClass(unit)
@@ -243,7 +243,7 @@ function Module:OnUnitTooltip(tt)
 		end
 	end
 
-	-- Level line: recolour by difficulty, tidy the identity block. For creatures
+	-- Level line. Recolour by difficulty, tidy the identity block. For creatures
 	-- we add an Elite/Rare/Boss suffix, for players we drop the "(Player)" tag and
 	-- class-colour the spec line just below so the identity reads as one block.
 	local level = UnitLevel(unit)
@@ -252,7 +252,7 @@ function Module:OnUnitTooltip(tt)
 			return t:find(LEVEL, 1, true) ~= nil
 		end)
 		if levelLine then
-			-- One identity line: the level in its difficulty colour, then the rest.
+			-- One identity line. The level in its difficulty colour, then the rest.
 			-- The word "Level" goes, the number reads as a level on its own.
 			local color = K.UnitDifficultyColor(unit)
 			local levelText = level > 0 and tostring(level) or "??"
@@ -261,7 +261,7 @@ function Module:OnUnitTooltip(tt)
 			end
 			local text = levelLine:GetText()
 			if isPlayer then
-				-- "80 Orc Hunter": race in body text, class in its class colour. The
+				-- "80 Orc Hunter", race in body text, class in its class colour. The
 				-- client prints the class on a line of its own, which the line
 				-- pre-call in SetupUnitInfo drops.
 				local race = UnitRace(unit)

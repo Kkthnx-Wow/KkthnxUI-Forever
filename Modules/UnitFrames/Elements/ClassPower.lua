@@ -77,7 +77,7 @@ local function CreateSegmented(self, total)
 	for i = 1, total do
 		local bar = CreateFrame("StatusBar", nil, holder)
 		bar:SetStatusBarTexture(Module.Texture())
-		K.CreateBackground(bar, 0.08, 0.08, 0.08, 0.9)
+		K.CreateBackground(bar, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 		K.CreateBorder(bar)
 		bar:Hide()
 		bars[i] = bar

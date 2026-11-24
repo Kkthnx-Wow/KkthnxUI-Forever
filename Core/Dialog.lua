@@ -17,12 +17,46 @@
 local K, L = KkthnxUI[1], KkthnxUI[3]
 
 local CreateFrame = CreateFrame
+local InCombatLockdown = InCombatLockdown
+local C_Timer_After = C_Timer.After
 local tinsert = table.insert
+local type = type
 
 local BASE_HEIGHT = 116
 local INPUT_HEIGHT = 150
 
 local dialog
+
+-- Escape closes only this frame. Left to UISpecialFrames it also closed the
+-- settings window behind it, since that list hides every shown entry at once.
+-- Keyboard propagation is restricted in combat, so there the list entry stays
+-- as the fallback and Escape closes both, as before.
+local function TakeEscape(frame, close)
+	frame:EnableKeyboard(true)
+	frame:SetScript("OnKeyDown", function(self, key)
+		if InCombatLockdown() then
+			return
+		end
+		if key == "ESCAPE" then
+			self:SetPropagateKeyboardInput(false)
+			close()
+		else
+			self:SetPropagateKeyboardInput(true)
+		end
+	end)
+	-- Other keys reach the game until Escape is pressed. Propagation is put back
+	-- one frame after hiding, once the Escape that closed it is spent, so a
+	-- dialog opened later in combat never swallows the player's keys.
+	local function Restore()
+		if not InCombatLockdown() then
+			frame:SetPropagateKeyboardInput(true)
+		end
+	end
+	frame:SetScript("OnShow", Restore)
+	frame:SetScript("OnHide", function()
+		C_Timer_After(0, Restore)
+	end)
+end
 
 local function Close()
 	dialog:Hide()
@@ -50,8 +84,8 @@ local function Build()
 	K.CreateGradientBackground(frame)
 	K.CreateBorder(frame)
 
-	-- Escape closes it, the same as any Blizzard dialog.
 	tinsert(_G.UISpecialFrames, "KKUI_Dialog")
+	TakeEscape(frame, Close)
 
 	frame.Text = frame:CreateFontString(nil, "OVERLAY")
 	K.SetFont(frame.Text, 13, "")
@@ -88,6 +122,9 @@ local function Build()
 	K.SkinButton(cancel)
 	K.SetFont(cancel:GetFontString(), 12, "")
 	cancel:SetScript("OnClick", Close)
+
+	-- A popup to the Gamepad UI, with B on Cancel.
+	K.RegisterGamepadFrame(frame, cancel, true)
 
 	return frame
 end
@@ -151,6 +188,9 @@ local function BuildCopy()
 	K.CreateGradientBackground(frame, 0.96)
 	K.CreateBorder(frame)
 	tinsert(_G.UISpecialFrames, "KKUI_CopyWindow")
+	TakeEscape(frame, function()
+		frame:Hide()
+	end)
 
 	frame.Title = frame:CreateFontString(nil, "OVERLAY")
 	K.SetFont(frame.Title, 15, "OUTLINE")
@@ -166,6 +206,7 @@ local function BuildCopy()
 	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", -4, -4)
 	K.SkinCloseButton(close)
+	K.RegisterGamepadFrame(frame, close)
 
 	-- Shown only when the window is used to paste text in (see K.ShowImportBox).
 	local action = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -174,13 +215,17 @@ local function BuildCopy()
 	action:SetText(L["Import"])
 	K.SkinButton(action, true)
 	K.SetFont(action:GetFontString(), 12, "")
+	-- A callback that returns a message keeps the window open with the pasted
+	-- text, and the message replaces the hint, so a bad paste can be fixed here.
 	action:SetScript("OnClick", function()
 		local callback = frame.onAccept
 		local text = frame.Edit:GetText()
-		frame:Hide()
-		if callback then
-			callback(text)
+		local problem = callback and callback(text)
+		if type(problem) == "string" then
+			frame.Hint:SetText(K.ColorText("warning", problem))
+			return
 		end
+		frame:Hide()
 	end)
 	action:Hide()
 	frame.Action = action

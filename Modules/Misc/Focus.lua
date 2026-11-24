@@ -116,7 +116,7 @@ function Module:OnEnable()
 	self:RegisterEvent("GROUP_ROSTER_UPDATE", "GROUP_ROSTER_UPDATE")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", "PLAYER_ENTERING_WORLD")
 
-	-- The second half: a hidden secure button the binding clicks, so the same
+	-- The second half. A hidden secure button the binding clicks, so the same
 	-- modified click works on a nameplate or anything else under the cursor that
 	-- is not one of our frames.
 	local clicker = CreateFrame("Button", "KKUI_FocusClicker", UIParent, "SecureActionButtonTemplate")

@@ -58,7 +58,7 @@ local MEMORY_INTERVAL = 2
 local FPS_STEPS = { { 60, "jade" }, { 40, "gold" }, { 20, "ember" } }
 local MS_STEPS = { { 75, "jade" }, { 150, "gold" }, { 300, "ember" } }
 
--- Colour for a framerate: jade at 60 and above, then down through gold and ember
+-- Colour for a framerate. Jade at 60 and above, then down through gold and ember
 -- to crimson.
 local function FPSColor(value)
 	for _, step in ipairs(FPS_STEPS) do
@@ -107,7 +107,7 @@ local function LabelColor()
 	return { 1, 1, 1 }
 end
 
--- Network stats: the worse latency (the one you feel), both latencies, and the
+-- Network stats. The worse latency (the one you feel), both latencies, and the
 -- download and upload rates in kilobytes a second.
 local function Net()
 	if not GetNetStats then
@@ -426,7 +426,7 @@ function Module:CreatePerformance()
 		end
 	end)
 
-	-- One tick a second: record the framerate, redraw the readout only when its
+	-- One tick a second. Record the framerate, redraw the readout only when its
 	-- text changed, and keep an open tooltip live.
 	local shown
 	local elapsed = UPDATE_INTERVAL

@@ -16,14 +16,14 @@ local tinsert = table.insert
 local BAR_TEX = "Interface\\AddOns\\KkthnxUI\\Media\\Buttons\\Buttons"
 local ICON_TEX = "Interface\\AddOns\\KkthnxUI\\Media\\Buttons\\Buttons_2"
 
--- Buttons.blp: three stacked horizontal bar states. { left, right, top, bottom }.
+-- Buttons.blp, three stacked horizontal bar states. { left, right, top, bottom }.
 local BAR_ROWS = {
 	{ "Dark", 0.02, 0.977, 0.027, 0.227 },
 	{ "Dark Red", 0.02, 0.977, 0.285, 0.484 },
 	{ "Red", 0.02, 0.977, 0.543, 0.742 },
 }
 
--- Buttons_2.blp: a grid of icon buttons. Rather than an even split (which caught
+-- Buttons_2.blp, a grid of icon buttons. Rather than an even split (which caught
 -- the gaps between cells), use a cell pitch plus the icon's own extent so each
 -- icon is inset from its neighbours. Values are fractions of the 512px sheet.
 local ICON_COLS = 5
@@ -87,12 +87,12 @@ local function BuildPreview()
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	K.CreateBackground(frame, 0.05, 0.05, 0.05, 0.95)
+	K.CreateBackground(frame, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.95)
 	K.CreateBorder(frame)
 	tinsert(UISpecialFrames, "KKUI_ButtonPreview")
 
 	local title = frame:CreateFontString(nil, "OVERLAY")
-	K.SetFont(title, 16, "OUTLINE")
+	K.SetFont(title, 15, K.FontOutlineStyle())
 	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 	title:SetPoint("TOP", 0, -12)
 	title:SetText(L["Button Preview"])
@@ -102,7 +102,7 @@ local function BuildPreview()
 	K.SkinCloseButton(close)
 
 	local barHeader = frame:CreateFontString(nil, "OVERLAY")
-	K.SetFont(barHeader, 13, "OUTLINE")
+	K.SetFont(barHeader, 13, K.FontOutlineStyle())
 	barHeader:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 	barHeader:SetPoint("TOPLEFT", 16, -42)
 	barHeader:SetText(L["Bar Buttons"])
@@ -114,7 +114,7 @@ local function BuildPreview()
 	end
 
 	local iconHeader = frame:CreateFontString(nil, "OVERLAY")
-	K.SetFont(iconHeader, 13, "OUTLINE")
+	K.SetFont(iconHeader, 13, K.FontOutlineStyle())
 	iconHeader:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
 	iconHeader:SetPoint("TOPLEFT", 16, y - 8)
 	iconHeader:SetText(L["Icon Buttons"])

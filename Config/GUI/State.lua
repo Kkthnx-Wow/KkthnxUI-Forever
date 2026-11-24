@@ -172,7 +172,7 @@ function GUI.Index()
 	return index
 end
 
--- Settings matching every word of the query, best matches first: a label that
+-- Settings matching every word of the query, best matches first, a label that
 -- starts with the query, then a label that contains it, then a match elsewhere.
 function GUI.Search(query, limit)
 	local words = {}
@@ -310,6 +310,7 @@ local function Same(a, b)
 	end
 	return a == b
 end
+GUI.SameValue = Same
 
 function GUI.IsModified(control)
 	if not control.path then

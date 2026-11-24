@@ -61,7 +61,7 @@ end
 -- The data bar shows the same clock text.
 Module.TimeText = TimeText
 
--- Hover tooltip: date, both clocks, and this character's saved instance lockouts.
+-- Hover tooltip. Date, both clocks, and this character's saved instance lockouts.
 -- point is where the tooltip opens, left of the map unless the caller says.
 function Module:TimeTooltip(anchor, point)
 	-- Every call is a server request, and the tooltip rebuilds on each hover, so

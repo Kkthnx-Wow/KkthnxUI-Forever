@@ -81,7 +81,7 @@ function Module:Start(input)
 		return
 	end
 
-	-- Toggle: a second /pull aborts the running timer.
+	-- Toggle. A second /pull aborts the running timer.
 	if ticker then
 		ResetTicker()
 		SendGroup(L["Pull ABORTED!"])

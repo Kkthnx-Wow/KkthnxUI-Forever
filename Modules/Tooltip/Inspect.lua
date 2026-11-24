@@ -142,7 +142,7 @@ end
 local function Store(guid, ilvl)
 	if not cache[guid] then
 		if cacheCount >= CACHE_MAX then
-			-- Bounded: drop everything rather than track ages for a tooltip nicety.
+			-- Bounded. Drop everything rather than track ages for a tooltip nicety.
 			cache, cacheCount = {}, 0
 		end
 		cacheCount = cacheCount + 1

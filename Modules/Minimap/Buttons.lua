@@ -171,12 +171,12 @@ function Module:CollectButtons()
 
 	local collected = {}
 	local positioning = false
-	-- Forward declared: the toggle dot, created below but driven from Layout so it
+	-- Forward declared. The toggle dot, created below but driven from Layout so it
 	-- can hide itself when there is nothing to collect.
 	local tab
 
 	-- The corner the dot lives in decides which way everything grows. The grid
-	-- fills away from the minimap edge: from the top for top corners, the bottom
+	-- fills away from the minimap edge, from the top for top corners, the bottom
 	-- for bottom corners, and toward the map for the horizontal side, so the first
 	-- button always sits nearest the dot.
 	local corner = C.Minimap.ButtonCorner or "BOTTOMLEFT"
@@ -184,7 +184,7 @@ function Module:CollectButtons()
 	local anchorH = strfind(corner, "LEFT") and "RIGHT" or "LEFT"
 	local buttonAnchor = anchorV .. anchorH
 
-	-- Collected buttons sit in a tidy grid inside the panel: square-cropped icons,
+	-- Collected buttons sit in a tidy grid inside the panel, square-cropped icons,
 	-- a small even gap, and just enough padding to clear the panel border. No
 	-- per-button border, since the panel already frames them and a border on every
 	-- icon reads as busy clutter, so the icons stay clean. Each is drawn at our own
@@ -197,7 +197,7 @@ function Module:CollectButtons()
 
 	local function Layout()
 		local count = #collected
-		-- No point offering a toggle for an empty bin: hide the bracket (and any open
+		-- No point offering a toggle for an empty bin, hide the bracket (and any open
 		-- panel) until there is at least one button to show.
 		if tab then
 			tab:SetShown(count > 0)
@@ -229,7 +229,7 @@ function Module:CollectButtons()
 				button:SetFrameLevel(panel:GetFrameLevel() + 2)
 				button:SetSize(SIZE, SIZE)
 				button:ClearAllPoints()
-				-- Offsets flow from the anchored corner: positive toward the opposite
+				-- Offsets flow from the anchored corner, positive toward the opposite
 				-- edge, negative when the anchor is on the far side.
 				local dx = PAD + col * (SIZE + GAP)
 				local dy = PAD + row * (SIZE + GAP)
@@ -273,7 +273,7 @@ function Module:CollectButtons()
 	-- corner, because the border is drawn at an offset from the map edge and
 	-- anchoring to the map leaves the bracket adrift of the line it belongs on.
 	--
-	-- Corner to corner, not centre to centre: the art draws its elbow at the
+	-- Corner to corner, not centre to centre, the art draws its elbow at the
 	-- texture's own corner, so centring it throws the elbow off by half the size.
 	local mapBorder = Minimap.KKUI_Border
 	local borderCorner = mapBorder and mapBorder[corner]
@@ -310,7 +310,7 @@ function Module:CollectButtons()
 	icon:SetAlpha(0.7)
 	self.buttonTab = tab
 
-	-- The grid flies out horizontally away from the minimap: left from a left
+	-- The grid flies out horizontally away from the minimap, left from a left
 	-- corner, right from a right one, aligned to the dot's top or bottom edge.
 	local flyLeft = strfind(corner, "LEFT")
 	panel:ClearAllPoints()

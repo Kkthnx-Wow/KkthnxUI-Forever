@@ -56,7 +56,7 @@ C.Media = {
 	Textures = {
 		White8x8 = "Interface\\BUTTONS\\WHITE8X8",
 		Glow = media .. "Textures\\GlowTex.tga",
-		-- White, so every spark can take its own colour: a 2px core with a soft
+		-- White, so every spark can take its own colour, a 2px core with a soft
 		-- halo, drawn 16px wide so the core lands on whole pixels.
 		Spark = media .. "Textures\\Spark_Glow.tga",
 	},

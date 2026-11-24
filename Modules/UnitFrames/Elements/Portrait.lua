@@ -44,7 +44,7 @@ function Build.Portrait(self, side, width)
 	if width then
 		holder:SetWidth(width)
 	end
-	K.CreateBackground(holder, 0.05, 0.05, 0.05, 0.9)
+	K.CreateBackground(holder, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 
 	local style = C.Unitframe.PortraitStyle
 	local portrait

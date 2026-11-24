@@ -29,15 +29,10 @@ local function AskReload()
 end
 
 function GUI.CustomPanels.Profiles(parent)
-	local title = parent:CreateFontString(nil, "OVERLAY")
-	K.SetFont(title, 14, "OUTLINE")
-	title:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
-	title:SetPoint("TOPLEFT", 12, -8)
-	title:SetText(L["Profiles"])
-
+	-- The window already titles the page, so the panel starts with its contents.
 	local current = parent:CreateFontString(nil, "OVERLAY")
 	K.SetFont(current, 12)
-	current:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+	current:SetPoint("TOPLEFT", 12, -8)
 
 	-- The list of profile rows is rebuilt whenever profiles change.
 	local listHolder = CreateFrame("Frame", nil, parent)
@@ -57,9 +52,9 @@ function GUI.CustomPanels.Profiles(parent)
 	Refresh = function()
 		local active = K:GetActiveProfileName()
 		local pending = K:GetPendingProfileName()
-		local text = L["Active profile"] .. ": " .. K.ColorText("accent", active)
+		local text = format(L["Active profile %s"], K.ColorText("accent", active))
 		if pending ~= active then
-			text = text .. "   " .. L["After reload"] .. ": " .. K.ColorText("accent", pending)
+			text = text .. "   " .. format(L["Switches to %s after a reload"], K.ColorText("accent", pending))
 		end
 		current:SetText(text)
 		ClearRows()
@@ -73,7 +68,7 @@ function GUI.CustomPanels.Profiles(parent)
 			row:SetSize(460, 28)
 			row:SetPoint("TOPLEFT", 0, y)
 			y = y - 36
-			K.CreateBackground(row, 0.15, 0.15, 0.15, 0.5)
+			K.CreateBackground(row, K.Colors.raised[1], K.Colors.raised[2], K.Colors.raised[3], 0.5)
 			K.CreateBorder(row)
 
 			local label = row:CreateFontString(nil, "OVERLAY")
@@ -103,7 +98,7 @@ function GUI.CustomPanels.Profiles(parent)
 			export:SetScript("OnClick", function()
 				local str, err = K:ExportProfile(name)
 				if str then
-					K.ShowCopyText(format(L["Export: %s"], name), str)
+					K.ShowCopyText(format(L["Export %s"], name), str)
 				else
 					K.Print(L[err])
 				end
@@ -151,35 +146,70 @@ function GUI.CustomPanels.Profiles(parent)
 
 	local create = MakeButton(parent, L["Create"], 90)
 	create:SetPoint("LEFT", edit, "RIGHT", 8, 0)
-	create:SetScript("OnClick", function()
+
+	-- Problems show here beside the box. Chat sits behind the window, where a
+	-- message is easy to miss.
+	local createStatus = parent:CreateFontString(nil, "OVERLAY")
+	K.SetFont(createStatus, 11)
+	createStatus:SetTextColor(K.Colors.warning[1], K.Colors.warning[2], K.Colors.warning[3])
+	createStatus:SetPoint("LEFT", create, "RIGHT", 10, 0)
+
+	local function Create()
 		local name = strtrim(edit:GetText())
-		if K:CreateProfile(name) then
+		if name == "" then
+			createStatus:SetText(L["Type a name first."])
+		elseif K:CreateProfile(name) then
+			createStatus:SetText("")
 			edit:SetText("")
 			edit:ClearFocus()
 			Refresh()
 		else
-			K.Print(L["Pick a profile name that is not already used."])
+			createStatus:SetText(L["That name is already used."])
 		end
+	end
+	create:SetScript("OnClick", Create)
+	edit:SetScript("OnEnterPressed", Create)
+	edit:HookScript("OnTextChanged", function()
+		createStatus:SetText("")
 	end)
 
-	-- Bring a profile in from text. Two steps: the pasted string, then a name.
+	-- Bring a profile in from text. The pasted string is checked first, so a bad
+	-- one is reported in the import window before any name is asked for. A name
+	-- that is taken asks again instead of dropping the pasted text.
+	local function AskName(text, question, default)
+		K.Prompt(question, default, function(name)
+			name = strtrim(name or "")
+			if name == "" then
+				AskName(text, L["Type a name for the imported profile."], name)
+				return
+			elseif K:ProfileExists(name) then
+				AskName(text, L["That name is already used. Pick another name for the imported profile."], name)
+				return
+			end
+			local imported, err = K:ImportProfile(text, name)
+			if imported then
+				K.Print(L["Profile imported. Press Use on it to switch."])
+				Refresh()
+			else
+				K.Print(L[err])
+			end
+		end)
+	end
+
 	local import = MakeButton(parent, L["Import Profile"], 180)
 	import:SetPoint("TOPLEFT", edit, "BOTTOMLEFT", -6, -16)
 	import:SetScript("OnClick", function()
 		K.ShowImportBox(L["Import Profile"], function(text)
-			K.Prompt(L["Name for the imported profile"], L["Imported"], function(name)
-				local imported, err = K:ImportProfile(text, strtrim(name or ""))
-				if imported then
-					K.Print(L["Profile imported. Press Use on it to switch."])
-					Refresh()
-				else
-					K.Print(L[err])
-				end
-			end)
+			local ok, err = K:CheckProfileString(text)
+			if not ok then
+				-- Returning a message keeps the import window open with the
+				-- pasted text, and shows the message there.
+				return L[err]
+			end
+			AskName(text, L["Name for the imported profile"], L["Imported"])
 		end)
 	end)
 
-	-- Reset the active profile.
 	local reset = MakeButton(parent, L["Reset Active Profile"], 180)
 	reset:SetPoint("TOPLEFT", import, "BOTTOMLEFT", 0, -10)
 	reset:SetScript("OnClick", function()

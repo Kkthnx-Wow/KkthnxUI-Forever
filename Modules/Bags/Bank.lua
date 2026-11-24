@@ -42,7 +42,7 @@ local ACTION_ROW = 26
 -- Read by Gold.lua and BankBar.lua. Always the character bank on this client.
 Module.bankType = CHARACTER
 
--- The container ids that make up the bank: the base container, then one per bag
+-- The container ids that make up the bank, the base container, then one per bag
 -- slot that has been bought. Read fresh so a new bag shows without a reload.
 function Module:GetBankBags()
 	local ids = {}

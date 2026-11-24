@@ -91,7 +91,7 @@ local function Store()
 	return store
 end
 
--- Account wide placement preferences: snapping on or off, the grid and its step.
+-- Account wide placement preferences. Snapping on or off, the grid and its step.
 local function Options()
 	local db = KkthnxUIDB.moverOptions
 	if not db then
@@ -194,7 +194,7 @@ local function NearestPoint(mover)
 	return point ~= "" and point or "CENTER"
 end
 
--- The point a mover is currently pinned by: its saved one, else the one its
+-- The point a mover is currently pinned by, its saved one, else the one its
 -- default position declared. A default that hangs off another frame (focus sits
 -- relative to the player frame) names a point on that frame, not on the screen,
 -- and reading it as a screen point gave offsets like -1710 from the far corner.
@@ -347,7 +347,7 @@ local function RestorePosition(mover)
 	NotifyMoved(mover)
 end
 
--- Re-pin a mover by a different point without letting it move on screen: the new
+-- Re-pin a mover by a different point without letting it move on screen, the new
 -- offsets are measured from where it already sits.
 local function SetAnchorPoint(mover, point)
 	Remember(mover)
@@ -628,7 +628,7 @@ local function SnapAxis(set, state, edgeLow, size, crossA, crossB, gridCenter)
 		return edgeLow + bestDelta, set.pos[bestIndex], set.owner[bestIndex]
 	end
 
-	-- No screen or mover line in reach: fall back to the grid while it is shown.
+	-- No screen or mover line in reach, fall back to the grid while it is shown.
 	-- Whichever edge is nearer a grid line goes to it. Lines count out from the
 	-- centre, the way the grid is drawn.
 	if gridCenter then
@@ -856,7 +856,7 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 	mover.Label = text
 
 	-- A click opens the nudge popup for exact numbers. The mouse up that ends a
-	-- drag is not a click, so letting go of a box no longer pops the window open.
+	-- drag is not a click, so letting go of a box leaves the window closed.
 	mover:SetScript("OnMouseUp", function(self, button)
 		if not editing then
 			return
@@ -984,7 +984,7 @@ function K.FlashMover(key)
 end
 
 -- ---------------------------------------------------------------------------
--- Per-mover popup: name, X/Y inputs, and directional nudge pad
+-- Per-mover popup. Name, X/Y inputs, and directional nudge pad
 -- ---------------------------------------------------------------------------
 
 local popup, popupTarget
@@ -1270,7 +1270,7 @@ local function BuildPanel()
 	hint:SetTextColor(K.Colors.secondary[1], K.Colors.secondary[2], K.Colors.secondary[3])
 	hint:SetText(L["Drag a box to move it. Hold Shift to place it freely. Hover and use the arrow keys to nudge, with Shift for ten. Click a box for exact numbers."])
 
-	-- Placement options: snapping, the grid and its step. The grid also becomes a
+	-- Placement options. Snapping, the grid and its step. The grid also becomes a
 	-- snap target while it is shown.
 	local snap = MakeCheck(panel, L["Snap"], function(self)
 		Options().snap = self:GetChecked() and true or false
@@ -1422,10 +1422,12 @@ function K.MoversEnabled()
 	return editing
 end
 
+-- Returns true once the positions were reset, so a caller can tell a combat
+-- refusal apart from success.
 function K.ResetMovers()
 	if InCombatLockdown() then
 		K.Print(L["Cannot move frames during combat."])
-		return
+		return false
 	end
 	local store = Store()
 	for key in pairs(store) do
@@ -1440,6 +1442,7 @@ function K.ResetMovers()
 		NotifyPopup(popupTarget)
 	end
 	K.Print(L["Frame positions reset."])
+	return true
 end
 
 -- Placing frames is blocked in combat, so move mode closes when a fight starts.

@@ -230,6 +230,11 @@ function GUI.AttachTooltip(frame, control, refresh)
 		if button ~= "RightButton" then
 			return
 		end
+		-- A greyed out control keeps its value, the same as a greyed checkbox,
+		-- which cannot be clicked at all.
+		if frame.KKUI_Disabled then
+			return
+		end
 		local default = GUI.GetDefault(control.path)
 		if default == nil then
 			return
@@ -262,7 +267,9 @@ local function ResetControls(controls, count)
 	for _, control in ipairs(controls or {}) do
 		if control.path then
 			local default = GUI.GetDefault(control.path)
-			if default ~= nil then
+			-- Only settings that differ count, so a page already at its defaults
+			-- reports nothing and flags no reload.
+			if default ~= nil and not GUI.SameValue(GUI.GetValue(control.path), default) then
 				K:SetConfig(control.path, CopyDefault(default))
 				local refresh = GUI.refreshers[control]
 				if refresh then
@@ -297,7 +304,7 @@ function GUI.ResetCategory(category)
 	return count
 end
 
--- Apply a changed value: persist it, run any live callback, flag reload need,
+-- Apply a changed value. Persist it, run any live callback, flag reload need,
 -- then refresh any controls whose enabled state depends on other settings.
 function GUI.ApplyChange(control, value)
 	K:SetConfig(control.path, value)
@@ -337,6 +344,7 @@ function GUI.RefreshDependencies()
 			if enabled and entry.off and GUI.GetValue(entry.off) then
 				enabled = false
 			end
+			entry.widget.KKUI_Disabled = not enabled
 			entry.widget.KKUI_SetEnabled(enabled)
 		end
 	end
@@ -357,7 +365,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local function SkinButton(button)
-	K.CreateBackground(button, 0.2, 0.2, 0.2, 0.7)
+	K.CreateBackground(button, K.Colors.raised[1], K.Colors.raised[2], K.Colors.raised[3], 0.7)
 	K.CreateBorder(button)
 	K.AddBorderHover(button, ACCENT[1], ACCENT[2], ACCENT[3], 0.6)
 	local fs = button:GetFontString()
@@ -416,7 +424,7 @@ function GUI.CreateCheck(parent, control)
 	check.Text:SetText(control.label)
 	K.SetFont(check.Text, 12)
 	check.Text:SetTextColor(K.Colors.offWhite[1], K.Colors.offWhite[2], K.Colors.offWhite[3])
-	-- The label is part of the control: hovering it shows the tooltip and
+	-- The label is part of the control, hovering it shows the tooltip and
 	-- clicking it toggles the box, not only the 16 pixel square.
 	check:SetHitRectInsets(0, -(math.ceil(check.Text:GetStringWidth()) + 8), 0, 0)
 
@@ -476,7 +484,7 @@ function GUI.CreateSlider(parent, control)
 	track:SetPoint("LEFT", slider, "LEFT", 0, 0)
 	track:SetPoint("RIGHT", slider, "RIGHT", 0, 0)
 	track:SetHeight(6)
-	K.CreateBackground(track, 0.08, 0.08, 0.08, 0.95)
+	K.CreateBackground(track, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.95)
 	K.CreateBorder(track)
 	K.AddBorderHover(track, ACCENT[1], ACCENT[2], ACCENT[3], 0.6, slider)
 
@@ -536,6 +544,12 @@ function GUI.CreateSlider(parent, control)
 		self:ClearFocus()
 	end)
 	valueBox:SetScript("OnEscapePressed", valueBox.ClearFocus)
+	-- Losing focus for any reason (Enter, Escape, a click elsewhere) shows the
+	-- slider's real value again, so a cancelled, clamped or non-number entry
+	-- never stays in the box.
+	valueBox:HookScript("OnEditFocusLost", function(self)
+		self:SetText(Round(slider:GetValue()))
+	end)
 
 	local value = GUI.GetValue(control.path) or control.min
 	slider:SetValue(value)
@@ -592,7 +606,7 @@ local MENU_ROW = 20
 local WHITE = { 1, 1, 1 }
 
 -- One list open at a time. While one is open, Escape closes the list and not
--- the window: the window's entry in UISpecialFrames is swapped for a small
+-- the window, the window's entry in UISpecialFrames is swapped for a small
 -- frame whose hiding closes the list, and swapped back when the list closes.
 -- A click anywhere outside the list and its button closes it too.
 local openMenu, openButton
@@ -782,7 +796,7 @@ function GUI.CreateDropdown(parent, control)
 	menu:SetHeight(shown * MENU_ROW + 8)
 	menu:SetFrameStrata("FULLSCREEN_DIALOG")
 	menu:SetClampedToScreen(true)
-	K.CreateBackground(menu, 0.05, 0.05, 0.05, 0.95)
+	K.CreateBackground(menu, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.95)
 	K.CreateBorder(menu)
 	menu:Hide()
 
@@ -975,7 +989,7 @@ function GUI.CreateColor(parent, control)
 			return
 		end
 		local c = GUI.GetValue(control.path) or { 1, 1, 1, 1 }
-		-- Modern ColorPickerFrame: alpha comes from GetColorAlpha (1 = opaque),
+		-- Modern ColorPickerFrame. Alpha comes from GetColorAlpha (1 = opaque),
 		-- and info.opacity is that same alpha. The old OpacitySliderFrame is gone.
 		local function apply()
 			local r, g, b = ColorPickerFrame:GetColorRGB()
@@ -1040,6 +1054,13 @@ function GUI.CreateButton(parent, control)
 		end
 	end)
 	GUI.AttachTooltip(button, control)
+	-- A button greys out with the setting it needs, and still shows its tooltip
+	-- while disabled so the player can read which setting that is.
+	button:SetMotionScriptsWhileDisabled(true)
+	button.KKUI_SetEnabled = function(enabled)
+		button:SetEnabled(enabled)
+	end
+	GUI.RegisterDependent(button, control)
 	button.height = 30
 	return button
 end

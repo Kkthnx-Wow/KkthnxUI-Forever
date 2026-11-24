@@ -50,7 +50,7 @@ local INSPECT_WIDTH = 338
 local INSPECT_HEIGHT = _G.CHARACTER_FRAME_HEIGHT or 484
 
 -- Inspect slot offsets, measured in game from the character window so the two
--- line up: columns 9 in from the window sides and 79 down from the top, weapon
+-- line up, columns 9 in from the window sides and 79 down from the top, weapon
 -- row 9 up from the bottom. The columns hang off the inset, which sits 4 in and
 -- 60 down, hence the numbers below.
 local INSPECT_SLOT_X = 5
@@ -196,7 +196,7 @@ local function StyleCharacterFrame()
 		end
 	end
 
-	-- The darkening overlay is not hidden by alpha: SetPaperDollBackground sets its
+	-- The darkening overlay is not hidden by alpha, SetPaperDollBackground sets its
 	-- alpha back to 0.85 every time the paper doll updates, which dimmed our art to
 	-- near black. It is the only region on the scene's border layer, so the whole
 	-- layer is switched off instead.
@@ -426,7 +426,7 @@ local function StyleInspectFrame()
 		NudgeSlot(_G["Inspect" .. name .. "Slot"], nil, INSPECT_SLOT_GAP)
 	end
 
-	-- The wider layout re-centres the model and the weapon row. Done once: both
+	-- The wider layout re-centres the model and the weapon row. Done once, both
 	-- are anchored to the window, so they follow the width from then on.
 	if Wide() then
 		model:ClearAllPoints()
@@ -446,7 +446,7 @@ local function StyleInspectFrame()
 	end
 
 	-- The panel manager places windows from their size before showing them, so a
-	-- size applied after the window opens comes too late: with the character window
+	-- size applied after the window opens comes too late, with the character window
 	-- already up, inspect opened at the stock width and the two overlapped. Blizzard
 	-- switches to the character tab through InspectSwitchTabs before ShowUIPanel,
 	-- and tab clicks use it too, so the size is applied there. Always, for the

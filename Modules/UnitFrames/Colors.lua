@@ -19,7 +19,7 @@ local UnitSelectionType = UnitSelectionType
 local SELECTION_REACTION = { [0] = 2, [1] = 3, [2] = 4, [3] = 5 }
 
 -- Palette slot for an NPC's colour. The game's selection type wins over raw
--- reaction because it is what Blizzard colours by: a hated NPC that will not
+-- reaction because it is what Blizzard colours by, a hated NPC that will not
 -- attack you reads unfriendly orange, and turns red once it fights you.
 function K.UnitReactionIndex(unit)
 	local selection = UnitSelectionType and UnitSelectionType(unit, true)

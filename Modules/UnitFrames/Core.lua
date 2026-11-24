@@ -55,8 +55,8 @@ function Module.Texture()
 	return K.GetTexture(C.Unitframe.Texture)
 end
 
--- Outer height of a unit: health, the gap, and the power bar when it has one.
--- Effective power bar height for a unit config: zero when the user has hidden the
+-- Outer height of a unit. Health, the gap, and the power bar when it has one.
+-- Effective power bar height for a unit config, zero when the user has hidden the
 -- power bar (ShowPower off), otherwise the configured height. One source of truth
 -- so the frame size and the power builder always agree.
 function Module.PowerHeight(cfg)
@@ -132,7 +132,7 @@ local function CleanToken(unit)
 end
 
 -- Every frame builds its own tooltip rather than going through Blizzard's
--- UnitFrame_OnEnter. That keeps the right click hint ours: in the palette's
+-- UnitFrame_OnEnter. That keeps the right click hint ours, in the palette's
 -- info colour, and left off entirely when the option says so, without
 -- touching any Blizzard code. The tooltip refreshes through UpdateTooltip
 -- while the cursor stays, the same way the stock one does.
@@ -272,7 +272,7 @@ function Module:SpawnParty()
 		return
 	end
 
-	-- Two party looks to pick from: the standard party style, or the raid frames used
+	-- Two party looks to pick from, the standard party style, or the raid frames used
 	-- as a party (five compact healing frames). The raid look routes the party header
 	-- through the raid style and borrows the raid sizes, so it matches the real raid.
 	local useRaid = cfg.RaidStyle
@@ -392,7 +392,7 @@ function Module:SpawnRaid()
 	local maxColumns = raidWide and cols or 8
 	local rows = raidWide and perColumn or 5
 
-	-- Growth: which corner the grid builds from. All four keep vertical columns, so
+	-- Growth. Which corner the grid builds from. All four keep vertical columns, so
 	-- only the anchor point, the column direction, and the vertical step change.
 	local ORIENT = {
 		DOWN_RIGHT = { point = "TOP", column = "LEFT", down = true },
@@ -404,10 +404,10 @@ function Module:SpawnRaid()
 	local spacing = cfg.Spacing or Module.GAP
 	local yOffset = orient.down and -spacing or spacing
 
-	-- Order within a column: ascending (index order) or descending (reversed).
+	-- Order within a column. Ascending (index order) or descending (reversed).
 	local sortDir = cfg.SortDirection == "DESC" and "DESC" or "ASC"
 
-	-- Single header, all groups. Vertical layout: units stack along a column, so the
+	-- Single header, all groups. Vertical layout, units stack along a column, so the
 	-- per-unit offset is vertical only (xOffset 0) and columnSpacing opens the gap
 	-- between columns. A non-zero xOffset here staggers every frame sideways.
 	local header = oUF:SpawnHeader("KKUI_Raid", nil,
@@ -575,7 +575,7 @@ function Module:ToggleTest()
 	self.testMode = not self.testMode
 	local on = self.testMode
 
-	-- Force the real frames to show with the player's data (ConfigMode.lua), so what
+	-- Force the real frames to show with the player's data (Test.lua), so what
 	-- you position and judge is the actual frame and styling, not a mock.
 	if on then
 		self:EnterConfigMode()

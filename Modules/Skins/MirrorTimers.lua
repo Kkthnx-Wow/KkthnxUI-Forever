@@ -22,7 +22,7 @@ local hooksecurefunc = hooksecurefunc
 
 local BAR_HEIGHT = 16
 
--- The client draws these timers with its castbar art: the standard gold fill for
+-- The client draws these timers with its castbar art, the standard gold fill for
 -- fatigue and release, the channel green for Feign Death and a light blue for
 -- breath. Ours follow that, using the shared cast colours.
 local COLORS = {
@@ -76,13 +76,12 @@ local function Style(frame)
 		end
 	end
 
-	-- The label used to sit on a plate under the bar. It goes inside the bar now,
-	-- so the frame only needs the bar's own height.
+	-- The label sits inside the bar, so the frame only needs the bar's own height.
 	bar:ClearAllPoints()
 	bar:SetPoint("TOP", frame, "TOP", 0, -2)
 	bar:SetHeight(BAR_HEIGHT)
 	frame:SetHeight(BAR_HEIGHT + 6)
-	K.CreateBackground(bar, 0.08, 0.08, 0.08, 0.9)
+	K.CreateBackground(bar, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateBorder(bar)
 
 	local label = frame.Text

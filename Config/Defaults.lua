@@ -35,7 +35,7 @@ K.ConfigDefaults = {
 		Font = "Normal",
 		FontSize = 12,
 		FontFlag = "OUTLINE",
-		-- Each bar is fully self-contained: size, spacing, layout, opacity,
+		-- Each bar is fully self-contained, with size, spacing, layout, opacity,
 		-- mouseover fade, and its own text toggles. Sizes and spacing match the
 		-- original KkthnxUI (38px buttons, 6px spacing).
 		Bar1 = { Enable = true, Buttons = 12, PerRow = 12, Size = 38, Space = 6, Alpha = 1, Mouseover = false, FadeCombat = false, HotKey = true, MacroName = true, Count = true },
@@ -54,7 +54,7 @@ K.ConfigDefaults = {
 		ExtraBar = { Enable = true, Size = 46 },
 	},
 
-	-- Unit frame geometry follows the original KkthnxUI: health and power are two
+	-- Unit frame geometry follows the original KkthnxUI. Health and power are two
 	-- separate bordered bars stacked with a 6px gap, so a unit's outer height is
 	-- Height + 6 + PowerHeight. Portraits are detached boxes beside the frame.
 	Unitframe = {
@@ -70,7 +70,7 @@ K.ConfigDefaults = {
 		HealthPrediction = true,
 		RangeFade = true, -- dim units that are out of range
 		RangeAlpha = 0.4, -- how faded an out-of-range unit gets
-		GroupDispelOnly = true, -- party/raid debuffs: what your raid can dispel, plus boss mechanics
+		GroupDispelOnly = true, -- party/raid debuffs, what your raid can dispel, plus boss mechanics
 		AuraWatch = true, -- corner dots on party/raid frames for your tracked heals
 		QuestieTargetIcon = true, -- with Questie loaded, its objective icon beside the target frame
 
@@ -121,7 +121,7 @@ K.ConfigDefaults = {
 
 		Auras = {
 			-- Spacing is the UI's one 6 pixel gap. The frame widths are picked so a
-			-- full row ends flush: seven 26 pixel icons span the 218 pixel player and
+			-- full row ends flush, since seven 26 pixel icons span the 218 pixel player and
 			-- target, seven 24 pixel ones the 204 pixel focus.
 			BuffSize = 26,
 			DebuffSize = 26,
@@ -387,7 +387,7 @@ K.ConfigDefaults = {
 		Seconds = 10, -- used when /pull is typed with no number
 	},
 
-	-- The group tools panel: ready check, role check, pull timer, world markers, and
+	-- The group tools panel, with ready check, role check, pull timer, world markers, and
 	-- target icons, shown only while in a group.
 	GroupTools = {
 		Enable = true,
@@ -515,7 +515,7 @@ K.ConfigDefaults = {
 		AutoLogDungeon = true, -- Heroic dungeons
 	},
 
-	-- Hands-off questing: accept, turn in, and reward selection.
+	-- Hands-off questing, which covers accept, turn in and reward selection.
 	AutoQuest = {
 		Enable = true,
 		Accept = true, -- accept offered quests
@@ -586,7 +586,7 @@ K.ConfigDefaults = {
 		ShowIcons = true, -- icon beside the tooltip title
 		ShowMountSource = true, -- collection status/source on a player's mount buff (hold Shift)
 		BorderColor = true, -- tint the tooltip border by item quality
-		ShowMount = false, -- the mount a player is riding (off: clutter on every player tooltip)
+		ShowMount = false, -- the mount a player is riding (off, since it clutters every player tooltip)
 		ShowRole = true, -- tank/healer/dps icon for group members
 		ShowFactionIcon = true, -- faction crest on the name, hides the faction line
 		ShowRaidIcon = true, -- raid target marker ahead of the unit name

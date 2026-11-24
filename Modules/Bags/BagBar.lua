@@ -109,7 +109,7 @@ end
 -- Free general slots in the backpack and the four bags, drawn on the backpack
 -- button. The count is ours because the game's own one is hidden whenever its free
 -- bag slots setting is off, which left the button bare. It is the game's own
--- number: quivers, ammo pouches and other special bags (bag family not 0) and the
+-- number, such as quivers, ammo pouches and other special bags (bag family not 0) and the
 -- reagent bag are left out, since an ordinary item cannot go in them.
 local function CountFreeGeneral()
 	if C_Container.CalculateTotalNumberOfFreeBagSlots then
@@ -176,7 +176,7 @@ local function Layout()
 	local pos = 0
 	for i = 1, count do
 		local btn = list[reverse and (count - i + 1) or i]
-		-- Re-assert the parent: Blizzard's BagsBar layout reparents the buttons
+		-- Re-assert the parent. Blizzard's BagsBar layout reparents the buttons
 		-- back to itself, which is what made them snap away.
 		if btn:GetParent() ~= bar then
 			btn:SetParent(bar)
@@ -241,7 +241,7 @@ local function Skin(btn, name)
 
 	btn:SetParent(bar)
 	StripStock(btn)
-	K.CreateBackground(btn, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBackground(btn, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	CropIcon(btn, name)
 
 	if not btn.KKUI_Border then

@@ -121,7 +121,7 @@ local function FindBestChoice(numChoices)
 	return bestIndex
 end
 
--- Items the reward page will hand over: every fixed reward plus the one choice.
+-- Items the reward page will hand over, every fixed reward plus the one choice.
 local function RewardItemCount(numChoices)
 	return (GetNumQuestRewards() or 0) + (numChoices > 0 and 1 or 0)
 end

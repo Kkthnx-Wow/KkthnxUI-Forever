@@ -44,7 +44,7 @@ local C_Timer = C_Timer
 local C_CurrencyInfo = C_CurrencyInfo
 local BreakUpLargeNumbers = BreakUpLargeNumbers
 
--- Bags carried on the character: backpack, the four bags, and the reagent bag.
+-- Bags carried on the character. Backpack, the four bags, and the reagent bag.
 Module.BagIDs = { 0, 1, 2, 3, 4, 5 }
 
 -- Window geometry. The top band holds the title and search, the bottom band the
@@ -68,7 +68,7 @@ function Module.HasKeyring()
 	return C_ActionBar and C_ActionBar.ShouldShowKeyring and C_ActionBar.ShouldShowKeyring() and true or false
 end
 
--- Within a section: higher quality first, then group identical item ids. The
+-- Within a section. Higher quality first, then group identical item ids. The
 -- keys are captured secret-safe when the bucket is built (see LayoutContainer),
 -- so this comparison never touches a tainted value.
 local function SortEntry(a, b)
@@ -132,11 +132,11 @@ local function AcquireHeader(container)
 		header.Toggle = header:CreateFontString(nil, "OVERLAY")
 		K.SetFont(header.Toggle, 13, K.FontOutlineStyle())
 		header.Toggle:SetPoint("LEFT", header, "LEFT", 0, 0)
-		header.Toggle:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+		header.Toggle:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 		header.Text = header:CreateFontString(nil, "OVERLAY")
 		K.SetFont(header.Text, 13, K.FontOutlineStyle())
 		header.Text:SetPoint("LEFT", header.Toggle, "RIGHT", 4, 0)
-		header.Text:SetTextColor(K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+		header.Text:SetTextColor(K.Colors.accent[1], K.Colors.accent[2], K.Colors.accent[3])
 		header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		header:SetScript("OnClick", function(self, button)
 			if button == "RightButton" then
@@ -220,7 +220,7 @@ local function FullSlotButton(f)
 		return button
 	end
 	button = CreateFrame("Frame", nil, f)
-	K.CreateBackground(button, 0.06, 0.06, 0.06, 0.9)
+	K.CreateBackground(button, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateBorder(button)
 	local art = button:CreateTexture(nil, "ARTWORK")
 	art:SetPoint("TOPLEFT", 1, -1)
@@ -313,7 +313,7 @@ function Module:LayoutContainer(f)
 			if info then
 				local key = useCategories and self:GetCategory(bag, slot, info) or "All"
 				buckets[key] = buckets[key] or {}
-				-- Capture secret-safe sort keys now: rarer first, then by item id so
+				-- Capture secret-safe sort keys now. Rarer first, then by item id so
 				-- identical items sit together. Secret fields drop to a low value so
 				-- they never enter a tainted comparison.
 				local quality = info.quality
@@ -567,7 +567,7 @@ function Module:UpdateInfoText(f)
 		f.Money:SetText(GetCoinTextureString(GetMoney()))
 	end
 	-- General slots only, by the same rule as the free slot button and the game's own
-	-- backpack count: special bags and the reagent pouch take only their own kind.
+	-- backpack count, special bags and the reagent pouch take only their own kind.
 	if f.FreeSlots then
 		local free, total = 0, 0
 		local mixed = #f.bags > 1
@@ -644,7 +644,7 @@ function Module:UpdateCurrencies(f)
 	end
 end
 
--- Build the lower-case haystack a search matches against: name, item type and
+-- Build the lower-case haystack a search matches against, name, item type and
 -- subtype, quality word (epic, rare), and a bind tag (boe, bou). So "epic",
 -- "armor", or "boe" all filter as you would expect, not just item names.
 local function SearchText(info)
@@ -691,7 +691,7 @@ end
 -- Container window
 -- ---------------------------------------------------------------------------
 
--- Build one bordered window: backdrop, title, close, search, sort, and the
+-- Build one bordered window. Backdrop, title, close, search, sort, and the
 -- money / free-slot bar. The grid is filled by LayoutContainer.
 function Module:CreateContainer(name, title, bags, perRow)
 	local f = CreateFrame("Frame", name, UIParent)
@@ -707,7 +707,7 @@ function Module:CreateContainer(name, title, bags, perRow)
 	K.CreateBorder(f)
 
 	-- Line the close (and the toolbar buttons that anchor off it) up vertically with
-	-- the search box in the top band: search sits at y -10 and is 20 tall, so a 22
+	-- the search box in the top band, search sits at y -10 and is 20 tall, so a 22
 	-- tall button at y -9 shares its centre.
 	local close = CreateFrame("Button", name .. "Close", f, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -MARGIN, -9)
@@ -715,6 +715,8 @@ function Module:CreateContainer(name, title, bags, perRow)
 		Module:CloseAll()
 	end)
 	K.SkinCloseButton(close)
+	-- Reachable by the Gamepad UI cursor, with B on the close button.
+	K.RegisterGamepadFrame(f, close)
 
 	-- A square icon button sized to match the close button, for the top band.
 	local function IconButton(suffix, atlas, texture, tip, onClick, iconName)
@@ -803,7 +805,7 @@ function Module:CreateContainer(name, title, bags, perRow)
 		end
 	end
 
-	-- Search box, top band, pinned to the top-left where the title used to sit.
+	-- Search box, top band, pinned to the top-left in place of a title.
 	local search = CreateFrame("EditBox", name .. "Search", f)
 	search:SetSize(140, 20)
 	search:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, -10)
@@ -844,7 +846,7 @@ function Module:CreateContainer(name, title, bags, perRow)
 	sell:Hide()
 	f.SellButton = sell
 
-	-- Bottom bar: free slots on the left, money on the right.
+	-- Bottom bar. Free slots on the left, money on the right.
 	local freeSlots = f:CreateFontString(nil, "OVERLAY")
 	K.SetFont(freeSlots, 12, K.FontOutlineStyle())
 	freeSlots:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", MARGIN, 6)
@@ -962,7 +964,7 @@ end
 -- Merchant helpers
 -- ---------------------------------------------------------------------------
 
--- Is this an item we should vendor: grey, or one the player flagged as junk.
+-- Is this an item we should vendor, grey, or one the player flagged as junk.
 local function IsSellable(info)
 	if not info or not info.hyperlink or info.hasNoValue then
 		return false
@@ -1067,7 +1069,7 @@ function Module:CloseKeyring()
 end
 
 -- The keyring window is closed until asked for, and it keeps its own open state.
--- The game's open state cannot stand in for it: with combined bags the game counts
+-- The game's open state cannot stand in for it, with combined bags the game counts
 -- the keyring as one of the bags in that frame, so it reads as open whenever the
 -- bags are, and a window closed by its own button was opened straight back.
 function Module:ToggleKeyring()
@@ -1087,7 +1089,7 @@ function Module:CloseAll()
 end
 
 -- Follow Blizzard's bags with ours instead of replacing its functions. The stock
--- bag entry points are called from secure code all over the interface: the mail
+-- bag entry points are called from secure code all over the interface, the mail
 -- window, the auction house, a merchant, item upgrade and others call them from
 -- their show and hide handlers, and the gamepad radial calls ToggleBackpack and
 -- then ToggleCharacter in one run. A global of ours standing in for any of them
@@ -1113,7 +1115,7 @@ local BLIZZARD_ENTRY_POINTS = {
 	"ToggleBag",
 }
 
--- Where the stock bag and bank frames are parked: a shown frame one pixel big
+-- Where the stock bag and bank frames are parked, a shown frame one pixel big
 -- that clips its children and draws nothing. Frames under it still report shown,
 -- which is what keeps Blizzard's own open state truthful.
 function Module:GetBlizzardSink()
@@ -1124,6 +1126,9 @@ function Module:GetBlizzardSink()
 		sink:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -200, 200)
 		sink:SetClipsChildren(true)
 		sink:SetAlpha(0)
+		-- The parked stock bags still count as shown, so keep the Gamepad UI
+		-- cursor off their invisible slots.
+		K.IgnoreGamepadNav(sink)
 	end
 	return sink
 end
@@ -1223,7 +1228,7 @@ function Module:HookBlizzard()
 end
 
 -- Where the bags open until the player moves them. The two side action bars hug
--- the right edge of the screen, and the old fixed spot landed on top of them, so
+-- the right edge of the screen, and a fixed spot would land on top of them, so
 -- the window is placed just left of whichever of them are on. With neither on it
 -- sits near the edge. The width comes from the same config the bars are laid out
 -- from, so it follows their size and spacing.
@@ -1298,7 +1303,7 @@ function Module:OnEnable()
 		self.BagFrame.BagStrip:SetShown(C.Bags.ShowBagBar)
 	end
 
-	-- Gold tracking: record this character now and hang the account total tooltip
+	-- Gold tracking. Record this character now and hang the account total tooltip
 	-- off the money text.
 	if self.CaptureGold then
 		self:CaptureGold()

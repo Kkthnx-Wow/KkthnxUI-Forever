@@ -28,8 +28,8 @@ local PANEL = K.Colors.panel
 local DEFAULT_WIDTH, DEFAULT_HEIGHT = 900, 640
 local MIN_WIDTH, MIN_HEIGHT = 700, 440
 local NAV_WIDTH = 170
-local NEW_COLOR = { 1, 0.82, 0 }
-local MODIFIED_COLOR = { 1, 0.6, 0.2 }
+local NEW_COLOR = K.Colors.highlight
+local MODIFIED_COLOR = K.Colors.warning
 
 -- Category name to a game icon. These come from the client's own icon library so
 -- there is no art of ours to ship or keep current. A category with no entry here
@@ -148,7 +148,7 @@ local function SplitSections(controls)
 	return kept
 end
 
--- Build one titled card: a soft box holding a section's controls. The widgets are
+-- Build one titled card. A soft box holding a section's controls. The widgets are
 -- made once here and positioned by FitCard, which can run again at another width.
 local function BuildCard(host, section, category)
 	local card = CreateFrame("Frame", nil, host)
@@ -508,6 +508,7 @@ local function BuildWindow()
 	local close = CreateFrame("Button", nil, window, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", -6, -6)
 	K.SkinCloseButton(close)
+	K.RegisterGamepadFrame(window, close)
 
 	-- Left page column, scrollable so it never runs into the footer no matter how
 	-- many pages exist.
@@ -580,7 +581,7 @@ local function BuildWindow()
 	local currentName
 	local currentCategory
 
-	-- Dots on the page list: a count of new settings on What's New, a small dot on
+	-- Dots on the page list. A count of new settings on What's New, a small dot on
 	-- a page that holds some.
 	function GUI.UpdateNav()
 		for name, btn in pairs(buttons) do
@@ -606,6 +607,11 @@ local function BuildWindow()
 	function GUI.SelectPage(name)
 		if name ~= currentName then
 			CommitSeen(currentName)
+			-- A flyout belongs to the page it was opened from, so it closes
+			-- when another page takes over.
+			if currentName and GUI.HideExtras then
+				GUI.HideExtras()
+			end
 		end
 		currentName = name
 		for key, info in pairs(pages) do
@@ -675,7 +681,7 @@ local function BuildWindow()
 
 		local btn = CreateFrame("Button", nil, navChild)
 		btn:SetSize(NAV_WIDTH - 18, 30)
-		-- No per-button border: a clean rail where only the accent bar and a soft
+		-- No per-button border. A clean rail where only the accent bar and a soft
 		-- background mark the active page.
 		K.CreateBackground(btn, 0.16, 0.16, 0.16, 0.5)
 
@@ -782,7 +788,7 @@ local function BuildWindow()
 	end
 	AddGroup(L["Other"], rest)
 
-	-- Where a setting lives, from the page down: page, the flyout it opens from
+	-- Where a setting lives, from the page down, page, the flyout it opens from
 	-- when there is one, then the section when it adds something.
 	local function WhereText(entry, separator, specificFirst)
 		local parts = { entry.category.title }
@@ -811,7 +817,7 @@ local function BuildWindow()
 		end
 		row = CreateFrame("Button", nil, navChild)
 		row:SetSize(NAV_WIDTH - 18, 38)
-		K.CreateBackground(row, 0.16, 0.16, 0.16, 0.5)
+		K.CreateBackground(row, K.Colors.raised[1], K.Colors.raised[2], K.Colors.raised[3], 0.5)
 		row.name = row:CreateFontString(nil, "OVERLAY")
 		K.SetFont(row.name, 12)
 		row.name:SetPoint("TOPLEFT", 8, -5)
@@ -855,6 +861,24 @@ local function BuildWindow()
 	noResults:SetText(L["No settings found."])
 	noResults:Hide()
 
+	-- The Changed list replaces the page list, so it gets its own way back. The
+	-- search box is empty then, and Escape in it does the same.
+	local backRow = CreateFrame("Button", nil, navChild)
+	backRow:SetSize(NAV_WIDTH - 18, 24)
+	K.CreateBackground(backRow, K.Colors.raised[1], K.Colors.raised[2], K.Colors.raised[3], 0.5)
+	backRow.text = backRow:CreateFontString(nil, "OVERLAY")
+	K.SetFont(backRow.text, 12)
+	backRow.text:SetPoint("LEFT", 8, 0)
+	backRow.text:SetTextColor(K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+	backRow.text:SetText(L["Back to pages"])
+	local backHighlight = backRow:CreateTexture(nil, "HIGHLIGHT")
+	backHighlight:SetAllPoints()
+	backHighlight:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.2)
+	backRow:SetScript("OnClick", function()
+		GUI.RelayoutNav("")
+	end)
+	backRow:Hide()
+
 	-- Stack the page list, or the search results when there is a query.
 	local function Relayout(query, forced)
 		query = query and query:match("^%s*(.-)%s*$") or ""
@@ -881,8 +905,19 @@ local function BuildWindow()
 			row:Hide()
 		end
 		noResults:Hide()
+		backRow:Hide()
 		if searching then
 			local results = forced or GUI.Search(query, 30)
+			-- Rows start below the back row when the Changed list is showing.
+			local top = 0
+			if forced then
+				backRow:ClearAllPoints()
+				backRow:SetPoint("TOP", navChild, "TOP", 0, -8)
+				backRow:Show()
+				top = 30
+			end
+			noResults:ClearAllPoints()
+			noResults:SetPoint("TOP", navChild, "TOP", 0, -14 - top)
 			noResults:SetText(forced and L["Nothing has been changed."] or L["No settings found."])
 			noResults:SetShown(#results == 0)
 			for i, entry in ipairs(results) do
@@ -895,10 +930,10 @@ local function BuildWindow()
 				row.where:SetText(WhereText(entry, " < ", true))
 				row.fullWhere = WhereText(entry, " > ")
 				row:ClearAllPoints()
-				row:SetPoint("TOP", navChild, "TOP", 0, -8 - (i - 1) * 42)
+				row:SetPoint("TOP", navChild, "TOP", 0, -8 - top - (i - 1) * 42)
 				row:Show()
 			end
-			y = -8 - min(#results, 60) * 42
+			y = -8 - top - min(#results, 60) * 42
 		end
 		navChild:SetHeight(-y + 10)
 		navScroll:SetVerticalScroll(0)
@@ -923,9 +958,12 @@ local function BuildWindow()
 	search:SetScript("OnEscapePressed", function(self)
 		self:SetText("")
 		self:ClearFocus()
+		-- An already empty box fires no text change, which is the case while the
+		-- Changed list shows, so put the page list back here.
+		Relayout("")
 	end)
 
-	-- Footer: reload button and hint.
+	-- Footer. Reload button and hint.
 	local reload = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
 	reload:SetSize(140, 26)
 	reload:SetPoint("BOTTOMRIGHT", -30, 12)
@@ -971,6 +1009,9 @@ local function BuildWindow()
 	local legendButton = CreateFrame("Button", nil, window)
 	legendButton:SetPoint("TOPLEFT", legendDot, "TOPLEFT", -4, 4)
 	legendButton:SetPoint("BOTTOMRIGHT", legend, "BOTTOMRIGHT", 4, -4)
+	local legendHover = legendButton:CreateTexture(nil, "HIGHLIGHT")
+	legendHover:SetAllPoints()
+	legendHover:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.2)
 	legendButton:SetScript("OnClick", function()
 		search:SetText("")
 		search:ClearFocus()

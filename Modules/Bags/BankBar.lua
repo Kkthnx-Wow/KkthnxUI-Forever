@@ -49,7 +49,7 @@ local EMPTY_BAG_ICON = 133633 -- inv_misc_bag_08, dimmed, for a bought slot with
 -- Buy button
 -- ---------------------------------------------------------------------------
 
--- Inheriting Blizzard's template hands the buy to its own code: its OnClick opens
+-- Inheriting Blizzard's template hands the buy to its own code, its OnClick opens
 -- the confirm popup, whose accept does the purchase. overrideBankType is all we set.
 local function MakeBuyButton(parent)
 	local button = CreateFrame("Button", nil, parent, "BankPanelPurchaseButtonScriptTemplate")

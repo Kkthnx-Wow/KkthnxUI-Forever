@@ -43,7 +43,7 @@ local CORNERS = {
 -- Corner widgets
 -- ---------------------------------------------------------------------------
 
--- Build one corner widget on demand: a dot plus a hidden icon/swipe so a single
+-- Build one corner widget on demand, a dot plus a hidden icon/swipe so a single
 -- widget can render either style depending on the matched entry.
 local function GetCorner(element, corner)
 	if element.corners[corner] then

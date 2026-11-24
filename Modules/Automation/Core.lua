@@ -9,6 +9,7 @@
 			AutoAccept.lua   accept summons, resurrections and friend invites
 			BattlegroundRelease.lua  release on death in a battleground
 			AutoRepair.lua   repair gear at a merchant, optionally on guild funds
+			SellJunk.lua     sell grey items when a merchant opens
 			Quest.lua        hands-off questing (Accept/TurnIn/Gossip handlers)
 		Each handler re-checks its own toggle when it fires, so changes apply
 		without a reload.

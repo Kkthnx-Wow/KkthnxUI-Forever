@@ -22,7 +22,7 @@ local CreateFrame = CreateFrame
 local CreateColor = CreateColor
 local IsSecret = K.IsSecret
 
--- Blizzard's cast colour language from Core/Palette.lua: gold for a cast, green
+-- Blizzard's cast colour language from Core/Palette.lua, gold for a cast, green
 -- for a channel, silver grey for one you cannot interrupt (paired with the
 -- padlock), and red when a cast is interrupted or fails.
 local CAST_COLOR = K.CastColors.cast
@@ -119,7 +119,7 @@ local function AddIcon(cast, size, side)
 	else
 		holder:SetPoint("RIGHT", cast, "LEFT", -Module.GAP, 0)
 	end
-	K.CreateBackground(holder, 0.05, 0.05, 0.05, 0.9)
+	K.CreateBackground(holder, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
 	K.CreateBorder(holder)
 
 	local icon = holder:CreateTexture(nil, "ARTWORK")
@@ -215,7 +215,7 @@ local function CreateBar(self, opts)
 	return cast
 end
 
--- A free floating castbar: the bar and its icon live inside a holder parented to
+-- A free floating castbar. The bar and its icon live inside a holder parented to
 -- UIParent, which is what the mover grabs. Detaching from the unit frame also
 -- means the bar keeps its own alpha and visibility.
 function Build.DetachedCastbar(self, key, label, width, height, point, iconSide)
@@ -246,12 +246,12 @@ function Build.DetachedCastbar(self, key, label, width, height, point, iconSide)
 
 	-- Drop a target mid cast and no stop event ever arrives, because the unit is
 	-- simply gone rather than finishing or being interrupted. oUF cannot help there
-	-- either: UpdateAllElements returns early once the unit stops existing. So its
+	-- either. UpdateAllElements returns early once the unit stops existing. So its
 	-- OnUpdate just keeps running with the cast still flagged as in progress, and a
 	-- detached bar sits on UIParent where nothing hides it, ticking forever (#146).
 	--
 	-- Hiding the bar stops that OnUpdate dead, and the next cast start shows it
-	-- again. Only the bar is touched, never the holder: the holder is an empty
+	-- again. Only the bar is touched, never the holder, the holder is an empty
 	-- positioning box for the mover, and everything with art hangs off the bar.
 	self:HookScript("OnHide", function()
 		cast:Hide()

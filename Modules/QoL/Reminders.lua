@@ -102,7 +102,7 @@ local IMBUES = { 8232, 8024, 8033, 8017 } -- Windfury, Flametongue, Frostbrand, 
 local OILS = { 20749, 20748, 20750, 20747, 20746, 20745, 20744 }
 local SHARPENING = { 18262, 12404, 7964, 2871, 2863, 2862 }
 local WEIGHT = { 12643, 7965, 3241, 3240, 3239 }
--- Weapon subclasses that take a weightstone: maces, staves and fist weapons.
+-- Weapon subclasses that take a weightstone, maces, staves and fist weapons.
 local BLUNT = { [4] = true, [5] = true, [10] = true, [13] = true }
 
 local CALL_PET, REVIVE_PET, FEED_PET = 883, 982, 6991
@@ -309,7 +309,7 @@ local function OnEnter(self)
 	else
 		GameTooltip:AddLine(entry.reason, 1, 1, 1)
 		for _, line in ipairs(entry.lines or {}) do
-			GameTooltip:AddLine(line, 0.8, 0.8, 0.8)
+			GameTooltip:AddLine(line, K.Colors.secondary[1], K.Colors.secondary[2], K.Colors.secondary[3])
 		end
 	end
 	if entry.kind ~= "click" then
@@ -317,7 +317,7 @@ local function OnEnter(self)
 		GameTooltip:AddLine(" ")
 		GameTooltip:AddLine(entry.reason, warn[1], warn[2], warn[3])
 	end
-	GameTooltip:AddLine(L["Click to fix"], 0.6, 0.6, 0.6)
+	GameTooltip:AddLine(L["Click to fix"], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 	GameTooltip:Show()
 end
 
@@ -339,7 +339,7 @@ local function CreateButton(index)
 
 	local highlight = button:CreateTexture(nil, "HIGHLIGHT")
 	highlight:SetAllPoints(icon)
-	highlight:SetColorTexture(1, 1, 1, 0.15)
+	highlight:SetColorTexture(1, 1, 1, K.GradientAlpha.hover)
 
 	K.CreateBorder(button)
 	button:SetScript("OnEnter", OnEnter)

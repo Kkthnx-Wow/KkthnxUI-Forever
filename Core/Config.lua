@@ -172,7 +172,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Export and import
 -- ---------------------------------------------------------------------------
--- A profile travels as one pasteable line: a short tag, then the settings and
+-- A profile travels as one pasteable line, a short tag, then the settings and
 -- mover positions serialized, deflated and base64 encoded. Import never trusts
 -- the text. Every value is checked against the defaults, so an edited or foreign
 -- string can only ever set options that exist, to values of the right type.
@@ -287,18 +287,15 @@ function K:ExportProfile(name)
 	return EXPORT_TAG .. encoding.EncodeBase64(compressed)
 end
 
--- Make a new profile from an export line. Returns the profile name, or nil and a
--- reason. The new profile is not activated, so nothing changes until it is used.
-function K:ImportProfile(text, name)
+-- Read an export line back into its payload. Returns the payload, or nil and a
+-- reason.
+local function DecodeProfile(text)
 	if type(text) ~= "string" then
 		return nil, "Nothing to import."
 	end
 	text = text:gsub("%s+", "")
 	if #text > EXPORT_LIMIT or text:sub(1, #EXPORT_TAG) ~= EXPORT_TAG then
 		return nil, "That is not a KkthnxUI profile string."
-	end
-	if not name or name == "" or KkthnxUIDB.profiles[name] then
-		return nil, "Pick a profile name that is not already used."
 	end
 	local encoding = _G.C_EncodingUtil
 	if not (encoding and encoding.DeserializeCBOR and encoding.DecompressString and encoding.DecodeBase64) then
@@ -312,6 +309,33 @@ function K:ImportProfile(text, name)
 	end)
 	if not ok or type(payload) ~= "table" or payload.v ~= 1 then
 		return nil, "That profile string is damaged or from a newer version."
+	end
+	return payload
+end
+
+-- Check an export line before asking the player for a name. Returns true, or
+-- false and a reason.
+function K:CheckProfileString(text)
+	local payload, err = DecodeProfile(text)
+	if not payload then
+		return false, err
+	end
+	return true
+end
+
+function K:ProfileExists(name)
+	return KkthnxUIDB.profiles[name] ~= nil
+end
+
+-- Make a new profile from an export line. Returns the profile name, or nil and a
+-- reason. The new profile is not activated, so nothing changes until it is used.
+function K:ImportProfile(text, name)
+	if not name or name == "" or KkthnxUIDB.profiles[name] then
+		return nil, "Pick a profile name that is not already used."
+	end
+	local payload, err = DecodeProfile(text)
+	if not payload then
+		return nil, err
 	end
 
 	KkthnxUIDB.profiles[name] = Sanitize(payload.settings, K.ConfigDefaults)
@@ -342,7 +366,7 @@ function K:SetupConfig()
 		KkthnxUIDB.profiles[activeProfileName] = profile
 	end
 
-	-- Build the live config: defaults first, then the stored overrides win.
+	-- Build the live config. Defaults first, then the stored overrides win.
 	local defaults = K.ConfigDefaults
 	local live = DeepCopy(defaults)
 	-- Overlay stored overrides onto the defaults copy.
@@ -395,7 +419,7 @@ function K:SetConfig(path, value)
 end
 
 -- ---------------------------------------------------------------------------
--- Logout: strip defaults so the saved file stays clean.
+-- Logout. Strip defaults so the saved file stays clean.
 -- ---------------------------------------------------------------------------
 
 local logout = CreateFrame("Frame")
