@@ -405,7 +405,7 @@ local function UnitControls(key, opts)
 		Add({ kind = "check", label = L["Show PvP Icon"], path = { "Unitframe", key, "PvPIcon" }, reload = true, dependsOn = dep, tooltip = L["The faction or free for all badge beside the portrait while the unit is flagged for PvP."] })
 	end
 	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
+		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.1.0", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
 	end
 	if opts.powerTick then
 		Add({ kind = "check", label = L["Regen Tick Spark"], path = { "Unitframe", key, "PowerTick" }, reload = true, dependsOn = dep, tooltip = L["A spark that sweeps across your power bar and reaches the end when your next mana or energy tick lands. Only shows for mana and energy."] })
@@ -740,7 +740,7 @@ GUI.schema = {
 				}, reload = true, dependsOn = { "WorldMap", "Enable" } },
 				{ kind = "check", label = L["Map Reveal"], path = { "WorldMap", "Reveal" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Draw the parts of a zone you have not explored yet. Also toggleable from a checkbox on the map itself."] },
 				{ kind = "check", label = L["Dim Revealed Areas"], path = { "WorldMap", "RevealDim" }, reload = true, dependsOn = { "WorldMap", "Reveal" }, tooltip = L["Shade the revealed areas so the ground you have actually explored still stands out."] },
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
+				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.1.0", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 		},
 	},
 
@@ -790,7 +790,7 @@ GUI.schema = {
 			{ kind = "header", label = L["Chat Bubbles"] },
 			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
 			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
-			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
+			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.1.0", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
 			{ kind = "header", label = L["Names and Links"] },
 			{ kind = "check", label = L["Shorten Channel Names"], path = { "Chat", "ShortenChannels" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Class Colored Names"], path = { "Chat", "ClassColorNames" }, reload = true, dependsOn = { "Chat", "Enable" } },
@@ -806,7 +806,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Gradient Backdrop"], path = { "Chat", "GradientBackdrop" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A soft class-colored fade behind the chat that fades out to the right."] },
 			{ kind = "check", label = L["Copy Button"], path = { "Chat", "CopyButton" }, reload = true, dependsOn = { "Chat", "Enable" }, disabledWhen = { "Chat", "SideButtons" }, tooltip = L["A copy button on each chat window. The side button strip has its own, so this one is only used while the strip is off."] },
 			{ kind = "check", label = L["Timestamps"], path = { "Chat", "Timestamps" }, reload = true, dependsOn = { "Chat", "Enable" } },
-			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
+			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.1.0", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 			{ kind = "header", label = L["Keywords"] },
 			{ kind = "check", label = L["Highlight Keywords"], path = { "Chat", "KeywordHighlight" }, dependsOn = { "Chat", "Enable" }, tooltip = L["Colour your name and any keywords you set wherever they appear in chat."] },
 			{ kind = "editbox", label = L["Extra Keywords"], path = { "Chat", "KeywordList" }, dependsOn = { "Chat", "KeywordHighlight" }, tooltip = L["Comma separated words to watch for. Your name is always watched."], apply = function()
@@ -1200,13 +1200,13 @@ GUI.schema = {
 					m:UpdateLootSparkle()
 				end
 			end, tooltip = L["Keep the game's sparkle on quest items you can loot, even after a graphics preset turns it off. Quest givers sparkle too, the game uses one setting for both. Turning this off puts your old setting back, and the sparkles go after a game restart."] },
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
+			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.1.0", apply = function()
 				local m = K:GetModule("QoL", true)
 				if m and m.UpdateCameraDistance then
 					m:UpdateCameraDistance()
 				end
 			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
+			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.1.0", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
 			{ kind = "check", label = L["Quest Levels at NPCs"], path = { "QoL", "QuestLevels" }, since = "1.0.0-beta7", reload = true, tooltip = L["Show the quest level in an NPC's quest list and at the top of the quest text, in the same [12] style the quest log uses, with a + for elite. The number is coloured by how hard the quest is for you."] },
 			{ kind = "check", label = L["Train All Button"], path = { "QoL", "TrainAll" }, since = "1.0.0-beta7", reload = true, tooltip = L["Add a Train All button beside Train. It learns everything available that you can afford. New professions and pet training are left to you."] },
 			{ kind = "check", label = L["Faster Auto Loot"], path = { "QoL", "FastLoot" }, since = "1.0.0-beta7", reload = true, tooltip = L["Take everything at once when you auto loot, instead of one item at a time. Follows the game's Auto Loot setting and its modifier key. Locked items and group rolls are left alone."] },
@@ -1268,7 +1268,7 @@ GUI.schema = {
 			{ kind = "header", label = L["Social"] },
 			{ kind = "check", label = L["Character & Inspect Frames"], path = { "Skins", "CharacterFrames" }, reload = true, tooltip = L["Put a class background behind the model on the Character and Inspect windows. The windows themselves keep their stock look."] },
 			{ kind = "check", label = L["Wider Character & Inspect"], path = { "Skins", "CharacterFramesWide" }, reload = true, dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Make the paper doll tab and the inspect window wider so the model has room. Another open window may overlap the extra width."] },
-			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.0.4", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
+			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.1.0", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
 			{ kind = "check", label = L["Character & Inspect Slots"], path = { "Skins", "CharacterSlots" }, reload = true, tooltip = L["Restyle the equipment slots on the Character and Inspect frames. Square icons, a border tinted by item quality, and the item level on each slot."] },
 			{ kind = "check", label = L["Gems & Enchant Markers"], path = { "Skins", "GearInfo" }, reload = true, dependsOn = { "Skins", "CharacterSlots" }, tooltip = L["Show a red marker beside a slot that is missing an enchant, and the gems socketed in each item."] },
 			{ kind = "check", label = L["Breath & Fatigue Bars"], path = { "Skins", "MirrorTimers" }, since = "1.0.0-beta7", reload = true, tooltip = L["Restyle the breath, fatigue and feign death bars to match the UI, with a colour for each and the seconds left. Move them with the game's Edit Mode."] },
