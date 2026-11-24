@@ -291,6 +291,8 @@ function Module:OnEnable()
 	if db.MouseoverFade then
 		local faded = db.FadeAlpha or 0.25
 		Minimap:SetAlpha(faded)
+		-- Kept here rather than read back, since GetAlpha returns a rounded value.
+		local shown = faded
 		local elapsed = 0
 		Minimap:HookScript("OnUpdate", function(self, delta)
 			elapsed = elapsed + delta
@@ -298,7 +300,11 @@ function Module:OnEnable()
 				return
 			end
 			elapsed = 0
-			self:SetAlpha(self:IsMouseOver() and 1 or faded)
+			local alpha = self:IsMouseOver() and 1 or faded
+			if shown ~= alpha then
+				shown = alpha
+				self:SetAlpha(alpha)
+			end
 		end)
 	end
 

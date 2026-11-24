@@ -7,9 +7,16 @@
 		so a glance tells you whether things are healthy, while the fps and ms
 		labels take a colour of your choosing (white, class, or custom).
 
-		Hovering gives the detail: home and world latency, bandwidth, the client
-		framerate, and the addons costing the most time this session, read from
-		the game's own addon profiler rather than a guess at memory use.
+		Hovering gives the detail, and it stays live while the pointer is on it:
+		  Framerate now, plus the average and the low over the last minute.
+		  Home and world latency, each with what it covers, since the game only
+		  measures them every 30 seconds and the two are easy to mix up.
+		  Download and upload separately.
+		  Addon CPU from the game's own profiler: how much of each frame all
+		  addons take, then the costliest ones with their share. The share is
+		  worked out the way the game's addon list does, so the numbers agree.
+		  Holding Shift shows more addons and their memory. Memory is only
+		  measured while Shift is held, since reading it walks every addon.
 -----------------------------------------------------------------------------]]
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
@@ -20,11 +27,12 @@ local _G = _G
 local format = string.format
 local ipairs = ipairs
 local sort = table.sort
-local tinsert = table.insert
 local min = math.min
 local floor = math.floor
 
 local CreateFrame = CreateFrame
+local GetTime = GetTime
+local IsShiftKeyDown = IsShiftKeyDown
 local GetFramerate = _G.GetFramerate
 local GetNetStats = _G.GetNetStats
 local C_AddOnProfiler = _G.C_AddOnProfiler
@@ -32,12 +40,18 @@ local C_AddOns = _G.C_AddOns
 local UpdateAddOnMemoryUsage = _G.UpdateAddOnMemoryUsage
 local GetAddOnMemoryUsage = _G.GetAddOnMemoryUsage
 local collectgarbage = collectgarbage
+local GameTooltip = _G.GameTooltip
 
 local Minimap = _G.Minimap
 
--- How often the readout refreshes. Latency only moves every 30 seconds client
--- side, so a one second tick is plenty and keeps this cheap.
+-- How often the readout and an open tooltip refresh.
 local UPDATE_INTERVAL = 1
+-- Framerate samples kept, one a second, for the average and the low.
+local HISTORY = 60
+-- Addons listed under CPU, and with Shift held.
+local TOP_ADDONS, TOP_ADDONS_SHIFT = 5, 12
+-- Memory is read at most this often while Shift is held.
+local MEMORY_INTERVAL = 2
 
 -- Grading thresholds. Framerate counts UP (higher is better) and latency counts
 -- DOWN (lower is better), so each list is walked in its own direction.
@@ -65,6 +79,18 @@ local function MSColor(value)
 	return K.Colors.crimson
 end
 
+-- Colour for a share of frame time, as a fraction.
+local function ShareColor(share)
+	if share < 0.05 then
+		return K.Colors.jade
+	elseif share < 0.15 then
+		return K.Colors.gold
+	elseif share < 0.3 then
+		return K.Colors.ember
+	end
+	return K.Colors.crimson
+end
+
 local function Hex(color)
 	return K.RGBToHex(color)
 end
@@ -81,34 +107,99 @@ local function LabelColor()
 	return { 1, 1, 1 }
 end
 
--- The worse of the two latencies is the one worth showing, since either one
--- being bad is what you actually feel.
-local function Latency()
+-- Network stats: the worse latency (the one you feel), both latencies, and the
+-- download and upload rates in kilobytes a second.
+local function Net()
 	if not GetNetStats then
-		return 0, 0, 0, 0
+		return 0, 0, 0, 0, 0
 	end
-	local inBps, outBps, home, world = GetNetStats()
-	home = home or 0
-	world = world or 0
-	return (home > world and home or world), home, world, (inBps or 0) + (outBps or 0)
+	local down, up, home, world = GetNetStats()
+	home, world = home or 0, world or 0
+	return (home > world and home or world), home, world, down or 0, up or 0
 end
 
+local function CurrentFPS()
+	return floor((GetFramerate() or 0) + 0.5)
+end
+
+-- ---------------------------------------------------------------------------
+-- Framerate history
+-- ---------------------------------------------------------------------------
+
+local fpsRing, fpsCount, fpsHead = {}, 0, 0
+
+local function RecordFPS(fps)
+	fpsHead = fpsHead % HISTORY + 1
+	fpsRing[fpsHead] = fps
+	if fpsCount < HISTORY then
+		fpsCount = fpsCount + 1
+	end
+end
+
+local function FPSHistory()
+	if fpsCount == 0 then
+		return
+	end
+	local total, low = 0, nil
+	for i = 1, fpsCount do
+		local value = fpsRing[i]
+		total = total + value
+		if not low or value < low then
+			low = value
+		end
+	end
+	return floor(total / fpsCount + 0.5), low
+end
+
+-- ---------------------------------------------------------------------------
+-- Readout
+-- ---------------------------------------------------------------------------
+
 local function BuildText()
-	local fps = floor(GetFramerate() or 0)
-	local ms = Latency()
+	local fps = CurrentFPS()
+	local ms = Net()
 	local label = Hex(LabelColor())
 	local sep = C.Minimap.PerformanceSeparator or "-"
 	return format("%s%d|r%sfps|r %s%s %s%d|r%sms|r", Hex(FPSColor(fps)), fps, label, label, sep, Hex(MSColor(ms)), ms, label)
 end
 
+-- The data bar shows the same readout.
+Module.PerformanceText = BuildText
+
 -- ---------------------------------------------------------------------------
 -- Tooltip
 -- ---------------------------------------------------------------------------
 
--- Addon cost, newest first. The profiler reports real time per tick, which is a
--- far better signal than memory, so use it when the client has it enabled and
--- fall back to memory only when it does not.
-local function AddProfilerLines(tooltip)
+local function Header(tooltip, text, right)
+	local info = K.Colors.info
+	if right then
+		local muted = K.Colors.muted
+		tooltip:AddDoubleLine(text, right, info[1], info[2], info[3], muted[1], muted[2], muted[3])
+	else
+		tooltip:AddLine(text, info[1], info[2], info[3])
+	end
+end
+
+local function Row(tooltip, label, value, color)
+	color = color or K.Colors.silver
+	tooltip:AddDoubleLine(label, value, 1, 1, 1, color[1], color[2], color[3])
+end
+
+-- A percentage with the same precision the game's addon list uses.
+local function Percent(fraction)
+	local pct = fraction * 100
+	if pct >= 1 then
+		return format("%.0f%%", pct)
+	elseif pct >= 0.1 then
+		return format("%.1f%%", pct)
+	elseif pct >= 0.01 then
+		return format("%.2f%%", pct)
+	end
+	return "0%"
+end
+
+-- Addon CPU from the game's profiler. Returns false when there is none.
+local function AddProfilerLines(tooltip, count)
 	if not (C_AddOnProfiler and C_AddOnProfiler.IsEnabled and C_AddOnProfiler.IsEnabled()) then
 		return false
 	end
@@ -117,91 +208,172 @@ local function AddProfilerLines(tooltip)
 		return false
 	end
 
-	local results = C_AddOnProfiler.GetTopKAddOnsForMetric(metric, 5)
+	local results = C_AddOnProfiler.GetTopKAddOnsForMetric(metric, count)
 	if not results or #results == 0 then
 		return false
 	end
 
+	-- The whole frame, and the part every addon together takes of it.
+	local app = C_AddOnProfiler.GetApplicationMetric and C_AddOnProfiler.GetApplicationMetric(metric) or 0
+	local overall = C_AddOnProfiler.GetOverallMetric and C_AddOnProfiler.GetOverallMetric(metric) or 0
+
 	tooltip:AddLine(" ")
-	tooltip:AddLine(L["Addon CPU (average per frame)"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+	if app > 0 then
+		local share = overall / app
+		local color = ShareColor(share)
+		Header(tooltip, L["Addon CPU"], format(L["%s of each frame"], Hex(color) .. Percent(share) .. "|r"))
+	else
+		Header(tooltip, L["Addon CPU"])
+	end
+
 	for _, entry in ipairs(results) do
 		local name = entry.addOnName or "?"
 		local value = entry.metricValue or 0
-		-- Grade an addon the same way as the framerate, on time cost per frame.
-		local color = value < 1 and K.Colors.jade or (value < 5 and K.Colors.gold or (value < 10 and K.Colors.ember or K.Colors.crimson))
-		tooltip:AddDoubleLine(name, format("%.2f ms", value), 1, 1, 1, color[1], color[2], color[3])
+		-- Share against the frame time not spent in other addons, the same way the
+		-- game's addon list works it out.
+		local relative = app - overall + value
+		local share = relative > 0 and value / relative or 0
+		local color = ShareColor(share)
+		local text = format("%.2f ms", value)
+		if app > 0 then
+			text = format("%s  %s%s|r", text, Hex(color), Percent(share))
+		end
+		Row(tooltip, name, text, color)
 	end
 	return true
 end
 
--- Memory fallback for clients with the profiler switched off.
-local function AddMemoryLines(tooltip)
+-- Memory per addon, refreshed at most every MEMORY_INTERVAL. The rows and the
+-- sort order are reused, so holding Shift does not churn tables.
+local memNames, memValues, memOrder, memCount, memTotal, memReadAt = {}, {}, {}, 0, 0, nil
+
+local function ByMemory(a, b)
+	return memValues[a] > memValues[b]
+end
+
+local function ReadMemory()
+	local now = GetTime()
+	if memReadAt and now - memReadAt < MEMORY_INTERVAL then
+		return
+	end
+	memReadAt = now
+	UpdateAddOnMemoryUsage()
+	memCount, memTotal = 0, 0
+	for i = 1, C_AddOns.GetNumAddOns() do
+		if C_AddOns.IsAddOnLoaded(i) then
+			memCount = memCount + 1
+			local kb = GetAddOnMemoryUsage(i) or 0
+			memNames[memCount] = C_AddOns.GetAddOnInfo(i) or "?"
+			memValues[memCount] = kb
+			memOrder[memCount] = memCount
+			memTotal = memTotal + kb
+		end
+	end
+	for i = memCount + 1, #memOrder do
+		memOrder[i] = nil
+	end
+	sort(memOrder, ByMemory)
+end
+
+local function MemoryText(kb)
+	if kb >= 1024 then
+		return format("%.2f mb", kb / 1024)
+	end
+	return format("%d kb", kb)
+end
+
+local function AddMemoryLines(tooltip, count)
 	if not (UpdateAddOnMemoryUsage and GetAddOnMemoryUsage and C_AddOns and C_AddOns.GetNumAddOns) then
 		return
 	end
-	UpdateAddOnMemoryUsage()
-
-	local list, total = {}, 0
-	for i = 1, C_AddOns.GetNumAddOns() do
-		if C_AddOns.IsAddOnLoaded(i) then
-			local mem = GetAddOnMemoryUsage(i) or 0
-			total = total + mem
-			local name = C_AddOns.GetAddOnInfo(i)
-			tinsert(list, { name = name or "?", mem = mem })
-		end
-	end
-	if #list == 0 then
+	ReadMemory()
+	if memCount == 0 then
 		return
 	end
-	sort(list, function(a, b)
-		return a.mem > b.mem
-	end)
-
 	tooltip:AddLine(" ")
-	tooltip:AddLine(L["Addon Memory"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
-	for i = 1, min(5, #list) do
-		local entry = list[i]
-		tooltip:AddDoubleLine(entry.name, format("%.2f mb", entry.mem / 1024), 1, 1, 1, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3])
+	Header(tooltip, L["Addon Memory"], MemoryText(memTotal))
+	for i = 1, min(count, memCount) do
+		local index = memOrder[i]
+		Row(tooltip, memNames[index], MemoryText(memValues[index]))
 	end
-	tooltip:AddDoubleLine(_G.TOTAL or "Total", format("%.2f mb", total / 1024), K.Colors.highlight[1], K.Colors.highlight[2], K.Colors.highlight[3], 1, 1, 1)
 end
 
--- The data bar shows the same readout.
-Module.PerformanceText = BuildText
+local tipOwner, tipPoint
 
-function Module:PerformanceTooltip(anchor, point)
-	local fps = floor(GetFramerate() or 0)
-	local _, home, world, bandwidth = Latency()
+local function FillTooltip(anchor, point)
+	local fps = CurrentFPS()
+	local _, home, world, down, up = Net()
+	local shift = IsShiftKeyDown()
 
 	GameTooltip:SetOwner(anchor, point or "ANCHOR_LEFT")
 	GameTooltip:ClearLines()
-	GameTooltip:AddLine(L["Performance"], K.Colors.info[1], K.Colors.info[2], K.Colors.info[3])
+	Header(GameTooltip, L["Performance"])
 	GameTooltip:AddLine(" ")
 
-	local fc = FPSColor(fps)
-	GameTooltip:AddDoubleLine(L["Framerate"], format("%d fps", fps), 1, 1, 1, fc[1], fc[2], fc[3])
+	Row(GameTooltip, L["Framerate"], format("%d fps", fps), FPSColor(fps))
+	local average, low = FPSHistory()
+	if average then
+		Row(GameTooltip, L["Average (last minute)"], format("%d fps", average), FPSColor(average))
+		Row(GameTooltip, L["Lowest (last minute)"], format("%d fps", low), FPSColor(low))
+	end
 
-	local hc, wc = MSColor(home), MSColor(world)
-	GameTooltip:AddDoubleLine(L["Home Latency"], format("%d ms", home), 1, 1, 1, hc[1], hc[2], hc[3])
-	GameTooltip:AddDoubleLine(L["World Latency"], format("%d ms", world), 1, 1, 1, wc[1], wc[2], wc[3])
-	GameTooltip:AddDoubleLine(L["Bandwidth"], format("%.2f kb/s", bandwidth), 1, 1, 1, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3])
+	GameTooltip:AddLine(" ")
+	Header(GameTooltip, L["Latency"], L["checked every 30 sec"])
+	Row(GameTooltip, L["Home (chat, auction house)"], format("%d ms", home), MSColor(home))
+	Row(GameTooltip, L["World (combat, movement)"], format("%d ms", world), MSColor(world))
+	Row(GameTooltip, L["Download"], format("%.2f kb/s", down))
+	Row(GameTooltip, L["Upload"], format("%.2f kb/s", up))
 
 	if collectgarbage then
-		GameTooltip:AddDoubleLine(L["UI Memory"], format("%.2f mb", (collectgarbage("count") or 0) / 1024), 1, 1, 1, K.Colors.silver[1], K.Colors.silver[2], K.Colors.silver[3])
+		GameTooltip:AddLine(" ")
+		Row(GameTooltip, L["UI Memory"], MemoryText(collectgarbage("count") or 0))
 	end
 
-	if not AddProfilerLines(GameTooltip) then
-		AddMemoryLines(GameTooltip)
+	local count = shift and TOP_ADDONS_SHIFT or TOP_ADDONS
+	local profiled = AddProfilerLines(GameTooltip, count)
+	-- Memory always shows with Shift, and on its own when there is no profiler.
+	if shift or not profiled then
+		AddMemoryLines(GameTooltip, count)
 	end
 
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine(K.ColorText("info", "Left Click") .. " " .. L["Collect garbage"], K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
+	local muted = K.Colors.muted
+	GameTooltip:AddLine(K.ColorText("info", L["Left Click"]) .. " " .. L["Collect garbage"], muted[1], muted[2], muted[3])
+	if not shift then
+		GameTooltip:AddLine(K.ColorText("info", L["Hold Shift"]) .. " " .. L["More addons and their memory"], muted[1], muted[2], muted[3])
+	end
 	GameTooltip:Show()
+end
+
+-- Open the tooltip. It keeps refreshing on the readout's own tick while this
+-- anchor still owns it, and redraws at once when Shift is pressed or let go.
+function Module:PerformanceTooltip(anchor, point)
+	tipOwner, tipPoint = anchor, point
+	FillTooltip(anchor, point)
+end
+
+local function RefreshTooltip()
+	if tipOwner and GameTooltip:IsOwned(tipOwner) then
+		FillTooltip(tipOwner, tipPoint)
+	else
+		tipOwner = nil
+	end
 end
 
 -- ---------------------------------------------------------------------------
 -- Build
 -- ---------------------------------------------------------------------------
+
+local function CollectGarbage()
+	if not collectgarbage then
+		return
+	end
+	local before = collectgarbage("count") or 0
+	collectgarbage("collect")
+	local after = collectgarbage("count") or 0
+	K.Print(L["Freed %s, UI memory is now %s."], MemoryText(before - after), MemoryText(after))
+	RefreshTooltip()
+end
 
 function Module:CreatePerformance()
 	if not C.Minimap.ShowPerformance then
@@ -214,7 +386,7 @@ function Module:CreatePerformance()
 	local width = C.Minimap.Size or 200
 	local height = (C.Minimap.PerformanceFontSize or 13) + 6
 	perf:SetSize(width, height)
-	perf:RegisterForClicks("AnyUp")
+	perf:RegisterForClicks("LeftButtonUp")
 
 	local text = perf:CreateFontString(nil, "OVERLAY")
 	K.SetFont(text, C.Minimap.PerformanceFontSize or 13, K.FontOutlineStyle())
@@ -237,21 +409,26 @@ function Module:CreatePerformance()
 	local default = { "TOP", Minimap, "BOTTOM", 0, C.Minimap.ShowCoords and -22 or -6 }
 	K.CreateMover(perf, "Performance", L["Performance"], default, width, height)
 
-	-- A manual garbage collect, which is the one genuinely useful action here.
-	perf:SetScript("OnMouseUp", function()
-		if collectgarbage then
-			local before = collectgarbage("count") or 0
-			collectgarbage("collect")
-			local after = collectgarbage("count") or 0
-			K.Print("Collected %.2f mb", (before - after) / 1024)
-		end
-	end)
+	perf:SetScript("OnClick", CollectGarbage)
 	perf:SetScript("OnEnter", function(self2)
 		Module:PerformanceTooltip(self2)
 	end)
-	perf:SetScript("OnLeave", GameTooltip_Hide)
+	perf:SetScript("OnLeave", function()
+		tipOwner = nil
+		GameTooltip_Hide()
+	end)
 
-	-- Self-throttled, matching the clock datatext.
+	-- Shift changes what the tooltip lists, so redraw the moment it changes.
+	perf:RegisterEvent("MODIFIER_STATE_CHANGED")
+	perf:SetScript("OnEvent", function(_, _, key)
+		if tipOwner and (key == "LSHIFT" or key == "RSHIFT") then
+			RefreshTooltip()
+		end
+	end)
+
+	-- One tick a second: record the framerate, redraw the readout only when its
+	-- text changed, and keep an open tooltip live.
+	local shown
 	local elapsed = UPDATE_INTERVAL
 	perf:SetScript("OnUpdate", function(_, delta)
 		elapsed = elapsed + delta
@@ -259,6 +436,14 @@ function Module:CreatePerformance()
 			return
 		end
 		elapsed = 0
-		text:SetText(BuildText())
+		RecordFPS(CurrentFPS())
+		local value = BuildText()
+		if value ~= shown then
+			shown = value
+			text:SetText(value)
+		end
+		if tipOwner then
+			RefreshTooltip()
+		end
 	end)
 end

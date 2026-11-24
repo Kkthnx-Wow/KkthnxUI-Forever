@@ -19,6 +19,7 @@ local ipairs = ipairs
 local select = select
 local strfind = string.find
 local strupper = string.upper
+local InCombatLockdown = InCombatLockdown
 
 local Minimap = _G.Minimap
 
@@ -211,24 +212,31 @@ function Module:CollectButtons()
 		local rows = ceil(count / perRow)
 		panel:SetSize(perRow * SIZE + (perRow - 1) * GAP + PAD * 2, rows * SIZE + (rows - 1) * GAP + PAD * 2)
 
+		-- A protected button cannot be reparented or moved in combat. Leave those
+		-- where they are and lay the grid out again once combat ends.
+		local locked = InCombatLockdown()
 		positioning = true
 		for i, button in ipairs(collected) do
 			local col = (i - 1) % perRow
 			local row = ceil(i / perRow) - 1
-			button:SetParent(panel)
-			-- Lift the button above the panel's own background and border textures,
-			-- which live on the panel frame, so a low-level addon button is not drawn
-			-- behind them.
-			button:SetFrameLevel(panel:GetFrameLevel() + 2)
-			button:SetSize(SIZE, SIZE)
-			button:ClearAllPoints()
-			-- Offsets flow from the anchored corner: positive toward the opposite
-			-- edge, negative when the anchor is on the far side.
-			local dx = PAD + col * (SIZE + GAP)
-			local dy = PAD + row * (SIZE + GAP)
-			button:SetPoint(buttonAnchor, panel, buttonAnchor, anchorH == "LEFT" and dx or -dx, anchorV == "BOTTOM" and dy or -dy)
-			button:Show()
-			KillButtonTextures(button)
+			if locked and button:IsProtected() then
+				K.DeferCombat("MinimapButtons", Layout)
+			else
+				button:SetParent(panel)
+				-- Lift the button above the panel's own background and border textures,
+				-- which live on the panel frame, so a low-level addon button is not drawn
+				-- behind them.
+				button:SetFrameLevel(panel:GetFrameLevel() + 2)
+				button:SetSize(SIZE, SIZE)
+				button:ClearAllPoints()
+				-- Offsets flow from the anchored corner: positive toward the opposite
+				-- edge, negative when the anchor is on the far side.
+				local dx = PAD + col * (SIZE + GAP)
+				local dy = PAD + row * (SIZE + GAP)
+				button:SetPoint(buttonAnchor, panel, buttonAnchor, anchorH == "LEFT" and dx or -dx, anchorV == "BOTTOM" and dy or -dy)
+				button:Show()
+				KillButtonTextures(button)
+			end
 		end
 		positioning = false
 	end
