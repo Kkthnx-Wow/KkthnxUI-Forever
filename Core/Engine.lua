@@ -135,14 +135,22 @@ dispatch:SetScript("OnEvent", function(_, event, ...)
 		-- list any more and is skipped.
 		local list = handlers[module]
 		if list then
-			-- Walk a snapshot length so a handler that unregisters during dispatch
-			-- cannot make us skip or re-run one of its siblings.
-			for i = 1, #list do
+			-- Only the handlers present when dispatch began run, so one added
+			-- during it waits for the next event. A handler that unregisters
+			-- itself (RegisterEventOnce) is removed with tremove, which shifts its
+			-- next sibling into the same index. That index is then run again
+			-- rather than stepped past, so the sibling is not skipped.
+			local remaining = #list
+			local i = 1
+			while i <= remaining and i <= #list do
 				local handler = list[i]
-				if handler ~= nil then
-					-- One handler throwing must not stop the rest of the addon
-					-- hearing the event. The error still goes to the error handler.
-					xpcall(CallHandler, errorHandler, module, handler, event, ...)
+				-- One handler throwing must not stop the rest of the addon
+				-- hearing the event. The error still goes to the error handler.
+				xpcall(CallHandler, errorHandler, module, handler, event, ...)
+				if list[i] == handler then
+					i = i + 1
+				else
+					remaining = remaining - 1
 				end
 			end
 		end

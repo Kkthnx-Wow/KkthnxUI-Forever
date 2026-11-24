@@ -406,7 +406,7 @@ do
 
 	-- Are we tanking right now? Assigned group role first, then the stance, form
 	-- or aura, so it still reads correctly while solo.
-	function K.PlayerIsTank()
+	local function ReadIsTank()
 		local role = _G.UnitGroupRolesAssigned and _G.UnitGroupRolesAssigned("player")
 		if role == "TANK" then
 			return true
@@ -417,12 +417,34 @@ do
 		local getAura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
 		if getAura then
 			for _, spellID in ipairs(TANK_AURAS) do
-				if getAura(spellID) then
+				-- The aura can come back secret while auras are restricted, and a
+				-- secret value cannot be tested for truth.
+				local aura = getAura(spellID)
+				if aura ~= nil and not K.IsSecret(aura) then
 					return true
 				end
 			end
 		end
 		return false
+	end
+
+	-- Every nameplate asks on each colour update, so the answer is kept until the
+	-- player's auras or group role change.
+	local tankCached
+	local tankWatch = CreateFrame("Frame")
+	tankWatch:RegisterUnitEvent("UNIT_AURA", "player")
+	tankWatch:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+	tankWatch:RegisterEvent("GROUP_ROSTER_UPDATE")
+	tankWatch:RegisterEvent("PLAYER_ENTERING_WORLD")
+	tankWatch:SetScript("OnEvent", function()
+		tankCached = nil
+	end)
+
+	function K.PlayerIsTank()
+		if tankCached == nil then
+			tankCached = ReadIsTank()
+		end
+		return tankCached
 	end
 
 	function K.ThreatFillColor(status, isTank)

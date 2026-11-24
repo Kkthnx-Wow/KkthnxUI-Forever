@@ -279,7 +279,11 @@ function K:ExportProfile(name)
 	if not ok or not serialized then
 		return nil, "The profile could not be serialized."
 	end
+	-- CompressString may return nothing (its API doc says MayReturnNothing).
 	local compressed = encoding.CompressString(serialized, _G.Enum.CompressionMethod.Deflate)
+	if not compressed then
+		return nil, "The profile could not be compressed."
+	end
 	return EXPORT_TAG .. encoding.EncodeBase64(compressed)
 end
 

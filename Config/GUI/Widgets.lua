@@ -14,6 +14,7 @@ local format = string.format
 local type = type
 local pairs = pairs
 local ipairs = ipairs
+local tostring = tostring
 
 -- Shared theme accent, pulled from the palette so a palette change flows through
 -- every widget instead of leaving stray hardcoded colours behind.
@@ -266,6 +267,12 @@ local function ResetControls(controls, count)
 				local refresh = GUI.refreshers[control]
 				if refresh then
 					refresh(default)
+				end
+				-- Only the slider refresh fires a change that runs apply. Checks,
+				-- dropdowns, colours and edit boxes just redraw, so a live setting
+				-- would keep its old look until a reload.
+				if control.apply then
+					control.apply(GUI.GetValue(control.path))
 				end
 				GUI.FlagReload(control)
 				count = count + 1
@@ -1059,8 +1066,13 @@ function GUI.CreateEditBox(parent, control)
 	K.SkinEditBox(edit)
 	edit:SetText(GUI.GetValue(control.path) or "")
 
+	-- Focus loss also lands here, Escape included, so only a real edit applies
+	-- and flags a reload.
 	local function Commit()
-		GUI.ApplyChange(control, edit:GetText() or "")
+		local text = edit:GetText() or ""
+		if text ~= tostring(GUI.GetValue(control.path) or "") then
+			GUI.ApplyChange(control, text)
+		end
 		edit:ClearFocus()
 	end
 	edit:SetScript("OnEnterPressed", Commit)

@@ -8,8 +8,8 @@
 		The fill is handed to the engine. C_Spell.GetSpellCooldownDuration returns
 		a duration object, and StatusBar:SetTimerDuration renders it in C from
 		there, so the bar animates at full framerate with no Lua running per frame
-		and nothing to poll. It also never reads the value, so a secret cooldown
-		cannot break it.
+		and nothing to poll. A cooldown the game makes secret is not shown, since
+		whether it is running cannot be read.
 
 		It hides between cooldowns. The duration object reports how long is left,
 		so the hide is scheduled once at that exact moment rather than polled for.
@@ -52,8 +52,10 @@ local function Arm(refreshOnly)
 	-- Always take a fresh object. A stored handle goes stale when a cooldown is
 	-- reset, and re-arming it plays the original countdown out again instead of
 	-- the new one.
+	-- HasSecretValues is never secret, IsActive can be, so it is asked first. A
+	-- secret global cooldown leaves the bar down rather than guessing its end.
 	local duration = C_Spell.GetSpellCooldownDuration(GCD_SPELL)
-	if not duration or not duration:IsActive() then
+	if not duration or duration:HasSecretValues() or not duration:IsActive() then
 		return
 	end
 
@@ -66,11 +68,6 @@ local function Arm(refreshOnly)
 	-- one that replaced it, and it costs no closure per cast.
 	if hideTimer then
 		hideTimer:Cancel()
-	end
-	if duration:HasSecretValues() then
-		-- Remaining time is unreadable, so fall back to the cooldown update below.
-		hideTimer = nil
-		return
 	end
 	hideTimer = C_Timer.NewTimer(duration:GetRemainingDuration(), HideBar)
 end
@@ -106,7 +103,7 @@ function Module:SPELL_UPDATE_COOLDOWN()
 	-- since this fires again once it has run out.
 	if not hideTimer and bar:IsShown() then
 		local duration = C_Spell.GetSpellCooldownDuration(GCD_SPELL)
-		if not duration or not duration:IsActive() then
+		if not duration or duration:HasSecretValues() or not duration:IsActive() then
 			bar:Hide()
 		end
 	end

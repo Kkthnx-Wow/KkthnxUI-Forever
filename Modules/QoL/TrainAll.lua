@@ -86,6 +86,14 @@ local function UpdateButton()
 	EachTrainable(function()
 		count = count + 1
 	end)
+	-- A fixed 120 wide button ran over the money box at the bottom left, so it
+	-- fills the gap between that box and Train. Measured here because the
+	-- window has a layout by the time the trainer list updates.
+	local train, money = _G.ClassTrainerTrainButton, _G.ClassTrainerFrameMoneyBg
+	local left, right = money and money:GetRight(), train and train:GetLeft()
+	if left and right and right - left > 40 then
+		button:SetWidth(right - left)
+	end
 	button:SetEnabled(count > 0 and not training)
 	button:SetText(count > 0 and format("%s (%d)", L["Train All"], count) or L["Train All"])
 end
@@ -177,7 +185,7 @@ local function Build()
 	end
 	button = CreateFrame("Button", "KKUI_TrainAllButton", train:GetParent(), "MagicButtonTemplate")
 	button:SetHeight(train:GetHeight())
-	button:SetWidth(120)
+	button:SetWidth(train:GetWidth())
 	button:SetPoint("RIGHT", train, "LEFT", 0, 0)
 	button:SetMotionScriptsWhileDisabled(true)
 	button:SetScript("OnClick", OnClick)

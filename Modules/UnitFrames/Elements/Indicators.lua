@@ -126,7 +126,8 @@ end
 
 local function ThreatPostUpdate(element, _, status, color)
 	local frame = element.__owner
-	frame.__threatColor = (status and status > 0) and color or nil
+	-- The threat state can come back secret, which cannot be compared.
+	frame.__threatColor = (status and not IsSecret(status) and status > 0) and color or nil
 	Module.RefreshHealthBorder(frame)
 end
 

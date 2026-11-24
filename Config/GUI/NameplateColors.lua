@@ -65,15 +65,24 @@ function GUI.CustomPanels.NameplateColors(parent)
 	swatchTex:SetAllPoints()
 	swatchTex:SetColorTexture(pending[1], pending[2], pending[3])
 	swatch:SetScript("OnClick", function()
-		local function apply()
-			local r, g, b = ColorPickerFrame:GetColorRGB()
+		local function set(r, g, b)
 			pending[1], pending[2], pending[3] = r, g, b
 			swatchTex:SetColorTexture(r, g, b)
+		end
+		local function apply()
+			set(ColorPickerFrame:GetColorRGB())
+		end
+		-- Cancel hands back the colour from before the picker opened. Reading the
+		-- picker there kept the colour that was being tried.
+		local function cancel(previous)
+			if previous then
+				set(previous.r, previous.g, previous.b)
+			end
 		end
 		local info = {
 			r = pending[1], g = pending[2], b = pending[3], hasOpacity = false,
 			swatchFunc = apply,
-			cancelFunc = apply,
+			cancelFunc = cancel,
 		}
 		if ColorPickerFrame.SetupColorPickerAndShow then
 			ColorPickerFrame:SetupColorPickerAndShow(info)

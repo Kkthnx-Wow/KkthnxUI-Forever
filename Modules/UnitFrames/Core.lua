@@ -579,9 +579,24 @@ function Module:ToggleTest()
 	-- you position and judge is the actual frame and styling, not a mock.
 	if on then
 		self:EnterConfigMode()
+		-- Forced frames point at the player with the mouse off, which leaves no
+		-- usable target or party frames in a fight and cannot be undone once
+		-- locked. This event fires just before the lockdown starts, so the
+		-- frames can still be put back here.
+		self:RegisterEvent("PLAYER_REGEN_DISABLED", "EndTestForCombat")
 		K.Print("Unit frame test mode ON. Every frame is forced on with your data so you can position them.")
 	else
+		self:UnregisterEvent("PLAYER_REGEN_DISABLED", "EndTestForCombat")
 		self:ExitConfigMode()
 		K.Print("Unit frame test mode OFF.")
+	end
+end
+
+function Module:EndTestForCombat()
+	self:UnregisterEvent("PLAYER_REGEN_DISABLED", "EndTestForCombat")
+	if self.testMode and not InCombatLockdown() then
+		self.testMode = false
+		self:ExitConfigMode()
+		K.Print("Unit frame test mode OFF, combat started.")
 	end
 end

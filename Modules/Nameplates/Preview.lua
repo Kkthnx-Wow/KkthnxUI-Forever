@@ -90,6 +90,7 @@ local function Decorate(plate, variant)
 	end
 	if variant.quest and plate.QuestIcon then
 		plate.QuestIcon:Show()
+		plate.QuestIcon.__shown = nil
 		plate.QuestCount:SetText("3/7")
 	end
 	if variant.marker and plate.RaidTargetIndicator and SetRaidTargetIconTexture then
@@ -98,6 +99,8 @@ local function Decorate(plate, variant)
 	end
 	if variant.target and plate.KKUI_Shadow then
 		plate.KKUI_Shadow:SetBackdropBorderColor(TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3], 1)
+		-- Painted behind the style's back, so drop its remembered colour.
+		plate.KKUI_Shadow.__r = nil
 	end
 	if plate.PrivateAuras then
 		ShowPrivateBoxes(plate.PrivateAuras, variant.private == true)

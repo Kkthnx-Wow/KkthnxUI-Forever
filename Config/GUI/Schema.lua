@@ -199,6 +199,7 @@ end
 -- An "open flyout" button for one bar. The panel is built lazily so the bar's
 -- controls only exist once the user opens it.
 local function BarButton(title, key, tooltip)
+	local controls = BarControls(key)
 	return {
 		kind = "extra",
 		label = title,
@@ -207,9 +208,11 @@ local function BarButton(title, key, tooltip)
 		tooltip = tooltip,
 		-- Exposed so the category search can see the settings inside this flyout,
 		-- not just the button that opens it.
-		searchControls = BarControls(key),
+		-- One list for both. Search, jump-to and Reset Section look widgets up by
+		-- control table, so a second copy built here would match nothing.
+		searchControls = controls,
 		build = function(child)
-			K.GUI.LayoutControls(child, BarControls(key))
+			K.GUI.LayoutControls(child, controls)
 		end,
 	}
 end
@@ -296,456 +299,9 @@ local function SwingControls()
 	return list
 end
 
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	{ text = L["Hidden"], value = "hidden" },
-}
-
-local function SwingControls()
-	local list = {
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-			ExtraButton(L["Target"], "UF_Target", UnitControls("Target", { power = true, buffs = true, debuffs = true, pvp = true, threat = true }), L["Whatever you currently have targeted."]),
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
--- Cursor trail. Everything but the enable switch and the pool size applies live.
-local TRAIL_DEP = { "Misc", "CursorTrail" }
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
-local TRAIL_STYLES = {
-	{ text = L["Comet"], value = "Comet" },
-	{ text = L["Ribbon"], value = "Ribbon" },
-	{ text = L["Particles"], value = "Particles" },
-}
-
-local function ApplyTrail()
-	local trail = K:GetModule("CursorTrail", true)
-	if trail and trail.ApplySettings then
-		trail:ApplySettings()
-	end
-end
-
--- A dropdown list from one of the trail art lists, each row showing its art.
-local function TrailArtOptions(list)
-	local options = {}
-	for _, entry in ipairs(list) do
-		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
-	end
-	return options
-end
-
--- Swing bars. Everything but the master switch applies live.
-local function ApplySwing()
-	local swing = K:GetModule("SwingTimer", true)
-	if swing and swing.ApplySettings then
-		swing:ApplySettings()
-	end
-end
-
-local SWING_DEP = { "Unitframe", "Swing", "Enable" }
-
-local SWING_VISIBILITY = {
-	{ text = L["Always"], value = "always" },
-	{ text = L["In Combat"], value = "combat" },
-	{ text = L["While Swinging"], value = "swinging" },
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
-		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
-		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
-		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
-		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
-		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
-	}
-	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
-		local key = hand[1]
-		list[#list + 1] = { kind = "header", label = hand[2] }
-		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
-		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
-		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
-		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
-	end
-	return list
-end
-
 -- Re-apply the custom colour tables and recolour every live frame so a picker
 -- change shows immediately without a reload.
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+local function ApplyUnitColors()
 	if K.ApplyUnitColors then
 		K.ApplyUnitColors()
 	end
@@ -782,16 +338,17 @@ local function ColorControls()
 end
 
 -- Controls for one unit. opts flags which optional rows apply. Everything below
-	if opts.threat then
-		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
-			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
-			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
-			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
+-- the enable toggle greys out when the unit is disabled.
+local function UnitControls(key, opts)
+	opts = opts or {}
+	local dep = { "Unitframe", key, "Enable" }
+	local controls = {
+		{ kind = "check", label = L["Enable"], path = { "Unitframe", key, "Enable" }, reload = true },
+		{ kind = "slider", label = L["Width"], path = { "Unitframe", key, "Width" }, min = 60, max = 340, step = 2, reload = true, dependsOn = dep },
 		{ kind = "slider", label = L["Health Height"], path = { "Unitframe", key, "Height" }, min = 12, max = 80, step = 1, reload = true, dependsOn = dep },
 	}
 
 	local function Add(control)
-			{ kind = "check", label = L["Characters Left Count"], path = { "Chat", "CharacterCount" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["While you type, the right of the chat box shows how many characters you have left. It turns from gold to red as you near the limit."] },
 		controls[#controls + 1] = control
 	end
 
@@ -801,10 +358,7 @@ end
 	end
 	if opts.powerHeight then
 		Add({ kind = "slider", label = L["Power Height"], path = { "Unitframe", key, "PowerHeight" }, min = 0, max = 30, step = 1, reload = true, dependsOn = dep })
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 	end
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 	if opts.powerMode then
 		Add({ kind = "dropdown", label = L["Power Bar"], path = { "Unitframe", key, "PowerMode" }, options = {
 			{ text = L["All Powers"], value = "All" },
@@ -813,7 +367,7 @@ end
 		}, reload = true, dependsOn = dep })
 		Add({ kind = "slider", label = L["Power Spacing"], path = { "Unitframe", key, "PowerGap" }, min = 0, max = 12, step = 1, reload = true, dependsOn = dep })
 	end
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+	if opts.buffs then
 		Add({ kind = "check", label = L["Show Buffs"], path = { "Unitframe", key, "Buffs" }, reload = true, dependsOn = dep })
 	end
 	if opts.debuffs then
@@ -850,16 +404,11 @@ end
 	if opts.pvp then
 		Add({ kind = "check", label = L["Show PvP Icon"], path = { "Unitframe", key, "PvPIcon" }, reload = true, dependsOn = dep, tooltip = L["The faction or free for all badge beside the portrait while the unit is flagged for PvP."] })
 	end
-	if opts.swing then
-		Add({ kind = "check", label = L["Swing Timer"], path = { "Unitframe", key, "SwingTimer" }, reload = true, dependsOn = dep, tooltip = L["A thin bar under the frame while your weapon swing is running. Main hand, off hand and ranged each get one."] })
-			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
-			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
-			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
-		Add({ kind = "slider", label = L["Auto Shot Height"], path = { "Unitframe", key, "AutoShotHeight" }, min = 6, max = 30, step = 1, reload = true, dependsOn = { "Unitframe", key, "AutoShotBar" } })
+	if opts.threat then
+		Add({ kind = "check", label = L["Show Threat"], path = { "Unitframe", key, "Threat" }, since = "1.0.4", reload = true, dependsOn = dep, tooltip = L["Your share of the target's threat at the left end of its health bar, coloured by threat state. 100 means you have or are about to pull it. Shown in a group or with a pet. When the game hides the value, for example on a boss, nothing shows."] })
 	end
 	if opts.powerTick then
 		Add({ kind = "check", label = L["Regen Tick Spark"], path = { "Unitframe", key, "PowerTick" }, reload = true, dependsOn = dep, tooltip = L["A spark that sweeps across your power bar and reaches the end when your next mana or energy tick lands. Only shows for mana and energy."] })
-			{ kind = "check", label = L["Characters Left Count"], path = { "Chat", "CharacterCount" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["While you type, the right of the chat box shows how many characters you have left. It turns from gold to red as you near the limit."] },
 		Add({ kind = "check", label = L["Five Second Rule"], path = { "Unitframe", key, "FiveSecondRule" }, since = "1.0.0-beta7", reload = true, dependsOn = dep, tooltip = L["After you cast a spell that costs mana, a gold spark sweeps the mana bar for five seconds with the time left on its left edge. Spirit regen is paused until it finishes."] })
 	end
 	if opts.totems then
@@ -869,10 +418,7 @@ end
 		Add({ kind = "check", label = L["Show Pet Happiness"], path = { "Unitframe", key, "Happiness" }, reload = true, dependsOn = dep, tooltip = L["Hunters only. The mood of your pet on its frame."] })
 	end
 	if opts.name then
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 		Add({ kind = "check", label = L["Show Name"], path = { "Unitframe", key, "ShowName" }, reload = true, dependsOn = dep })
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 	end
 	if opts.classPower then
 		Add({ kind = "check", label = L["Show Class Resource"], path = { "Unitframe", key, "ClassPower" }, reload = true, dependsOn = dep, tooltip = L["Combo points, for rogues and druids in cat form."] })
@@ -881,7 +427,7 @@ end
 	if opts.showSolo then
 		Add({ kind = "check", label = L["Show While Solo"], path = { "Unitframe", key, "ShowSolo" }, reload = true, dependsOn = dep })
 	end
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+	if opts.showPlayer then
 		Add({ kind = "check", label = L["Show Player"], path = { "Unitframe", key, "ShowPlayer" }, reload = true, dependsOn = dep, tooltip = L["Include your own frame in the party. Turn off if your player frame is enough."] })
 	end
 	if opts.dispelHighlight then
@@ -920,14 +466,12 @@ end
 	if opts.spacing then
 		Add({ kind = "slider", label = L["Frame Spacing"], path = { "Unitframe", key, "Spacing" }, min = 10, max = 80, step = 1, reload = true, dependsOn = dep })
 	end
-			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
-			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
-			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
+	-- Party in the raid look takes these two from the raid settings instead.
+	local raidLook = opts.raidStyle and { "Unitframe", key, "RaidStyle" } or nil
 	if opts.groupSpacing then
 		Add({ kind = "slider", label = L["Frame Spacing"], path = { "Unitframe", key, "Spacing" }, min = 0, max = 40, step = 1, reload = true, dependsOn = dep, disabledWhen = raidLook, since = "1.0.0-beta7", tooltip = L["The gap between frames. Party in the standard look adds room for the castbar on top of this."] })
 	end
 	if opts.roleIcon then
-			{ kind = "check", label = L["Characters Left Count"], path = { "Chat", "CharacterCount" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["While you type, the right of the chat box shows how many characters you have left. It turns from gold to red as you near the limit."] },
 		Add({ kind = "check", label = L["Show Role Icons"], path = { "Unitframe", key, "RoleIcon" }, reload = true, dependsOn = dep, disabledWhen = raidLook, since = "1.0.0-beta7", tooltip = L["The tank and healer icon in the corner of each frame."] })
 	end
 	if opts.castbar then
@@ -937,10 +481,7 @@ end
 	return controls
 end
 
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 GUI.schema = {
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 	{
 		name = "General",
 		icon = "Interface/ICONS/Achievement_General",
@@ -949,7 +490,7 @@ GUI.schema = {
 		controls = {
 			{ kind = "header", label = L["Interface"] },
 			{ kind = "check", label = L["Auto UI Scale"], path = { "General", "AutoScale" }, reload = true, tooltip = L["Pick the UI scale from your screen height so text and borders stay sharp. Turn off to set the scale yourself."] },
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+			{ kind = "slider", label = L["UI Scale"], path = { "General", "UIScale" }, min = 0.4, max = 1.15, step = 0.01, reload = true, disabledWhen = { "General", "AutoScale" }, tooltip = L["The UI scale used when Auto UI Scale is off. Turn off Auto UI Scale to use it."] },
 			{ kind = "dropdown", label = L["Font"], path = { "General", "Font" }, options = MediaOptions(C.Media.Fonts), reload = true },
 			{ kind = "check", label = L["Font Outline"], path = { "General", "FontOutline" }, reload = true, tooltip = L["Draw a thin outline around the addon text so it stays readable on bright backgrounds."] },
 			{ kind = "check", label = L["Welcome Message"], path = { "General", "WelcomeMessage" }, tooltip = L["Print the version and a short tip in chat when you log in."] },
@@ -988,14 +529,12 @@ GUI.schema = {
 		controls = Join({
 			{ kind = "header", label = L["Global"] },
 			{ kind = "check", label = L["Enable Action Bars"], path = { "ActionBar", "Enable" }, reload = true },
-			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
-			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
-			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
+			{ kind = "check", label = L["Show Empty Button Grid"], path = { "ActionBar", "ShowGrid" }, reload = true },
+			{ kind = "check", label = L["Upgrade Spell Ranks"], path = { "ActionBar", "AutoUpgradeRanks" }, reload = true, tooltip = L["When you learn a higher rank of a spell, put it on the action bar slots that hold a lower rank."] },
 			{ kind = "button", label = L["Keybind Mode"], tooltip = L["Hover an action button and press a key to bind it. Escape clears the button under the pointer. Also /kkbind."], onClick = function()
 				local m = K:GetModule("ActionBars", true)
 				if m and m.ToggleBindMode then
 					K.GUI.Hide()
-			{ kind = "check", label = L["Characters Left Count"], path = { "Chat", "CharacterCount" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["While you type, the right of the chat box shows how many characters you have left. It turns from gold to red as you near the limit."] },
 					m:ToggleBindMode()
 				end
 			end },
@@ -1005,10 +544,7 @@ GUI.schema = {
 				{ text = L["Key Release"], value = "Release" },
 			}, tooltip = L["When an action fires. Game Setting follows the option in the game's own Combat settings, the others override it for these bars only."] },
 			{ kind = "dropdown", label = L["Out of Range"], path = { "ActionBar", "RangeColoring" }, options = {
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
-			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 				{ text = L["Whole Button"], value = "button" },
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 				{ text = L["Hotkey Only"], value = "hotkey" },
 				{ text = L["None"], value = "none" },
 			}, apply = ApplyAllBars, tooltip = L["How a button shows an ability that is out of range."] },
@@ -1017,7 +553,7 @@ GUI.schema = {
 			{ kind = "dropdown", label = L["Proc Glow"], path = { "ActionBar", "ProcGlow" }, reload = true, options = {
 				{ text = L["Pixel"], value = "Pixel" },
 				{ text = L["Autocast Shine"], value = "Autocast" },
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+				{ text = L["Blizzard Default"], value = "Default" },
 			}, tooltip = L["The glow shown when an ability procs."] },
 			{ kind = "header", label = L["Button Text"] },
 			{ kind = "dropdown", label = L["Font"], path = { "ActionBar", "Font" }, options = MediaOptions(C.Media.Fonts), apply = ApplyAllBars },
@@ -1058,11 +594,20 @@ GUI.schema = {
 			{ kind = "check", label = L["Threat Health Color"], path = { "Unitframe", "ThreatHealthColor" }, reload = true, tooltip = L["Colour enemy health bars by your threat, role-aware, instead of by reaction."] },
 			{ kind = "check", label = L["Colored Bar Backdrop"], path = { "Unitframe", "BarBackdrop" }, reload = true, tooltip = L["Tints the empty part of a bar with a dark version of its colour, so a nearly dead unit still reads at a glance."] },
 			{ kind = "check", label = L["Heal Prediction"], path = { "Unitframe", "HealthPrediction" }, reload = true, tooltip = L["Shows incoming heals and absorb shields on the health bar."] },
+			{ kind = "check", label = L["Range Fade"], path = { "Unitframe", "RangeFade" }, reload = true, tooltip = L["Dim units that are out of range."] },
+			{ kind = "slider", label = L["Range Fade Alpha"], path = { "Unitframe", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, reload = true, dependsOn = { "Unitframe", "RangeFade" } },
+			{ kind = "check", label = L["Group Dispel Debuffs Only"], path = { "Unitframe", "GroupDispelOnly" }, reload = true, tooltip = L["On party and raid frames show only debuffs you can dispel, plus boss mechanics."] },
+			{ kind = "check", label = L["Aura Watch"], path = { "Unitframe", "AuraWatch" }, reload = true, tooltip = L["Corner dots on party and raid frames that light up for your class heals over time."] },
+			{ kind = "check", label = L["Questie Target Icon"], path = { "Unitframe", "QuestieTargetIcon" }, since = "1.0.0", reload = true, tooltip = L["With Questie loaded, show its objective icon beside the target frame when your target is part of one of your quests."] },
+
+			{ kind = "header", label = L["Text"] },
+			{ kind = "dropdown", label = L["Health Text"], path = { "Unitframe", "HealthFormat" }, options = TEXT_FORMATS, reload = true },
+			{ kind = "dropdown", label = L["Power Text"], path = { "Unitframe", "PowerFormat" }, options = TEXT_FORMATS, reload = true },
+			{ kind = "check", label = L["Colored Names"], path = { "Unitframe", "NameColor" }, apply = RefreshTags("kkui:namecolor"), tooltip = L["Class colour for players, reaction colour for everything else."] },
+			{ kind = "slider", label = L["Name Length"], path = { "Unitframe", "NameLength" }, min = 0, max = 30, step = 1, apply = RefreshTags("kkui:name"), tooltip = L["Zero shows the full name."] },
 
 			{ kind = "header", label = L["Portrait"] },
-			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
 			{ kind = "check", label = L["Show Portrait"], path = { "Unitframe", "Portrait" }, reload = true },
-				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 			{ kind = "dropdown", label = L["Portrait Style"], path = { "Unitframe", "PortraitStyle" }, options = {
 				{ text = L["3D Model"], value = "3D" },
 				{ text = L["2D Portrait"], value = "2D" },
@@ -1074,11 +619,11 @@ GUI.schema = {
 			-- the group frames. Shared settings sit in their own block at the end
 			-- so they are not mistaken for one more unit.
 			{ kind = "header", label = L["Your Frames"] },
-			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, swing = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
+			ExtraButton(L["Player"], "UF_Player", UnitControls("Player", { power = true, buffs = true, debuffs = true, classPower = true, name = true, pvp = true, powerTick = true, totems = true }), L["Your own frame, including combo points for rogues and druids."]),
 			ExtraButton(L["Pet"], "UF_Pet", UnitControls("Pet", { power = true, debuffs = true, happiness = true }), L["Your pet's frame, shown only while you have one out."]),
 
 			{ kind = "header", label = L["Target Frames"] },
-			ExtraButton(L["Target"], "UF_Target", UnitControls("Target", { power = true, buffs = true, debuffs = true, pvp = true }), L["Whatever you currently have targeted."]),
+			ExtraButton(L["Target"], "UF_Target", UnitControls("Target", { power = true, buffs = true, debuffs = true, pvp = true, threat = true }), L["Whatever you currently have targeted."]),
 			ExtraButton(L["Target of Target"], "UF_ToT", UnitControls("TargetOfTarget", { power = true }), L["Who your target is targeting, which is how you spot what a boss is attacking."]),
 			ExtraButton(L["Focus"], "UF_Focus", UnitControls("Focus", { power = true, debuffs = true }), L["Your focus target, set with the focus keybind or the unit menu."]),
 			ExtraButton(L["Focus Target"], "UF_FocusTarget", UnitControls("FocusTarget", { power = true }), L["Who your focus is targeting."]),
@@ -1103,27 +648,35 @@ GUI.schema = {
 				{ kind = "slider", label = L["Debuff Size"], path = { "Unitframe", "Auras", "DebuffSize" }, min = 16, max = 40, step = 1, reload = true },
 				{ kind = "slider", label = L["Auras Per Row"], path = { "Unitframe", "Auras", "PerRow" }, min = 3, max = 12, step = 1, reload = true },
 				{ kind = "slider", label = L["Aura Spacing"], path = { "Unitframe", "Auras", "Spacing" }, min = 0, max = 12, step = 1, reload = true },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
+				{ kind = "slider", label = L["Max Buffs"], path = { "Unitframe", "Auras", "NumBuffs" }, min = 1, max = 40, step = 1, reload = true },
+				{ kind = "slider", label = L["Max Debuffs"], path = { "Unitframe", "Auras", "NumDebuffs" }, min = 1, max = 40, step = 1, reload = true },
+				{ kind = "check", label = L["Only My Debuffs"], path = { "Unitframe", "Auras", "OnlyPlayerDebuffs" }, reload = true },
+			}),
+			ExtraButton(L["Class Resource"], "UF_ClassPower", {
+				{ kind = "slider", label = L["Height"], path = { "Unitframe", "ClassPower", "Height" }, min = 6, max = 30, step = 1, reload = true },
+				{ kind = "slider", label = L["Segment Spacing"], path = { "Unitframe", "ClassPower", "Spacing" }, min = 0, max = 12, step = 1, reload = true },
+			}),
+			ExtraButton(L["Castbar"], "UF_Castbar", {
+				{ kind = "check", label = L["Enable Castbar"], path = { "Unitframe", "Castbar", "Enable" }, reload = true },
+				{ kind = "check", label = L["Show Cast Icon"], path = { "Unitframe", "Castbar", "ShowIcon" }, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "check", label = L["Show Cast Timer"], path = { "Unitframe", "Castbar", "ShowTimer" }, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Castbar", "ShowSpark" }, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "check", label = L["Show Latency"], path = { "Unitframe", "Castbar", "ShowLatency" }, reload = true, dependsOn = CASTBAR_DEP, tooltip = L["Marks the window at the end of a cast where your spell is already on its way."] },
+				{ kind = "slider", label = L["Hold On Finish"], path = { "Unitframe", "Castbar", "TimeToHold" }, min = 0, max = 2, step = 0.1, reload = true, dependsOn = CASTBAR_DEP, tooltip = L["Seconds an interrupted or failed cast stays on screen."] },
+				{ kind = "header", label = L["Player"] },
+				{ kind = "slider", label = L["Width"], path = { "Unitframe", "Castbar", "PlayerWidth" }, min = 120, max = 500, step = 2, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "slider", label = L["Height"], path = { "Unitframe", "Castbar", "PlayerHeight" }, min = 12, max = 50, step = 1, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "header", label = L["Target"] },
+				{ kind = "slider", label = L["Width"], path = { "Unitframe", "Castbar", "TargetWidth" }, min = 120, max = 500, step = 2, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "slider", label = L["Height"], path = { "Unitframe", "Castbar", "TargetHeight" }, min = 12, max = 50, step = 1, reload = true, dependsOn = CASTBAR_DEP },
+			{ kind = "header", label = L["Focus"] },
+				{ kind = "slider", label = L["Width"], path = { "Unitframe", "Castbar", "FocusWidth" }, min = 120, max = 500, step = 2, reload = true, dependsOn = CASTBAR_DEP },
+				{ kind = "slider", label = L["Height"], path = { "Unitframe", "Castbar", "FocusHeight" }, min = 12, max = 50, step = 1, reload = true, dependsOn = CASTBAR_DEP },
+			}),
+			ExtraButton(L["Swing Timer"], "UF_Swing", SwingControls(), L["Main hand, off hand and ranged swing bars, each on its own mover."]),
+		},
+	},
+
 	{
 		name = "Minimap",
 		icon = "Interface/ICONS/INV_Misc_Map_01",
@@ -1164,45 +717,35 @@ GUI.schema = {
 				{ text = L["Custom"], value = "Custom" },
 			}, dependsOn = { "Minimap", "ShowPerformance" }, tooltip = L["Colour of the fps and ms labels. The numbers themselves are always graded green through red."] },
 			{ kind = "color", label = L["Performance Custom Color"], path = { "Minimap", "PerformanceCustomColor" }, dependsOn = { "Minimap", "ShowPerformance" } },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
+			{ kind = "header", label = L["Button Collector"] },
+			{ kind = "check", label = L["Collect Minimap Buttons"], path = { "Minimap", "CollectButtons" }, reload = true, dependsOn = { "Minimap", "Enable" } },
+				{ kind = "dropdown", label = L["Button Collector Corner"], path = { "Minimap", "ButtonCorner" }, options = {
+					{ text = L["Bottom Left"], value = "BOTTOMLEFT" },
+					{ text = L["Bottom Right"], value = "BOTTOMRIGHT" },
+					{ text = L["Top Left"], value = "TOPLEFT" },
+					{ text = L["Top Right"], value = "TOPRIGHT" },
+				}, reload = true, dependsOn = { "Minimap", "CollectButtons" }, tooltip = L["Which corner of the minimap the button-collector dot sits in."] },
+
+				{ kind = "header", label = L["World Map"] },
+				{ kind = "check", label = L["Enable World Map Tweaks"], path = { "WorldMap", "Enable" }, reload = true, tooltip = L["Shrink the maximized world map and show coordinates."] },
+				{ kind = "check", label = L["Smaller World Map (Experimental)"], path = { "WorldMap", "SmallerMap" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Scale the maximized map down so it no longer covers the whole screen. Experimental: resizing the map from addon code can block map pin clicks."] },
+				{ kind = "slider", label = L["Map Scale"], path = { "WorldMap", "Scale" }, min = 0.6, max = 1, step = 0.05, reload = true, dependsOn = { "WorldMap", "Enable" } },
+				{ kind = "check", label = L["Map Coordinates"], path = { "WorldMap", "Coordinates" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Show player and cursor coordinates in a corner of the map."] },
+				{ kind = "dropdown", label = L["Coordinate Position"], path = { "WorldMap", "CoordPosition" }, options = {
+					{ text = L["Bottom Left"], value = "BOTTOMLEFT" },
+					{ text = L["Bottom Right"], value = "BOTTOMRIGHT" },
 					{ text = L["Top Left"], value = "TOPLEFT" },
 					{ text = L["Top Right"], value = "TOPRIGHT" },
 				}, reload = true, dependsOn = { "WorldMap", "Enable" } },
 				{ kind = "check", label = L["Map Reveal"], path = { "WorldMap", "Reveal" }, reload = true, dependsOn = { "WorldMap", "Enable" }, tooltip = L["Draw the parts of a zone you have not explored yet. Also toggleable from a checkbox on the map itself."] },
 				{ kind = "check", label = L["Dim Revealed Areas"], path = { "WorldMap", "RevealDim" }, reload = true, dependsOn = { "WorldMap", "Reveal" }, tooltip = L["Shade the revealed areas so the ground you have actually explored still stands out."] },
+				{ kind = "check", label = L["Waypoints"], path = { "WorldMap", "Waypoints" }, since = "1.0.4", reload = true, tooltip = L["Type /way 45 60 for a waypoint in your zone, /way Westfall 45 60 for another zone, or /way clear to remove it. Alt+click the world map to set one there. The game's own pin and arrow guide you to it."] },
 		},
 	},
 
 	{
 		name = "Auras",
 		icon = "Interface/ICONS/Spell_Nature_MoonGlow",
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
-				local m = K:GetModule("QoL", true)
-				if m and m.UpdateCameraDistance then
-					m:UpdateCameraDistance()
-				end
-			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
 		title = L["Buffs & Debuffs"],
 		controls = {
 			{ kind = "header", label = L["Player Auras"] },
@@ -1225,6 +768,7 @@ GUI.schema = {
 		},
 	},
 
+	{
 		name = "Chat",
 		icon = "Interface/ICONS/UI_Chat",
 		title = L["Chat"],
@@ -1242,35 +786,26 @@ GUI.schema = {
 			{ kind = "check", label = L["Sticky Whisper (Experimental)"], path = { "Chat", "StickyWhisper" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Keep the edit box on whisper after replying. Experimental: it changes a chat setting that the stock edit box reads when you press Enter, which can taint whisper handling."] },
 			{ kind = "check", label = L["Whisper Sound"], path = { "Chat", "WhisperSound" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Play a sound when you receive a whisper."] },
 			{ kind = "check", label = L["Remember Chat History"], path = { "Chat", "HistoryPersist" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replay your recent player chat after a reload or relog."] },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
-			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.0.4", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
-				local m = K:GetModule("QoL", true)
-				if m and m.UpdateCameraDistance then
-					m:UpdateCameraDistance()
-				end
-			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
+			{ kind = "header", label = L["Chat Bubbles"] },
+			{ kind = "check", label = L["Skin Chat Bubbles"], path = { "Chat", "SkinBubbles" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Replace the in-world chat bubbles with compact ones in the chat font, with our gradient and shadow. Bubbles in instances stay as the game draws them."] },
+			{ kind = "check", label = L["Bubble Speaker Name"], path = { "Chat", "BubbleName" }, reload = true, dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Start each bubble with who is speaking, in their class colour, and their level when it is under the cap."] },
+			{ kind = "check", label = L["Bubble Chat Colour"], path = { "Chat", "BubbleChatColor" }, since = "1.0.4", dependsOn = { "Chat", "SkinBubbles" }, tooltip = L["Tint the bubble's shadow with its chat colour, so party, raid and yell bubbles stand apart from say."] },
+			{ kind = "header", label = L["Names and Links"] },
+			{ kind = "check", label = L["Shorten Channel Names"], path = { "Chat", "ShortenChannels" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Class Colored Names"], path = { "Chat", "ClassColorNames" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Clickable URLs"], path = { "Chat", "URLLinks" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Characters Left Count"], path = { "Chat", "CharacterCount" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["While you type, the right of the chat box shows how many characters you have left. It turns from gold to red as you near the limit."] },
+			{ kind = "check", label = L["Hyperlink Hover Tooltips"], path = { "Chat", "HyperlinkTooltip" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Loot Icons"], path = { "Chat", "LootIcons" }, since = "1.0.0-beta5", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Show the item icon in front of items in loot messages."] },
+			{ kind = "check", label = L["Item Level in Links"], path = { "Chat", "LinkItemLevel" }, since = "1.0.0-beta5", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Show the item level inside the brackets of weapon and armor links in chat."] },
+			{ kind = "header", label = L["Extras"] },
+			{ kind = "check", label = L["Channel Quick Bar"], path = { "Chat", "ChatBar" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Side Button Strip"], path = { "Chat", "SideButtons" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A fading column of icon buttons on the left of the chat for channels, copy, scroll, and config."] },
+			{ kind = "check", label = L["Repeat Spam Filter"], path = { "Chat", "SpamFilter" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Drop identical messages repeated in public channels within 30 seconds."] },
+			{ kind = "check", label = L["Gradient Backdrop"], path = { "Chat", "GradientBackdrop" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A soft class-colored fade behind the chat that fades out to the right."] },
+			{ kind = "check", label = L["Copy Button"], path = { "Chat", "CopyButton" }, reload = true, dependsOn = { "Chat", "Enable" }, disabledWhen = { "Chat", "SideButtons" }, tooltip = L["A copy button on each chat window. The side button strip has its own, so this one is only used while the strip is off."] },
+			{ kind = "check", label = L["Timestamps"], path = { "Chat", "Timestamps" }, reload = true, dependsOn = { "Chat", "Enable" } },
+			{ kind = "check", label = L["Chat Emojis"], path = { "Chat", "Emojis" }, since = "1.0.4", dependsOn = { "Chat", "Enable" }, tooltip = L["Show emoticons like :) and <3 and shortcodes like :heart: or :mage: as small icons in player chat."] },
 			{ kind = "header", label = L["Keywords"] },
 			{ kind = "check", label = L["Highlight Keywords"], path = { "Chat", "KeywordHighlight" }, dependsOn = { "Chat", "Enable" }, tooltip = L["Colour your name and any keywords you set wherever they appear in chat."] },
 			{ kind = "editbox", label = L["Extra Keywords"], path = { "Chat", "KeywordList" }, dependsOn = { "Chat", "KeywordHighlight" }, tooltip = L["Comma separated words to watch for. Your name is always watched."], apply = function()
@@ -1293,6 +828,7 @@ GUI.schema = {
 	{
 		name = "Nameplate",
 		icon = "Interface/ICONS/Ability_Hunter_SniperShot",
+		title = L["Nameplates"],
 		controls = {
 			{ kind = "header", label = L["Nameplates"] },
 			{ kind = "check", label = L["Enable Nameplates"], path = { "Nameplate", "Enable" }, reload = true },
@@ -1321,35 +857,23 @@ GUI.schema = {
 			{ kind = "check", label = L["Friendly Name Only"], path = { "Nameplate", "FriendlyNameOnly" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Hide the health bar on friendly units, showing just the name."] },
 			{ kind = "check", label = L["Friendly NPC Names"], path = { "Nameplate", "ShowFriendlyNPCs" }, since = "1.0.0-beta7", dependsOn = { "Nameplate", "Enable" }, apply = function()
 				local m = K:GetModule("Nameplates", true)
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.0.4", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
-				local m = K:GetModule("QoL", true)
-				if m and m.UpdateCameraDistance then
-					m:UpdateCameraDistance()
+				if m and m.SetupCVars then
+					m:SetupCVars()
 				end
-			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
+			end, tooltip = L["Show a plate over friendly NPCs such as quest givers, vendors and guards. With Friendly Name Only it is just their name. Neutral NPCs you cannot attack get the same look."] },
+			{ kind = "check", label = L["Level (name-only)"], path = { "Nameplate", "FriendlyLevel" }, since = "1.0.0-beta7", reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show the level in front of the name on name-only plates. Enemy plates always show it."] },
+			{ kind = "check", label = L["Guild or Title (name-only)"], path = { "Nameplate", "ShowGuildName" }, reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show a player's guild, or an NPC's title such as Butcher or Flight Master, under the name in name-only mode."] },
+			{ kind = "header", label = L["Threat and Colours"] },
+			{ kind = "check", label = L["Threat Coloring"], path = { "Nameplate", "ThreatColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint the plate shadow by your threat: holding, losing, or pulling aggro."] },
+			{ kind = "check", label = L["Threat Health Color"], path = { "Nameplate", "ThreatHealthColor" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour the enemy health bar itself by your threat, role-aware, instead of by reaction."] },
+			{ kind = "check", label = L["Role Colors"], path = { "Nameplate", "RoleColors" }, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour hostile plates by caster or melee so casters stand out. A unit that runs on mana is read as a caster."] },
+			{ kind = "color", label = L["Caster Color"], path = { "Nameplate", "CasterColor" }, reload = true, dependsOn = { "Nameplate", "RoleColors" } },
+			{ kind = "color", label = L["Melee Color"], path = { "Nameplate", "MeleeColor" }, reload = true, dependsOn = { "Nameplate", "RoleColors" } },
+			{ kind = "header", label = L["Execute Phase"] },
+			{ kind = "slider", label = L["Execute Range"], path = { "Nameplate", "ExecuteRange" }, min = 0, max = 50, step = 5, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Tint an enemy's health bar once it drops below this percent. Zero turns it off."] },
+			{ kind = "color", label = L["Execute Color"], path = { "Nameplate", "ExecuteColor" }, reload = true, dependsOn = { "Nameplate", "ExecuteRange" } },
+			{ kind = "check", label = L["Focus Color"], path = { "Nameplate", "FocusHighlight" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Colour your focus's health bar so a crowd control or interrupt target is easy to find. Your custom unit colours still come first."] },
+			{ kind = "color", label = L["Focus Bar Color"], path = { "Nameplate", "FocusColor" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Nameplate", "FocusHighlight" } },
 			{ kind = "slider", label = L["Non-Target Alpha"], path = { "Nameplate", "NonTargetAlpha" }, since = "1.0.0-beta6", min = 0.3, max = 1, step = 0.05, reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Fade every other plate while you have a target, so the target stands out. At 1 nothing fades."] },
 			{ kind = "header", label = L["Target"] },
 			{ kind = "check", label = L["Target Highlight"], path = { "Nameplate", "TargetHighlight" }, reload = true, dependsOn = { "Nameplate", "Enable" } },
@@ -1372,6 +896,7 @@ GUI.schema = {
 			end },
 		},
 	},
+
 	{
 		name = "Tooltip",
 		icon = "Interface/ICONS/INV_Misc_Note_02",
@@ -1397,38 +922,26 @@ GUI.schema = {
 			{ kind = "check", label = L["Show Role Icon"], path = { "Tooltip", "ShowRole" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a tank, healer or damage icon for group members."] },
 			{ kind = "check", label = L["Show Targeted By"], path = { "Tooltip", "ShowTargetedBy" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["List which group members are targeting the unit."] },
 			{ kind = "check", label = L["Show Target"], path = { "Tooltip", "ShowTarget" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.0.4", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
+			{ kind = "check", label = L["Show Guild"], path = { "Tooltip", "ShowGuild" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the <Guild> line for players."] },
+			{ kind = "check", label = L["Show Item Level"], path = { "Tooltip", "ShowItemLevel" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Inspect players to show their item level on the tooltip."] },
+			{ kind = "check", label = L["Item Level On Shift"], path = { "Tooltip", "ItemLevelOnShift" }, dependsOn = { "Tooltip", "ShowItemLevel" }, tooltip = L["Only inspect for item level while you hold shift. Hold it before you hover, since the lookup happens as the tooltip is built."] },
+			{ kind = "check", label = L["Show IDs"], path = { "Tooltip", "ShowIDs" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Append spell, item, currency, and mount ids to tooltips."] },
+			{ kind = "check", label = L["Show Item Count"], path = { "Tooltip", "ShowItemCount" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show how many of an item you hold in the bags and the bank."] },
+			{ kind = "check", label = L["Show Icons"], path = { "Tooltip", "ShowIcons" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the item, spell, or mount icon beside the tooltip title."] },
+			{ kind = "check", label = L["Show Mount Source"], path = { "Tooltip", "ShowMountSource" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Hold Shift over a player's mount buff to see its collection status and source."] },
+			{ kind = "check", label = L["Show Title"], path = { "Tooltip", "ShowTitle" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the player's title in place of the plain name."] },
+			{ kind = "check", label = L["Hide PvP Line"], path = { "Tooltip", "HidePvP" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Hide the large red PvP line."] },
+		},
+	},
+
+	{
+		name = "ExperienceBar",
+		icon = "Interface/ICONS/XP_Icon",
+		title = L["Experience Bar"],
+		controls = {
 			{ kind = "header", label = L["Experience Bar"] },
 			{ kind = "check", label = L["Enable Experience Bar"], path = { "ExpRep", "Enable" }, reload = true, tooltip = L["Replace Blizzard's experience/reputation tracker with a movable bar (reload to restore Blizzard's)."] },
 			{ kind = "check", label = L["Show Bar Text"], path = { "ExpRep", "ShowText" }, apply = ApplyExpRep, dependsOn = { "ExpRep", "Enable" } },
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
-				local m = K:GetModule("QoL", true)
-				if m and m.UpdateCameraDistance then
-					m:UpdateCameraDistance()
-				end
-			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
 			{ kind = "check", label = L["Show Rested"], path = { "ExpRep", "ShowRested" }, apply = ApplyExpRep, dependsOn = { "ExpRep", "Enable" } },
 			{ kind = "slider", label = L["Bar Width"], path = { "ExpRep", "Width" }, min = 120, max = 600, step = 1, apply = ApplyExpRep, dependsOn = { "ExpRep", "Enable" } },
 			{ kind = "slider", label = L["Bar Height"], path = { "ExpRep", "Height" }, min = 6, max = 40, step = 1, apply = ApplyExpRep, dependsOn = { "ExpRep", "Enable" } },
@@ -1451,6 +964,7 @@ GUI.schema = {
 			{ kind = "slider", label = L["Stack Spacing"], path = { "AlertFrames", "StackSpacing" }, min = -15, max = 10, step = 1, apply = ApplyAlertFrames, dependsOn = { "AlertFrames", "Enable" }, tooltip = L["Gap between stacked alerts. 0 is tight, negative overlaps the art padding."] },
 			{ kind = "check", label = L["Hide Talking Head"], path = { "AlertFrames", "HideTalkingHead" }, apply = ApplyAlertFrames, dependsOn = { "AlertFrames", "Enable" }, tooltip = L["Suppress the Talking Head dialog frame (reload to re-enable it)."] },
 		},
+	},
 
 	{
 		name = "GroupTools",
@@ -1473,37 +987,26 @@ GUI.schema = {
 		title = L["Loot Frame"],
 		controls = {
 			{ kind = "header", label = L["Loot Frame"] },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
+			{ kind = "check", label = L["Enable Loot Window"], path = { "Loot", "Enable" }, reload = true, tooltip = L["Replace the stock pick-up list with our own compact loot window."] },
+			{ kind = "slider", label = L["Row Height"], path = { "Loot", "IconSize" }, min = 24, max = 44, step = 2, reload = true, dependsOn = { "Loot", "Enable" } },
+			{ kind = "slider", label = L["Minimum Width"], path = { "Loot", "Width" }, min = 180, max = 360, step = 4, reload = true, dependsOn = { "Loot", "Enable" } },
+			{ kind = "check", label = L["Open At Cursor"], path = { "Loot", "UnderMouse" }, dependsOn = { "Loot", "Enable" }, tooltip = L["Open the loot window at the mouse instead of the saved spot."] },
+			{ kind = "check", label = L["Compact Loot Rolls"], path = { "Loot", "RollFrames" }, since = "1.0.0", reload = true, tooltip = L["Show group loot rolls as slim bars with Need, Greed and Pass on the right and the time left as the fill. Move them from Move UI."] },
+			{ kind = "slider", label = L["Roll Bar Width"], path = { "Loot", "RollWidth" }, min = 240, max = 420, step = 4, since = "1.0.0", reload = true, dependsOn = { "Loot", "RollFrames" } },
+			{ kind = "slider", label = L["Roll Bar Height"], path = { "Loot", "RollHeight" }, min = 20, max = 36, step = 2, since = "1.0.0", reload = true, dependsOn = { "Loot", "RollFrames" } },
+		},
+	},
+
+	{
+		name = "MicroMenu",
+		icon = "Interface/ICONS/INV_Misc_Book_09",
+		title = L["Micro Menu"],
+		controls = {
+			{ kind = "header", label = L["Micro Menu"] },
+			{ kind = "check", label = L["Enable Micro Menu"], path = { "MicroMenu", "Enable" }, reload = true, tooltip = L["A movable, reskinned row of the character/spellbook/collections buttons."] },
 			{ kind = "check", label = L["Hide Blizzard Micro Menu"], path = { "MicroMenu", "HideStock" }, reload = true, tooltip = L["Hide the game's own micro menu while ours is off. Panels still open from their keybinds."] },
 			{ kind = "dropdown", label = L["Orientation"], path = { "MicroMenu", "Orientation" }, options = {
 				{ text = L["Horizontal"], value = "HORIZONTAL" },
-			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
-				local m = K:GetModule("QoL", true)
-				if m and m.UpdateCameraDistance then
-					m:UpdateCameraDistance()
-				end
-			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
-			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
 				{ text = L["Vertical"], value = "VERTICAL" },
 			}, reload = true, dependsOn = { "MicroMenu", "Enable" } },
 			{ kind = "dropdown", label = L["Order"], path = { "MicroMenu", "Order" }, options = {
@@ -1526,6 +1029,7 @@ GUI.schema = {
 			}, reload = true, dependsOn = { "BagBar", "Enable" } },
 			{ kind = "check", label = L["Show Free Slots"], path = { "BagBar", "ShowFreeSlots" }, reload = true, dependsOn = { "BagBar", "Enable" }, since = "1.0.0-beta7", tooltip = L["The number of free bag slots on the backpack button."] },
 			{ kind = "check", label = L["Show Keyring"], path = { "BagBar", "ShowKeyring" }, reload = true, dependsOn = { "BagBar", "Enable" }, tooltip = L["Show the keyring button on the bag bar, when the game has one."] },
+			{ kind = "slider", label = L["Bag Button Size"], path = { "BagBar", "ButtonSize" }, min = 20, max = 40, step = 1, reload = true, dependsOn = { "BagBar", "Enable" } },
 			{ kind = "slider", label = L["Bag Button Spacing"], path = { "BagBar", "Spacing" }, min = 0, max = 12, step = 1, reload = true, dependsOn = { "BagBar", "Enable" } },
 		},
 	},
@@ -1547,31 +1051,16 @@ GUI.schema = {
 			{ kind = "header", label = L["Item Markers"] },
 			{ kind = "check", label = L["Show Item Level"], path = { "Bags", "ShowItemLevel" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Item level on equippable gear."] },
 			{ kind = "check", label = L["Pawn Upgrade Arrows"], path = { "Bags", "PawnArrows" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Show a green arrow on gear Pawn rates as an upgrade. Needs the Pawn addon installed."] },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
-			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
-			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
-			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
-			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
-						B:ToggleBagStrip(B.BankFrame, C.Bags.ShowBagBar)
-					end
-				end
-			end, dependsOn = { "Bags", "Enable" }, tooltip = L["Show the bag slot strip on the bag window. Also toggled by the button in the window."] },
+			{ kind = "check", label = L["Show Bind Type"], path = { "Bags", "ShowItemBind" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Mark bind-on-equip and bind-on-use gear that has not bound yet."] },
+			{ kind = "check", label = L["Glow New Items"], path = { "Bags", "ShowNewItems" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" } },
+			{ kind = "check", label = L["Junk Coin Icon"], path = { "Bags", "JunkIcon" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" } },
+			{ kind = "check", label = L["Equipment Set Marker"], path = { "Bags", "ShowEquipmentSet" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Put a small square on items that belong to a saved equipment set."] },
+			{ kind = "check", label = L["Fade Junk Items"], path = { "Bags", "DesaturateJunk" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Grey out the icon of vendor trash so it fades behind the rest."] },
+			{ kind = "check", label = L["Tint Unusable Gear"], path = { "Bags", "TintUnusable" }, since = "1.0.0-beta5", apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Tint the icon red on weapons and armor your character cannot use, going by the red lines the game puts in the item tooltip."] },
+			{ kind = "check", label = L["Delete Junk Button"], path = { "Bags", "DeleteButton" }, reload = true, dependsOn = { "Bags", "Enable" }, tooltip = L["Show a button that deletes your lowest value junk item to free a slot."] },
+			{ kind = "check", label = L["Quest Item Colour"], path = { "Bags", "QuestColor" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Give quest items a quest-yellow border and a bang on items that start a quest."] },
+			{ kind = "check", label = L["Reagent Bag Section"], path = { "Bags", "ReagentBagSection" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Group everything in the reagent pouch into its own section."] },
+			{ kind = "check", label = L["Detach Reagent Bag"], path = { "Bags", "DetachReagentBag" }, reload = true, dependsOn = { "Bags", "Enable" }, tooltip = L["Give the reagent pouch its own window instead of a section in the bags."] },
 			{ kind = "check", label = L["Track Currencies"], path = { "Bags", "ShowCurrencies" }, apply = ApplyBags, dependsOn = { "Bags", "Enable" }, tooltip = L["Show your pinned currencies along the bottom of the window."] },
 
 			{ kind = "header", label = L["Behaviour"] },
@@ -1710,6 +1199,13 @@ GUI.schema = {
 					m:UpdateLootSparkle()
 				end
 			end, tooltip = L["Keep the game's sparkle on quest items you can loot, even after a graphics preset turns it off. Quest givers sparkle too, the game uses one setting for both. Turning this off puts your old setting back, and the sparkles go after a game restart."] },
+			{ kind = "check", label = L["Max Camera Distance"], path = { "QoL", "MaxCameraDistance" }, since = "1.0.4", apply = function()
+				local m = K:GetModule("QoL", true)
+				if m and m.UpdateCameraDistance then
+					m:UpdateCameraDistance()
+				end
+			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
+			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.0.4", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
 			{ kind = "check", label = L["Quest Levels at NPCs"], path = { "QoL", "QuestLevels" }, since = "1.0.0-beta7", reload = true, tooltip = L["Show the quest level in an NPC's quest list and at the top of the quest text, in the same [12] style the quest log uses, with a + for elite. The number is coloured by how hard the quest is for you."] },
 			{ kind = "check", label = L["Train All Button"], path = { "QoL", "TrainAll" }, since = "1.0.0-beta7", reload = true, tooltip = L["Add a Train All button beside Train. It learns everything available that you can afford. New professions and pet training are left to you."] },
 			{ kind = "check", label = L["Faster Auto Loot"], path = { "QoL", "FastLoot" }, since = "1.0.0-beta7", reload = true, tooltip = L["Take everything at once when you auto loot, instead of one item at a time. Follows the game's Auto Loot setting and its modifier key. Locked items and group rolls are left alone."] },
@@ -1732,7 +1228,6 @@ GUI.schema = {
 			{ kind = "check", label = L["Hide Boss Banner"], path = { "QoL", "HideBossBanner" }, reload = true, tooltip = L["Hide the banner that drops from the top of the screen when a boss dies."] },
 
 			{ kind = "header", label = L["Raid and Dungeon"] },
-			{ kind = "check", label = L["Profession Tabs"], path = { "QoL", "TradeTabs" }, reload = true, tooltip = L["Add an icon for each profession down the side of the professions window."] },
 			{ kind = "check", label = L["Announce Quests To Group"], path = { "QoL", "QuestAnnounce" }, reload = true, tooltip = L["Tell your party or raid when you accept or finish a quest. World quests are left out."] },
 
 			{ kind = "header", label = L["Crosshair"] },
@@ -1772,6 +1267,7 @@ GUI.schema = {
 			{ kind = "header", label = L["Social"] },
 			{ kind = "check", label = L["Character & Inspect Frames"], path = { "Skins", "CharacterFrames" }, reload = true, tooltip = L["Put a class background behind the model on the Character and Inspect windows. The windows themselves keep their stock look."] },
 			{ kind = "check", label = L["Wider Character & Inspect"], path = { "Skins", "CharacterFramesWide" }, reload = true, dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Make the paper doll tab and the inspect window wider so the model has room. Another open window may overlap the extra width."] },
+			{ kind = "check", label = L["Inspect Item Level"], path = { "Skins", "InspectItemLevel" }, since = "1.0.4", dependsOn = { "Skins", "CharacterFrames" }, tooltip = L["Show the inspected player's average item level on the inspect window, between the model and the weapon slots."] },
 			{ kind = "check", label = L["Character & Inspect Slots"], path = { "Skins", "CharacterSlots" }, reload = true, tooltip = L["Restyle the equipment slots on the Character and Inspect frames. Square icons, a border tinted by item quality, and the item level on each slot."] },
 			{ kind = "check", label = L["Gems & Enchant Markers"], path = { "Skins", "GearInfo" }, reload = true, dependsOn = { "Skins", "CharacterSlots" }, tooltip = L["Show a red marker beside a slot that is missing an enchant, and the gems socketed in each item."] },
 			{ kind = "check", label = L["Breath & Fatigue Bars"], path = { "Skins", "MirrorTimers" }, since = "1.0.0-beta7", reload = true, tooltip = L["Restyle the breath, fatigue and feign death bars to match the UI, with a colour for each and the seconds left. Move them with the game's Edit Mode."] },

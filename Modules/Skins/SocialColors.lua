@@ -217,7 +217,11 @@ local function HookWho()
 		hooksecurefunc(frame.ScrollBox, "Update", UpdateWhoList)
 		if C_FriendList and C_FriendList.SortWho then
 			hooksecurefunc(C_FriendList, "SortWho", function(sortType)
-				whoSortType = sortType
+				-- The Name, Level and Class headers sort too, but the variable
+				-- column keeps showing the zone, guild or race picked for it.
+				if whoColumns[sortType] then
+					whoSortType = sortType
+				end
 			end)
 		end
 	end

@@ -11,6 +11,12 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local Module = K:GetModule("Tooltip")
 
+local _G = _G
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local hooksecurefunc = hooksecurefunc
+local InCombatLockdown = InCombatLockdown
+
 function Module:SetupAnchor()
 	-- Blizzard re-anchors GameTooltip on each show, so we re-point it to the
 	-- anchor in the SetDefaultAnchor hook rather than attaching it once.
@@ -36,8 +42,13 @@ function Module:SetupAnchor()
 	-- widget build (GitHub #138). SetOwner is a plain function, so hooksecurefunc on
 	-- it is taint free, and it runs at the start of every show before any widget or
 	-- item data is added, so the item and unit colouring that follows still wins.
+	-- True while GameTooltip is placed by the default anchor, so Hide In Combat
+	-- leaves tooltips that frames anchor themselves alone. Any new owner clears it.
+	local defaultAnchored = false
+
 	if _G.GameTooltip and _G.GameTooltip.SetOwner then
 		hooksecurefunc(_G.GameTooltip, "SetOwner", function(tt)
+			defaultAnchored = false
 			local border = K.GetBorder(tt)
 			if C.Tooltip.BorderColor and border then
 				K.ResetBorderColor(border)
@@ -46,10 +57,6 @@ function Module:SetupAnchor()
 	end
 
 	hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tt, parent)
-		if C.Tooltip.HideInCombat and InCombatLockdown() then
-			tt:Hide()
-			return
-		end
 		if C.Tooltip.CursorAnchor then
 			tt:SetOwner(parent, "ANCHOR_CURSOR")
 		else
@@ -64,5 +71,23 @@ function Module:SetupAnchor()
 		if C.Tooltip.BorderColor and border then
 			K.ResetBorderColor(border)
 		end
+		-- Set after our own SetOwner above, which clears it.
+		defaultAnchored = tt == _G.GameTooltip
 	end)
+
+	-- Hide In Combat. Hiding inside the anchor hook did nothing, since the caller
+	-- fills and shows the tooltip after anchoring it. Unit frames call Show after
+	-- SetUnit, world units are shown by the client with no Lua Show, so both the
+	-- Show method and the data post call are watched.
+	local function HideIfCombat(tt)
+		if defaultAnchored and tt == _G.GameTooltip and C.Tooltip.HideInCombat and InCombatLockdown() then
+			tt:Hide()
+		end
+	end
+	if _G.GameTooltip then
+		hooksecurefunc(_G.GameTooltip, "Show", HideIfCombat)
+	end
+	if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and TooltipDataProcessor.AllTypes then
+		TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, HideIfCombat)
+	end
 end

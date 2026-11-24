@@ -405,9 +405,15 @@ function Module:UpdateCombatRes()
 		row.Count:SetTextColor(K.Colors.crimson[1], K.Colors.crimson[2], K.Colors.crimson[3])
 	end
 
-	-- SetCooldown is a C call, so it takes the start and duration even while they
-	-- are secret, and the client draws the countdown itself.
-	row.Cooldown:SetCooldown(info.cooldownStartTime, info.cooldownDuration)
+	-- SetCooldown refuses secret arguments from addon code (its API doc says
+	-- AllowedWhenUntainted), and the charge times can be secret in combat. Then
+	-- the countdown is left off and only the charge count shows.
+	local start, duration = info.cooldownStartTime, info.cooldownDuration
+	if IsSecret(start) or IsSecret(duration) then
+		row.Cooldown:Clear()
+	else
+		row.Cooldown:SetCooldown(start, duration)
+	end
 end
 
 -- A centred row of the three role icons with a live tally, in any parent. Each
@@ -621,8 +627,17 @@ function Module:OnEnable()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", "UpdateVisibility")
 	self:RegisterEvent("PARTY_LEADER_CHANGED", "UpdateVisibility")
 	self:RegisterEvent("PLAYER_ROLES_ASSIGNED", "UpdateRoleCount")
-	self:RegisterEvent("SPELL_UPDATE_CHARGES", "UpdateCombatRes")
-	self:RegisterEvent("SPELL_UPDATE_COOLDOWN", "UpdateCombatRes")
+	-- The spell events fire on every global cooldown, and the res row they feed
+	-- sits inside the panel, so they are only heard while the panel is open.
+	self.Panel:HookScript("OnShow", function()
+		Module:RegisterEvent("SPELL_UPDATE_CHARGES", "UpdateCombatRes")
+		Module:RegisterEvent("SPELL_UPDATE_COOLDOWN", "UpdateCombatRes")
+		Module:UpdateCombatRes()
+	end)
+	self.Panel:HookScript("OnHide", function()
+		Module:UnregisterEvent("SPELL_UPDATE_CHARGES", "UpdateCombatRes")
+		Module:UnregisterEvent("SPELL_UPDATE_COOLDOWN", "UpdateCombatRes")
+	end)
 	self:RegisterEvent("ENCOUNTER_START", "UpdateCombatRes")
 	self:RegisterEvent("ENCOUNTER_END", "UpdateCombatRes")
 	self:UpdateVisibility()
