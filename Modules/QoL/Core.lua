@@ -15,13 +15,14 @@
 			SecondaryStats.lua   class combat stats readout
 			RareAlert.lua        announce rares that appear on the minimap
 			BlockInvites.lua     turn away group invites from strangers
-			TradeTabs.lua        profession icons down the side of the professions window
 			Crosshair.lua        a small crosshair in the middle of the screen
 			QuestAnnounce.lua    tell the group about accepted and finished quests
 			AchievementShot.lua  take a screenshot when an achievement is earned
 			AutoLog.lua          turn combat logging on in raids and heroic dungeons
 			LevelAnnouncer.lua   say how long each level took when you ding
 			LootSparkle.lua      keep the sparkle on lootable quest items
+			CameraDistance.lua   let the camera pull back to the game's farthest setting
+			EasyFishing.lua      double right-click to cast Fishing
 			FastLoot.lua         take all loot at once when auto looting
 			Reminders.lua        clickable icons for missing buffs, enchants, pet and talents
 			TrainAll.lua         a Train All button on class and profession trainers
@@ -169,7 +170,6 @@ local FEATURES = {
 	{ "SecondaryStats", "SetupSecondaryStats" },
 	{ "RareAlert", "SetupRareAlert" },
 	{ "BlockInvites", "SetupBlockInvites" },
-	{ "TradeTabs", "SetupTradeTabs" },
 	{ "Crosshair", "SetupCrosshair" },
 	{ "QuestAnnounce", "SetupQuestAnnounce" },
 	{ "AchievementShot", "SetupAchievementShot" },
@@ -181,6 +181,7 @@ local FEATURES = {
 	{ "Reminders", "SetupReminders" },
 	{ "TrainAll", "SetupTrainAll" },
 	{ "QuestLevels", "SetupQuestLevels" },
+	{ "EasyFishing", "SetupEasyFishing" },
 }
 
 function Module:OnEnable()
@@ -194,6 +195,9 @@ function Module:OnEnable()
 	-- Runs either way: when off it puts back a game setting it changed before.
 	if self.UpdateLootSparkle then
 		self:UpdateLootSparkle()
+	end
+	if self.UpdateCameraDistance then
+		self:UpdateCameraDistance()
 	end
 end
 

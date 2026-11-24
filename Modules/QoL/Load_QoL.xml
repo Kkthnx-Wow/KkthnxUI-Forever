@@ -11,7 +11,6 @@
 	<Script file="SecondaryStats.lua" />
 	<Script file="RareAlert.lua" />
 	<Script file="BlockInvites.lua" />
-	<Script file="TradeTabs.lua" />
 	<Script file="Crosshair.lua" />
 	<Script file="QuestAnnounce.lua" />
 	<Script file="AchievementShot.lua" />
@@ -20,6 +19,8 @@
 	<Script file="QuickDelete.lua" />
 	<Script file="TradeInfo.lua" />
 	<Script file="LootSparkle.lua" />
+	<Script file="CameraDistance.lua" />
+	<Script file="EasyFishing.lua" />
 	<Script file="FastLoot.lua" />
 	<Script file="Reminders.lua" />
 	<Script file="TrainAll.lua" />
