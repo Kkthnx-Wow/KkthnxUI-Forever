@@ -398,7 +398,9 @@ function Module:LayoutContainer(f)
 				holder:ClearAllPoints()
 				holder:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN + col * step, y - row * step)
 				self:UpdateSlot(button, free[1][1], free[1][2])
-				SetFreeCount(button, freeCount)
+				SetFreeCount(button, freeCount, free.total)
+				-- Set only for a special bag pool, for the tooltip in Slots.lua.
+				button.__kkuiFreeBag = free.bag
 			end
 		end
 		local rows = ceil(total / perRow)
@@ -414,6 +416,17 @@ function Module:LayoutContainer(f)
 	for key, bucket in pairs(buckets) do
 		tsort(bucket, SortEntry)
 		counts[key] = #bucket
+	end
+
+	-- The first quiver (family 1) or ammo pouch (family 2) with room. Its free
+	-- button goes under the Ammunition shelf when that shelf is shown on its own,
+	-- and stays in the trailing row otherwise.
+	local ammoPool
+	for _, kind in ipairs(specialOrder) do
+		if (kind == 1 or kind == 2) and #special[kind] > 0 then
+			ammoPool = special[kind]
+			break
+		end
 	end
 
 	if useCategories then
@@ -450,7 +463,15 @@ function Module:LayoutContainer(f)
 			else
 				for _, key in ipairs(sectionKeys(node.key)) do
 					local label = key:match("^Equipment:(.+)") or node.name
-					placeGroup(buckets[key], label, key, key == "ReagentBag" and reagentEmpties or nil)
+					local free
+					if key == "ReagentBag" then
+						free = reagentEmpties
+					elseif key == "Ammo" and ammoPool then
+						-- The quiver or pouch room sits with the ammo that fills it.
+						free = ammoPool
+						ammoPool.placed = true
+					end
+					placeGroup(buckets[key], label, key, free)
 				end
 			end
 		end
@@ -485,7 +506,7 @@ function Module:LayoutContainer(f)
 	end
 	for _, kind in ipairs(specialOrder) do
 		local pool = special[kind]
-		if #pool > 0 then
+		if #pool > 0 and not pool.placed then
 			local button = self:AcquireSlot(f)
 			if button then
 				local holder = button:GetParent()

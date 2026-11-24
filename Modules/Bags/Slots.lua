@@ -28,6 +28,10 @@ local IsSecret = K.IsSecret
 local ItemLocation = ItemLocation
 local C_Container = C_Container
 local C_Item = C_Item
+local GetInventoryItemTexture = GetInventoryItemTexture
+
+-- Interface\Icons\ui-hud-actionbar-bag, the game's empty backpack slot icon.
+local BACKPACK_ICON = 7349174
 local SetItemButtonTexture = SetItemButtonTexture
 local SetItemButtonCount = SetItemButtonCount
 local SetItemButtonDesaturated = SetItemButtonDesaturated
@@ -413,14 +417,50 @@ function Module:UpdateSlot(button, bag, slot)
 		-- The game's own empty slot art, so an empty square reads like the rest of
 		-- the client's bags. The next item texture replaces it.
 		local empty = button.KKUI_Icon
+		-- Empty slots show a greyed bag icon, the way the game's combined bags do.
+		-- A special bag (quiver, ammo pouch, soul bag) only takes one kind of item,
+		-- so it shows its own icon, and every general slot shows the backpack one.
+		-- The keyring keeps the plain slot art.
+		local bagIcon
+		if empty and bag >= -1 then
+			local _, family = C_Container.GetContainerNumFreeSlots(bag)
+			if family and family ~= 0 and bag > 0 then
+				bagIcon = GetInventoryItemTexture("player", C_Container.ContainerIDToInventoryID(bag))
+			end
+			bagIcon = bagIcon or BACKPACK_ICON
+		end
 		if empty and empty.SetAtlas then
-			empty:SetAtlas("bags-item-slot64")
+			-- Under a bag icon the game uses its darker blank slot art.
+			empty:SetAtlas(bagIcon and "bags-item-slot-blank" or "bags-item-slot64")
 			empty:SetTexCoord(0, 1, 0, 1)
 			empty:Show()
 		end
 		SetItemButtonCount(button, 0)
 		SetItemButtonDesaturated(button, false)
 		SetItemButtonTextureVertexColor(button, 1, 1, 1)
+		-- The bag icon sits on its own layer over the slot art, tinted with the
+		-- game's own color. That color has half alpha, so the dark art shows through.
+		local overlay = button.KKUI_EmptyBag
+		if bagIcon then
+			if not overlay then
+				overlay = button:CreateTexture(nil, "ARTWORK", nil, 1)
+				overlay:SetAllPoints(empty)
+				overlay:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+				overlay:SetDesaturated(true)
+				button.KKUI_EmptyBag = overlay
+			end
+			overlay:SetTexture(bagIcon)
+			-- Client color data, read here rather than cached at load.
+			local tint = _G.EMPTY_BAG_SLOT_EFFECT_COLOR
+			if tint then
+				overlay:SetVertexColor(tint:GetRGBA())
+			else
+				overlay:SetVertexColor(0.65, 0.58, 0.5, 0.5)
+			end
+			overlay:Show()
+		elseif overlay then
+			overlay:Hide()
+		end
 		if button.KKUI_ItemLevel then
 			button.KKUI_ItemLevel:SetText("")
 		end
@@ -457,6 +497,9 @@ function Module:UpdateSlot(button, bag, slot)
 		return
 	end
 
+	if button.KKUI_EmptyBag then
+		button.KKUI_EmptyBag:Hide()
+	end
 	SetItemButtonTexture(button, info.iconFileID)
 	-- SetItemButtonTexture puts the crop back to the full texture, so the Skin()
 	-- crop is lost on the first update. Without it the icon's own baked-in rounded

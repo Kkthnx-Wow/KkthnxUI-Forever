@@ -19,6 +19,7 @@ local Module = K:GetModule("Bags")
 
 local C_Item = C_Item
 local C_TooltipInfo = C_TooltipInfo
+local C_Timer = C_Timer
 local Enum = Enum
 local IsSecret = K.IsSecret
 local wipe = wipe
@@ -60,6 +61,24 @@ local function ClearCache()
 	count = 0
 end
 
+-- The level or skill change has to reach the item tooltips before a rescan can
+-- see the red go, and the buttons keep their tint until they are drawn again.
+-- So the cache is cleared a moment later and the open bags are redrawn then.
+-- Repeated events in that moment share one pass.
+local pending = false
+
+local function RefreshLater()
+	if pending then
+		return
+	end
+	pending = true
+	C_Timer.After(1, function()
+		pending = false
+		ClearCache()
+		Module:MarkDirty()
+	end)
+end
+
 -- Returns true when the item in this slot is gear the player cannot use.
 function Module:IsUnusableGear(bag, slot, itemID)
 	if not itemID or IsSecret(itemID) or not (C_TooltipInfo and C_TooltipInfo.GetBagItem) then
@@ -80,9 +99,9 @@ function Module:IsUnusableGear(bag, slot, itemID)
 
 	if not watching then
 		watching = true
-		self:RegisterEvent("PLAYER_LEVEL_UP", ClearCache)
+		self:RegisterEvent("PLAYER_LEVEL_UP", RefreshLater)
 		-- Weapon skills are learned at a trainer here, which also lifts the red.
-		self:RegisterEvent("SKILL_LINES_CHANGED", ClearCache)
+		self:RegisterEvent("SKILL_LINES_CHANGED", RefreshLater)
 	end
 	if count >= CACHE_LIMIT then
 		ClearCache()
