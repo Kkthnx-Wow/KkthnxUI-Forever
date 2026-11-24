@@ -8,8 +8,9 @@
 		player cannot use has a red line in its own tooltip (wrong armor or weapon
 		type, level too low, wrong class). Only weapons and armor are checked.
 
-		The verdict is cached per item and cleared on level up, since a level
-		requirement stops being red once it is met. The cache is bounded.
+		The verdict is cached per item and cleared on level up and when a skill
+		is learned, since a level or weapon skill requirement stops being red
+		once it is met. The cache is bounded.
 -----------------------------------------------------------------------------]]
 
 local K = KkthnxUI[1]
@@ -80,6 +81,8 @@ function Module:IsUnusableGear(bag, slot, itemID)
 	if not watching then
 		watching = true
 		self:RegisterEvent("PLAYER_LEVEL_UP", ClearCache)
+		-- Weapon skills are learned at a trainer here, which also lifts the red.
+		self:RegisterEvent("SKILL_LINES_CHANGED", ClearCache)
 	end
 	if count >= CACHE_LIMIT then
 		ClearCache()

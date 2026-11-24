@@ -20,6 +20,8 @@ local select = select
 local Enum = Enum
 local IsSecret = K.IsSecret
 local InCombatLockdown = InCombatLockdown
+local GetCursorInfo = GetCursorInfo
+local ClearCursor = ClearCursor
 local C_Container = C_Container
 local C_Item = C_Item
 local GetCoinTextureString = C_CurrencyInfo.GetCoinTextureString
@@ -67,7 +69,20 @@ function Module:DeleteCheapestJunk()
 		if InCombatLockdown() then
 			return
 		end
+		-- The bags can change while the dialog is up (a sort, loot, a move), and an
+		-- item already on the cursor would be swapped into the slot. Only delete
+		-- when the slot still holds the item that was named and the cursor was empty.
+		local info = C_Container.GetContainerItemInfo(item.bag, item.slot)
+		if not info or info.hyperlink ~= item.link or GetCursorInfo() then
+			K.Print(L["Your bags changed, nothing was deleted."])
+			return
+		end
 		C_Container.PickupContainerItem(item.bag, item.slot)
+		local kind, itemID = GetCursorInfo()
+		if kind ~= "item" or itemID ~= info.itemID then
+			ClearCursor()
+			return
+		end
 		if _G.DeleteCursorItem then
 			_G.DeleteCursorItem()
 		end

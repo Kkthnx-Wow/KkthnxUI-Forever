@@ -174,6 +174,17 @@ local function SwapBag(self)
 	end
 end
 
+local function PickupBag(self)
+	local bag = self.bagID
+	if InCombatLockdown() or CursorHasItem() or not bag or bag == 0 then
+		return
+	end
+	local inv = C_Container.ContainerIDToInventoryID(bag)
+	if inv and GetInventoryItemTexture("player", inv) then
+		PickupInventoryItem(inv)
+	end
+end
+
 -- A key goes into the keyring through the game's own helper, and a plain click
 -- opens or closes the keyring window, the same as the toolbar button.
 local function KeyringClick()
@@ -330,6 +341,12 @@ function Module:CreateBagStrip(f)
 		else
 			button:SetScript("OnReceiveDrag", SwapBag)
 			button:HookScript("OnClick", SwapBag)
+			-- Dragging a carried bag off the strip picks it up, the same as the
+			-- game's own bag slot, so a bag can be taken off and not only swapped.
+			if bag ~= 0 then
+				button:RegisterForDrag("LeftButton")
+				button:SetScript("OnDragStart", PickupBag)
+			end
 		end
 
 		strip.buttons[#strip.buttons + 1] = button

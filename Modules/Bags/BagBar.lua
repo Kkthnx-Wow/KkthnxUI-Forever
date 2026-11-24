@@ -106,20 +106,32 @@ local function StripStock(btn)
 	end
 end
 
--- Free slots in the backpack and the four bags, drawn on the backpack button. The
--- count is ours because the game's own one is hidden whenever its free bag slots
--- setting is off, which left the button bare. The reagent bag is not counted, the
--- same as the game's count.
+-- Free general slots in the backpack and the four bags, drawn on the backpack
+-- button. The count is ours because the game's own one is hidden whenever its free
+-- bag slots setting is off, which left the button bare. It is the game's own
+-- number: quivers, ammo pouches and other special bags (bag family not 0) and the
+-- reagent bag are left out, since an ordinary item cannot go in them.
+local function CountFreeGeneral()
+	if C_Container.CalculateTotalNumberOfFreeBagSlots then
+		return C_Container.CalculateTotalNumberOfFreeBagSlots() or 0
+	end
+	local free = 0
+	for id = 0, 4 do
+		local slots, family = C_Container.GetContainerNumFreeSlots(id)
+		if (family or 0) == 0 then
+			free = free + (slots or 0)
+		end
+	end
+	return free
+end
+
 local function UpdateFree()
 	local pack = _G.MainMenuBarBackpackButton
 	local text = pack and pack.__kkuiFree
 	if not text then
 		return
 	end
-	local free = 0
-	for id = 0, 4 do
-		free = free + (C_Container.GetContainerNumFreeSlots(id) or 0)
-	end
+	local free = CountFreeGeneral()
 	text:SetText(free)
 	local key = free == 0 and "negative" or (free <= 3 and "warning" or "text")
 	local color = K.Colors[key] or K.Colors.text

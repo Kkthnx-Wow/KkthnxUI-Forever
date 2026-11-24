@@ -44,10 +44,6 @@ Module.Categories = {
 	{ key = "Junk", name = L["Junk"] },
 }
 
-local next = next
-local ipairs = ipairs
-local pairs = pairs
-local tsort = table.sort
 
 -- Render order of the gear slots when the group-by-slot layout is on.
 local GEAR_ORDER = {
@@ -55,42 +51,19 @@ local GEAR_ORDER = {
 	"Legs", "Feet", "Ring", "Trinket", "Weapon", "Off Hand", "Ranged", "Shirt", "Tabard",
 }
 
--- The render order, expanding Equipment into per-slot shelves when that layout is
--- on, and dropping any custom categories in just ahead of the Miscellaneous
--- catch-all so their assigned items lead it. Empty shelves render nothing.
-function Module:OrderedCategories()
-	local custom = C.Bags.CustomCategories
-	local bySlot = C.Bags.GroupGearBySlot
-	if (not custom or not next(custom)) and not bySlot then
-		return self.Categories
-	end
+-- Gear slot shelves, in render order, for the group-gear-by-slot layout. Core
+-- renders them in place of the Equipment section.
+Module.GearSlotOrder = GEAR_ORDER
 
-	local keys = {}
-	if custom then
-		for key in pairs(custom) do
-			keys[#keys + 1] = key
-		end
-		tsort(keys, function(a, b)
-			return custom[a] < custom[b]
-		end)
+-- A section the player turned off in the bag sections panel stops catching items,
+-- and they fall through to the next section that fits. Miscellaneous is the
+-- catch-all and cannot be turned off.
+function Module:IsSectionOn(key)
+	if key == "Miscellaneous" then
+		return true
 	end
-
-	local out = {}
-	for _, cat in ipairs(self.Categories) do
-		if cat.key == "Equipment" and bySlot then
-			for _, slot in ipairs(GEAR_ORDER) do
-				out[#out + 1] = { key = "Equipment:" .. slot, name = slot }
-			end
-		elseif cat.key == "Miscellaneous" then
-			for _, key in ipairs(keys) do
-				out[#out + 1] = { key = key, name = custom[key] }
-			end
-			out[#out + 1] = cat
-		else
-			out[#out + 1] = cat
-		end
-	end
-	return out
+	local off = C.Bags.DisabledCategories
+	return not (off and off[key])
 end
 
 -- Miscellaneous subclasses that are really collectibles (mounts and pets).
@@ -132,6 +105,9 @@ local EQUIP_SLOT = {
 	INVTYPE_SHIELD = "Off Hand",
 	INVTYPE_RANGED = "Ranged",
 	INVTYPE_RANGEDRIGHT = "Ranged",
+	-- Thrown weapons and relics sit in the ranged slot on Forever.
+	INVTYPE_THROWN = "Ranged",
+	INVTYPE_RELIC = "Ranged",
 }
 
 -- Raw crafting and gathering stock.
@@ -156,51 +132,62 @@ local PROFESSION_CLASS = {
 -- The dedicated reagent pouch, so its contents can group as one shelf.
 local REAGENT_BAG = Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
 
+-- The section a class-based rule picked, or the catch-all when the player turned
+-- that section off. Gear shelves follow the Equipment switch.
+local function Pick(key, base)
+	if Module:IsSectionOn(base or key) then
+		return key
+	end
+	return "Miscellaneous"
+end
+
 -- Return the section key an item belongs to. bag/slot locate it, info is the
--- already fetched container info so callers do not query twice.
+-- already fetched container info so callers do not query twice. Every rule skips
+-- a section the player turned off, so its items land in the next one that fits.
 function Module:GetCategory(bag, slot, info)
 	if not info then
 		return "Miscellaneous"
 	end
+	local cfg = C.Bags
 
 	local itemID = info.itemID
 	if itemID and not IsSecret(itemID) then
 		-- An explicit per-item assignment wins over the automatic sorting.
-		local assigned = C.Bags.ItemAssignments and C.Bags.ItemAssignments[itemID]
-		if assigned then
+		local assigned = cfg.ItemAssignments and cfg.ItemAssignments[itemID]
+		if assigned and self:IsSectionOn(assigned) then
 			return assigned
 		end
 		-- Player-pinned favourites sit above everything else.
-		if C.Bags.Favorites[itemID] then
+		if cfg.Favorites[itemID] and self:IsSectionOn("Favourites") then
 			return "Favourites"
 		end
 		-- Items the player flagged as junk sort with the rest of the trash.
-		if C.Bags.JunkList and C.Bags.JunkList[itemID] then
+		if cfg.JunkList and cfg.JunkList[itemID] and self:IsSectionOn("Junk") then
 			return "Junk"
 		end
 	end
 
 	-- Anything sitting in the dedicated reagent bag groups together, so crafters
 	-- can see that pouch as one shelf rather than scattered through Trade Goods.
-	if C.Bags.ReagentBagSection and bag == REAGENT_BAG then
+	if cfg.ReagentBagSection and bag == REAGENT_BAG and self:IsSectionOn("ReagentBag") then
 		return "ReagentBag"
 	end
 
 	-- Freshly looted items float to the top while the flag lasts.
-	if C.Bags.ShowNewItems and C_NewItems and C_NewItems.IsNewItem and C_NewItems.IsNewItem(bag, slot) then
+	if cfg.ShowNewItems and C_NewItems and C_NewItems.IsNewItem and self:IsSectionOn("New") and C_NewItems.IsNewItem(bag, slot) then
 		return "New"
 	end
 
-	-- Grey items are junk, unless the client marked them worthless-but-not-grey.
+	-- Grey items are junk. An uncollected transmog appearance is not junk, it falls
+	-- through to its normal shelf. A player-flagged item went to Junk above.
 	local quality = info.quality
-	-- An uncollected transmog appearance is not junk, it falls through to its normal
-	-- shelf. A player-flagged item went to Junk above, so that choice still wins.
-	if not IsSecret(quality) and quality == POOR and not K.IsUncollectedAppearance(info.hyperlink) then
+	if not IsSecret(quality) and quality == POOR and self:IsSectionOn("Junk") and not K.IsUncollectedAppearance(info.hyperlink) then
 		return "Junk"
 	end
 
 	-- Quest items get their own shelf so they are easy to find.
-	local quest = GetContainerItemQuestInfo and GetContainerItemQuestInfo(bag, slot)
+	local questOn = self:IsSectionOn("Quest")
+	local quest = questOn and GetContainerItemQuestInfo and GetContainerItemQuestInfo(bag, slot)
 	if quest and (quest.isQuestItem or quest.questID) then
 		return "Quest"
 	end
@@ -208,35 +195,33 @@ function Module:GetCategory(bag, slot, info)
 	if itemID and not IsSecret(itemID) then
 		local _, _, _, equipLoc, _, classID, subclassID = GetItemInfoInstant(itemID)
 		if classID == ItemClass.Questitem then
-			return "Quest"
+			return Pick("Quest")
 		elseif classID == ItemClass.Battlepet then
-			return "Collectible"
+			return Pick("Collectible")
 		elseif classID == ItemClass.Miscellaneous and COLLECTIBLE_MISC[subclassID] then
-			return "Collectible"
+			return Pick("Collectible")
 		elseif classID == ItemClass.Container or classID == ItemClass.Quiver then
-			return "Container"
+			return Pick("Container")
 		elseif classID == ItemClass.Projectile then
 			-- Arrows and bullets, which Forever's ranged weapons still use.
-			return "Ammo"
+			return Pick("Ammo")
 		elseif classID == ItemClass.Housing then
-			return "Housing"
+			return Pick("Housing")
 		elseif EQUIP_CLASS[classID] then
 			-- Optionally split gear into its own per-slot shelves.
-			if C.Bags.GroupGearBySlot then
-				local gearSlot = EQUIP_SLOT[equipLoc]
-				if gearSlot then
-					return "Equipment:" .. gearSlot
-				end
+			local gearSlot = cfg.GroupGearBySlot and EQUIP_SLOT[equipLoc]
+			if gearSlot then
+				return Pick("Equipment:" .. gearSlot, "Equipment")
 			end
-			return "Equipment"
+			return Pick("Equipment")
 		elseif classID == ItemClass.Consumable then
-			return "Consumable"
+			return Pick("Consumable")
 		elseif ENHANCE_CLASS[classID] then
-			return "GearEnhancement"
+			return Pick("GearEnhancement")
 		elseif PROFESSION_CLASS[classID] then
-			return "Profession"
+			return Pick("Profession")
 		elseif TRADE_CLASS[classID] then
-			return "TradeGoods"
+			return Pick("TradeGoods")
 		end
 	end
 

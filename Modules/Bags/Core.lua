@@ -28,6 +28,8 @@ local ipairs = ipairs
 local select = select
 local tinsert = table.insert
 local tsort = table.sort
+local pairs = pairs
+local wipe = wipe
 local Enum = Enum
 local IsSecret = K.IsSecret
 
@@ -267,17 +269,45 @@ function Module:LayoutContainer(f)
 	-- Sort every occupied slot into buckets, and pool the empties. When the reagent
 	-- shelf is its own section, its empties pool apart so the free reagent slots can
 	-- show under that shelf instead of vanishing into the general free-slot count.
-	-- Reagent empties only get their own trailing button when the reagent shelf is
-	-- shown as its own ungrouped section. Folded into a group, they join the pool.
-	-- A single-pouch window (detached reagent bag) renders flat, so it opts out of
+	-- Reagent empties sit under that shelf when it is shown as its own ungrouped
+	-- section, and get their own trailing free button otherwise. A single-pouch window (detached reagent bag) renders flat, so it opts out of
 	-- categories for both the bucketing and the render below.
+	-- Empties in a special bag (a quiver, ammo pouch, soul bag, the reagent pouch)
+	-- only take items of that kind, so they never join the general pool. The free
+	-- button is bound to the first empty slot, and a general item dropped onto a
+	-- quiver slot is refused. Each special bag kind gets its own trailing button.
 	local useCategories = cfg.Categories and not f.noCategories
-	local splitReagent = useCategories and cfg.ReagentBagSection and not (cfg.CategoryGroup and cfg.CategoryGroup.ReagentBag)
+	local splitReagent = useCategories and cfg.ReagentBagSection and self:IsSectionOn("ReagentBag") and not (cfg.CategoryGroup and cfg.CategoryGroup.ReagentBag)
 	local buckets, empties, reagentEmpties = {}, {}, {}
+	local special, specialOrder = {}, {}
 	local totalSlots = 0
 	for _, bag in ipairs(f.bags) do
 		local numSlots = C_Container.GetContainerNumSlots(bag) or 0
-		totalSlots = totalSlots + numSlots
+		-- A one-bag window (the detached reagent pouch, the keyring) treats its own bag
+		-- as general, since there is nothing else for it to be kept apart from.
+		local mixed = #f.bags > 1
+		local _, family = C_Container.GetContainerNumFreeSlots(bag)
+		local isReagent = mixed and bag == REAGENT_BAG and not f.isBank
+		local pool = empties
+		if isReagent then
+			pool = splitReagent and reagentEmpties or nil
+		elseif mixed and family and family ~= 0 then
+			pool = nil
+		end
+		if not pool then
+			local kind = isReagent and "reagent" or family
+			pool = special[kind]
+			if not pool then
+				pool = { bag = bag }
+				special[kind] = pool
+				specialOrder[#specialOrder + 1] = kind
+			end
+		end
+		if pool == empties then
+			totalSlots = totalSlots + numSlots
+		elseif pool ~= reagentEmpties then
+			pool.total = (pool.total or 0) + numSlots
+		end
 		for slot = 1, numSlots do
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			if info then
@@ -296,10 +326,8 @@ function Module:LayoutContainer(f)
 					(itemID and not IsSecret(itemID)) and itemID or 0,
 					(stack and not IsSecret(stack)) and stack or 1,
 				})
-			elseif splitReagent and bag == REAGENT_BAG then
-				tinsert(reagentEmpties, { bag, slot })
 			else
-				tinsert(empties, { bag, slot })
+				tinsert(pool, { bag, slot })
 			end
 		end
 	end
@@ -379,35 +407,51 @@ function Module:LayoutContainer(f)
 
 	-- Order each section so the rarest items lead and duplicates group up, giving
 	-- a tidy read that does not depend on which physical slot an item sits in.
-	for _, bucket in pairs(buckets) do
+	-- Item counts per section for the bag sections panel, one table reused per window.
+	local counts = f.sectionCounts or {}
+	f.sectionCounts = counts
+	wipe(counts)
+	for key, bucket in pairs(buckets) do
 		tsort(bucket, SortEntry)
+		counts[key] = #bucket
 	end
 
 	if useCategories then
-		local groupMap = cfg.CategoryGroup or {}
-		local groups = cfg.Groups or {}
-		local rendered = {}
-		local ordered = self.OrderedCategories and self:OrderedCategories() or self.Categories
-		for _, cat in ipairs(ordered) do
-			local group = groupMap[cat.key]
-			if group and groups[group] then
-				-- Render each group once, at its first member. Combine every member
-				-- category's items into one section under the group name.
-				if not rendered[group] then
-					rendered[group] = true
-					local combined = {}
-					for _, member in ipairs(ordered) do
-						if groupMap[member.key] == group and buckets[member.key] then
-							for _, entry in ipairs(buckets[member.key]) do
-								combined[#combined + 1] = entry
-							end
+		-- Gear split by slot renders as one shelf per slot where Equipment stands.
+		-- Gear with no slot shelf (none expected, but a new equip type would do it)
+		-- keeps the plain Equipment shelf after them, so nothing goes missing.
+		local bySlot = cfg.GroupGearBySlot
+		local slotOrder = self.GearSlotOrder or {}
+		local function sectionKeys(key)
+			if key == "Equipment" and bySlot then
+				local keys = {}
+				for i, slotName in ipairs(slotOrder) do
+					keys[i] = "Equipment:" .. slotName
+				end
+				keys[#keys + 1] = "Equipment"
+				return keys
+			end
+			return { key }
+		end
+
+		for _, node in ipairs(self:BuildTree()) do
+			if node.kind == "group" then
+				-- Combine every member's items into one section under the group name.
+				local combined = {}
+				for _, child in ipairs(node.children) do
+					for _, key in ipairs(sectionKeys(child.key)) do
+						for _, entry in ipairs(buckets[key] or {}) do
+							combined[#combined + 1] = entry
 						end
 					end
-					tsort(combined, SortEntry)
-					placeGroup(combined, group, "group:" .. group, nil, group)
 				end
+				tsort(combined, SortEntry)
+				placeGroup(combined, node.name, node.key, nil, node.name)
 			else
-				placeGroup(buckets[cat.key], cat.name, cat.key, cat.key == "ReagentBag" and reagentEmpties or nil)
+				for _, key in ipairs(sectionKeys(node.key)) do
+					local label = key:match("^Equipment:(.+)") or node.name
+					placeGroup(buckets[key], label, key, key == "ReagentBag" and reagentEmpties or nil)
+				end
 			end
 		end
 	else
@@ -417,6 +461,9 @@ function Module:LayoutContainer(f)
 	-- Rather than pad the window with dozens of blank squares, the empty slots
 	-- collapse to a single button that shows how many are free and still takes a
 	-- dropped item (it is bound to the first empty slot).
+	-- The general free button leads the row, then one per special bag kind that has
+	-- room (a quiver, a soul bag), each bound to its own first empty slot.
+	local col = 0
 	if #empties > 0 then
 		local first = empties[1]
 		local button = self:AcquireSlot(f)
@@ -426,7 +473,7 @@ function Module:LayoutContainer(f)
 			holder:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, y)
 			self:UpdateSlot(button, first[1], first[2])
 			SetFreeCount(button, #empties, totalSlots)
-			y = y - step - GROUP_GAP
+			col = 1
 		end
 	elseif f.bags and #f.bags > 0 then
 		local full = FullSlotButton(f)
@@ -434,7 +481,25 @@ function Module:LayoutContainer(f)
 		full:ClearAllPoints()
 		full:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN, y)
 		full:Show()
-		y = y - step - GROUP_GAP
+		col = 1
+	end
+	for _, kind in ipairs(specialOrder) do
+		local pool = special[kind]
+		if #pool > 0 then
+			local button = self:AcquireSlot(f)
+			if button then
+				local holder = button:GetParent()
+				holder:ClearAllPoints()
+				holder:SetPoint("TOPLEFT", f, "TOPLEFT", MARGIN + (col % perRow) * step, y - floor(col / perRow) * step)
+				self:UpdateSlot(button, pool[1][1], pool[1][2])
+				SetFreeCount(button, #pool, pool.total)
+				button.__kkuiFreeBag = pool.bag
+				col = col + 1
+			end
+		end
+	end
+	if col > 0 then
+		y = y - ceil(col / perRow) * step - GROUP_GAP
 	end
 
 	-- Size the window to the content, with a sane minimum width.
@@ -446,6 +511,50 @@ function Module:LayoutContainer(f)
 	f:SetHeight(topBand + contentH + BOTTOM_BAND)
 
 	self:UpdateInfoText(f)
+	-- Pooled buttons keep the alpha the last search gave them, so a relayout while
+	-- the box holds text would dim whatever item now sits on each button. Re-run it.
+	if f.Search then
+		self:ApplySearch(f, f.Search:GetText())
+	end
+end
+
+-- The used buttons of one open window, for the light refreshes below that only
+-- touch what an event changed instead of rebuilding the grid. Called per window
+-- with a method and no closure, since these events fire often in play.
+local function EachSlot(f, method, bag, slot)
+	if not (f and f.pool and f:IsShown()) then
+		return
+	end
+	for i = 1, (f.poolUsed or 0) do
+		local button = f.pool[i]
+		if not bag or (button:GetID() == slot and button:GetParent():GetID() == bag) then
+			method(Module, button)
+		end
+	end
+end
+
+local function EachShownSlot(method, bag, slot)
+	EachSlot(Module.BagFrame, method, bag, slot)
+	EachSlot(Module.ReagentFrame, method, bag, slot)
+	EachSlot(Module.KeyringFrame, method, bag, slot)
+	EachSlot(Module.BankFrame, method, bag, slot)
+end
+
+-- BAG_UPDATE_COOLDOWN fires on every cooldown start, the global one included, so
+-- it only redraws the cooldown swipes, the same as the game's own bags.
+function Module:UpdateCooldowns()
+	if self.UpdateSlotCooldown then
+		EachShownSlot(self.UpdateSlotCooldown)
+	end
+end
+
+-- ITEM_LOCK_CHANGED fires on every pickup and drop. Only the greyed look of that
+-- one slot changes, and the BAG_UPDATE_DELAYED that follows a real move relays out.
+-- An equipped item's lock comes without a slot and has no bag button to touch.
+function Module:UpdateLocked(_, bag, slot)
+	if bag and slot and self.UpdateSlotLock then
+		EachShownSlot(self.UpdateSlotLock, bag, slot)
+	end
 end
 
 -- ---------------------------------------------------------------------------
@@ -457,11 +566,18 @@ function Module:UpdateInfoText(f)
 	if f.Money then
 		f.Money:SetText(GetCoinTextureString(GetMoney()))
 	end
+	-- General slots only, by the same rule as the free slot button and the game's own
+	-- backpack count: special bags and the reagent pouch take only their own kind.
 	if f.FreeSlots then
 		local free, total = 0, 0
+		local mixed = #f.bags > 1
 		for _, bag in ipairs(f.bags) do
-			free = free + (C_Container.GetContainerNumFreeSlots(bag) or 0)
-			total = total + (C_Container.GetContainerNumSlots(bag) or 0)
+			local slots, family = C_Container.GetContainerNumFreeSlots(bag)
+			local general = not mixed or ((family or 0) == 0 and not (bag == REAGENT_BAG and not f.isBank))
+			if general then
+				free = free + (slots or 0)
+				total = total + (C_Container.GetContainerNumSlots(bag) or 0)
+			end
 		end
 		f.FreeSlots:SetText(free .. " / " .. total)
 	end
@@ -668,7 +784,7 @@ function Module:CreateContainer(name, title, bags, perRow)
 			anchor = keyring
 		end
 
-		local manager = IconButton("Manager", nil, "Interface\\ICONS\\INV_Misc_Book_09", L["Category Groups"], function()
+		local manager = IconButton("Manager", nil, "Interface\\ICONS\\INV_Misc_Book_09", L["Bag Sections"], function()
 			if Module.ToggleManager then
 				Module:ToggleManager()
 			end
@@ -836,6 +952,10 @@ function Module:UpdateAll()
 		self:LayoutContainer(self.BankFrame)
 	end
 	self:UpdateSellButton(self.BagFrame)
+	-- The sections panel shows live counts and the current tree.
+	if self.Manager and self.Manager:IsShown() then
+		self:RefreshManager()
+	end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1193,8 +1313,8 @@ function Module:OnEnable()
 
 	-- Keep the grid current as items move, and auto-sell junk at a merchant.
 	self:RegisterEvent("BAG_UPDATE_DELAYED", "MarkDirty")
-	self:RegisterEvent("BAG_UPDATE_COOLDOWN", "MarkDirty")
-	self:RegisterEvent("ITEM_LOCK_CHANGED", "MarkDirty")
+	self:RegisterEvent("BAG_UPDATE_COOLDOWN", "UpdateCooldowns")
+	self:RegisterEvent("ITEM_LOCK_CHANGED", "UpdateLocked")
 	self:RegisterEvent("QUEST_ACCEPTED", "MarkDirty")
 	-- Your own quest log only. Party members' changes have nothing to do with your bags.
 	self:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "MarkDirty", "player")
@@ -1202,7 +1322,12 @@ function Module:OnEnable()
 		if self.CaptureGold then
 			self:CaptureGold()
 		end
-		self:UpdateAll()
+		-- Money changes nothing in the grid, so only the readouts are redrawn.
+		for _, f in ipairs({ self.BagFrame, self.ReagentFrame, self.BankFrame }) do
+			if f and f:IsShown() then
+				self:UpdateInfoText(f)
+			end
+		end
 	end)
 	-- Auto-sell on merchant open lives in Automation now (SellJunk.lua) so it works
 	-- with the bags disabled. This only updates the manual Sell Junk button.

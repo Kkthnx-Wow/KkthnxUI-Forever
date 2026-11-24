@@ -33,10 +33,12 @@ local SetItemButtonCount = SetItemButtonCount
 local SetItemButtonDesaturated = SetItemButtonDesaturated
 local SetItemButtonTextureVertexColor = SetItemButtonTextureVertexColor
 local CooldownFrame_Set = CooldownFrame_Set
+local GetInventoryItemLink = GetInventoryItemLink
 
 local Enum = Enum
 local C_NewItems = C_NewItems
 local POOR = Enum.ItemQuality and Enum.ItemQuality.Poor or 0
+local REAGENT_BAG = Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
 
 -- Quest border colour (classic quest yellow). The bang itself is our own "!"
 -- fontstring so it lines up on our button size.
@@ -206,6 +208,19 @@ local function Skin(button)
 			end
 			GameTooltip:SetOwner(self:GetParent(), "ANCHOR_RIGHT")
 			GameTooltip:SetText(L["Free Slots"], 1, 1, 1)
+			-- A special bag's free slots name the bag, since only its own kind fits.
+			local bag = self.__kkuiFreeBag
+			if bag then
+				local name = bag == REAGENT_BAG and L["Reagent Bag"]
+				if not name then
+					local inv = C_Container.ContainerIDToInventoryID(bag)
+					local link = inv and GetInventoryItemLink("player", inv)
+					name = link and C_Item.GetItemInfo(link)
+				end
+				if name then
+					GameTooltip:AddLine(name, K.Colors.gold[1], K.Colors.gold[2], K.Colors.gold[3])
+				end
+			end
 			if self.__kkuiTotal then
 				GameTooltip:AddLine(string.format(L["%d of %d slots free"], free, self.__kkuiTotal), K.Colors.muted[1], K.Colors.muted[2], K.Colors.muted[3])
 			end
@@ -333,6 +348,46 @@ function Module:ReleaseSlots(container)
 	container.poolUsed = 0
 end
 
+-- Grey vendor trash, or an item the player flagged as junk. Grey gear with a look
+-- the character has not collected is not junk.
+local function IsJunk(info)
+	local flagged = info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
+	local quality = info.quality
+	local grey = not IsSecret(quality) and quality == POOR and not K.IsUncollectedAppearance(info.hyperlink)
+	return (grey or flagged) and not info.hasNoValue and true or false
+end
+
+-- Grey out the icon while locked, and optionally for junk so the vendor trash
+-- fades back and the good items lead the eye.
+local function Desaturated(info, isJunk)
+	return info.isLocked or (C.Bags.DesaturateJunk and isJunk) or false
+end
+
+local function SetCooldown(button, bag, slot)
+	if button.Cooldown then
+		local start, duration, enable = C_Container.GetContainerItemCooldown(bag, slot)
+		if not (IsSecret(start) or IsSecret(duration)) then
+			CooldownFrame_Set(button.Cooldown, start, duration, enable)
+		end
+	end
+end
+
+-- Light refreshes for the events that change one look only (see Core.lua). Empty
+-- slots carry no cooldown or lock, and are left as they are.
+function Module:UpdateSlotCooldown(button)
+	local bag, slot = button:GetParent():GetID(), button:GetID()
+	if C_Container.GetContainerItemInfo(bag, slot) then
+		SetCooldown(button, bag, slot)
+	end
+end
+
+function Module:UpdateSlotLock(button)
+	local info = C_Container.GetContainerItemInfo(button:GetParent():GetID(), button:GetID())
+	if info then
+		SetItemButtonDesaturated(button, Desaturated(info, IsJunk(info)))
+	end
+end
+
 -- Bind a button to a bag slot and refresh all of its visuals from the client.
 function Module:UpdateSlot(button, bag, slot)
 	-- The bag rides on the holder frame (GetParent), never on the button. Writing a
@@ -346,6 +401,7 @@ function Module:UpdateSlot(button, bag, slot)
 	-- Set again by the layout only for the free slot button.
 	button.__kkuiFree = nil
 	button.__kkuiTotal = nil
+	button.__kkuiFreeBag = nil
 
 	local info = C_Container.GetContainerItemInfo(bag, slot)
 	local size = C.Bags.ButtonSize
@@ -411,13 +467,8 @@ function Module:UpdateSlot(button, bag, slot)
 	SetItemButtonCount(button, info.stackCount)
 
 	local quality = info.quality
-	-- Grey out the icon while locked, and optionally for junk so the vendor trash
-	-- fades back and the good items lead the eye. Player-flagged items count too.
-	local flaggedJunk = info.itemID and not IsSecret(info.itemID) and C.Bags.JunkList and C.Bags.JunkList[info.itemID]
-	-- Grey gear with a look the character has not collected is not marked as junk.
-	local greyJunk = not IsSecret(quality) and quality == POOR and not K.IsUncollectedAppearance(info.hyperlink)
-	local isJunk = (greyJunk or flaggedJunk) and not info.hasNoValue
-	SetItemButtonDesaturated(button, info.isLocked or (C.Bags.DesaturateJunk and isJunk) or false)
+	local isJunk = IsJunk(info)
+	SetItemButtonDesaturated(button, Desaturated(info, isJunk))
 	-- Red icon on gear this character cannot use.
 	if C.Bags.TintUnusable and self:IsUnusableGear(bag, slot, info.itemID) then
 		SetItemButtonTextureVertexColor(button, 1, 0.1, 0.1)
@@ -457,13 +508,7 @@ function Module:UpdateSlot(button, bag, slot)
 		button.NewItemTexture:SetShown(isNew and quality ~= POOR)
 	end
 
-	-- Cooldown swipe.
-	if button.Cooldown then
-		local start, duration, enable = C_Container.GetContainerItemCooldown(bag, slot)
-		if not (IsSecret(start) or IsSecret(duration)) then
-			CooldownFrame_Set(button.Cooldown, start, duration, enable)
-		end
-	end
+	SetCooldown(button, bag, slot)
 
 	-- Item level for gear.
 	if button.KKUI_ItemLevel then

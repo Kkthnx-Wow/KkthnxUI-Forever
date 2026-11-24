@@ -40,6 +40,9 @@ function Module:DeleteCustomCategory(key)
 	end
 	K:SetConfig({ "Bags", "CustomCategories", key }, nil)
 	K:SetConfig({ "Bags", "Collapsed", key }, nil)
+	K:SetConfig({ "Bags", "SortOrder", key }, nil)
+	K:SetConfig({ "Bags", "DisabledCategories", key }, nil)
+	K:SetConfig({ "Bags", "CategoryGroup", key }, nil)
 	self:UpdateAll()
 end
 
@@ -88,16 +91,32 @@ function Module:ShowAssignMenu(button)
 
 	MenuUtil.CreateContextMenu(button, function(_, root)
 		root:CreateTitle(L["Assign To Category"])
-		local ordered = Module.OrderedCategories and Module:OrderedCategories() or Module.Categories
-		for _, cat in ipairs(ordered) do
-			root:CreateButton(cat.name, function()
-				Module:AssignItem(itemID, cat.key)
-			end)
+		-- Sections in bag order, a group's members in a submenu under its name.
+		-- Turned off sections are left out, since they no longer catch items.
+		local function add(parent, node)
+			if Module:IsSectionOn(node.key) then
+				parent:CreateButton(node.name, function()
+					Module:AssignItem(itemID, node.key)
+				end)
+			end
+		end
+		for _, node in ipairs(Module:BuildTree()) do
+			if node.kind == "group" then
+				if #node.children > 0 then
+					local sub = root:CreateButton(node.name)
+					for _, child in ipairs(node.children) do
+						add(sub, child)
+					end
+				end
+			else
+				add(root, node)
+			end
 		end
 		root:CreateButton(L["New Category"], function()
 			K.Prompt(L["New Category"], "", function(text)
 				local key = Module:CreateCustomCategory(text)
 				if key then
+					Module:PlaceNewSection(key)
 					Module:AssignItem(itemID, key)
 				end
 			end)
