@@ -3,4 +3,5 @@
 	<Script file="Core.lua" />
 	<Script file="RawMapData.lua" />
 	<Script file="Reveal.lua" />
+	<Script file="Waypoint.lua" />
 </Ui>

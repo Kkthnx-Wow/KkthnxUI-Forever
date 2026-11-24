@@ -183,6 +183,12 @@ end
 -- ---------------------------------------------------------------------------
 
 function Module:OnEnable()
+	-- Waypoints (Waypoint.lua) are a command as much as a map tweak, so they
+	-- have their own switch and run even with the map tweaks off.
+	if self.SetupWaypoints then
+		self:SetupWaypoints()
+	end
+
 	if not C.WorldMap.Enable then
 		return
 	end
