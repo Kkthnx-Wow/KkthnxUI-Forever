@@ -335,6 +335,11 @@ end
 -- as drop targets for the drag.
 local gridShown = false
 
+-- Combat as the fade sees it. PLAYER_REGEN_DISABLED fires before the lockdown
+-- starts, so InCombatLockdown() still reads false inside it and a combat fade bar
+-- would stay hidden into the fight. The events set this flag directly instead.
+local inCombat = InCombatLockdown()
+
 local function Retarget(bar)
 	local state = faders[bar]
 	if not state then
@@ -345,7 +350,7 @@ local function Retarget(bar)
 	-- is being dragged. Otherwise the bar rests at the faded alpha. A combat fade bar
 	-- therefore hides out of combat and comes up the moment a fight starts.
 	local reveal = state.mouseover and (state.hovered or gridShown)
-	local want = (InCombatLockdown() or reveal) and state.target or state.faded
+	local want = (inCombat or reveal) and state.target or state.faded
 	state.want = want
 
 	if state.current ~= want or state.hovered then
@@ -397,7 +402,11 @@ FadeTick = function(bar, delta)
 end
 
 local function OnFadeEvent(_, event)
-	if event == "ACTIONBAR_SHOWGRID" then
+	if event == "PLAYER_REGEN_DISABLED" then
+		inCombat = true
+	elseif event == "PLAYER_REGEN_ENABLED" then
+		inCombat = false
+	elseif event == "ACTIONBAR_SHOWGRID" then
 		gridShown = true
 	elseif event == "ACTIONBAR_HIDEGRID" then
 		gridShown = false

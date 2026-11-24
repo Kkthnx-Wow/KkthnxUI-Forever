@@ -12,10 +12,8 @@ local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 local Module = K:NewModule("Core")
 
 function Module:OnEnable()
-	-- Prefer key down response for action buttons.
-	if not InCombatLockdown() then
-		SetCVar("ActionButtonUseKeyDown", 1)
-	end
+	-- ActionButtonUseKeyDown is left to the player. The action bar KeyDown option
+	-- ("Default" follows this setting) sets our own buttons per button instead.
 
 	K:SetupUIScale()
 	K.RefreshBorderColors()

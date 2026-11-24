@@ -18,7 +18,6 @@ end
 
 local pairs, type, next, setmetatable = pairs, type, next, setmetatable
 local GetBindingKey, GetBindingText = GetBindingKey, GetBindingText
-local GetMacroSpell = GetMacroSpell
 local CreateColor = CreateColor
 local C_Timer = C_Timer
 
@@ -169,13 +168,24 @@ local function LossOfControl(button, slot)
 	end
 end
 
+-- While a stun or silence outlasts the action's own cooldown, the game shows only
+-- the loss of control swipe in its place. shouldReplaceNormalCooldown is never
+-- secret, so this test is safe in combat. Loose-value clients have no such flag.
+local function LossOfControlReplaces(slot)
+	local info = api.GetActionLossOfControlCooldownInfo and api.GetActionLossOfControlCooldownInfo(slot)
+	return type(info) == "table" and info.shouldReplaceNormalCooldown == true
+end
+
 function Update.Cooldown(button)
 	local slot = SlotOf(button)
 	if not HasActionAt(slot) then
 		ClearAll(button)
 		return
 	end
-	if features.durationObjects and button.cooldown.SetCooldownFromDurationObject then
+	if LossOfControlReplaces(slot) then
+		button.cooldown:Clear()
+		button.chargeCooldown:Clear()
+	elseif features.durationObjects and button.cooldown.SetCooldownFromDurationObject then
 		CooldownFromDurations(button, slot)
 	else
 		CooldownFromValues(button, slot)
@@ -386,15 +396,24 @@ end
 
 local IsSpellOverlayed = (C_SpellActivationOverlay and C_SpellActivationOverlay.IsSpellOverlayed) or _G.IsSpellOverlayed
 
--- The spell an action casts, for matching proc events. Spells directly, and
--- the spell a macro would cast.
+local FlyoutHasSpell = (C_Flyout and C_Flyout.FlyoutHasSpell) or _G.FlyoutHasSpell
+
+-- The spell an action casts, for matching proc events. For a macro that casts a
+-- spell, GetActionInfo already returns that spell's id with subType "spell", the
+-- same value the game's own buttons compare against.
 local function SpellOf(slot)
-	local actionType, id = api.GetActionInfo(slot)
+	local actionType, id, subType = api.GetActionInfo(slot)
 	if actionType == "spell" then
 		return id
-	elseif actionType == "macro" and GetMacroSpell then
-		return GetMacroSpell(id)
+	elseif actionType == "macro" and subType == "spell" then
+		return id
 	end
+end
+
+-- A flyout glows when any spell inside it procs, as the game's own buttons do.
+local function FlyoutProcs(slot, spellID)
+	local actionType, id = api.GetActionInfo(slot)
+	return actionType == "flyout" and FlyoutHasSpell and FlyoutHasSpell(id, spellID) and true or false
 end
 
 -- The library does not draw a glow. It tracks the state and fires GlowShown and
@@ -405,7 +424,7 @@ function Update.Glow(button, spellID, shown)
 	local actionSpell = HasActionAt(slot) and SpellOf(slot)
 	local glowing
 	if spellID then
-		if actionSpell ~= spellID then
+		if actionSpell ~= spellID and not (HasActionAt(slot) and FlyoutProcs(slot, spellID)) then
 			return
 		end
 		glowing = shown

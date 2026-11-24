@@ -186,6 +186,15 @@ handlers.PLAYER_ENTER_COMBAT = handlers.ACTIONBAR_UPDATE_STATE
 handlers.PLAYER_LEAVE_COMBAT = handlers.ACTIONBAR_UPDATE_STATE
 handlers.START_AUTOREPEAT_SPELL = handlers.ACTIONBAR_UPDATE_STATE
 handlers.STOP_AUTOREPEAT_SPELL = handlers.ACTIONBAR_UPDATE_STATE
+-- Entering or leaving a vehicle and mounting change what reads as checked, as on
+-- the game's own buttons. The vehicle events are registered for the player only.
+handlers.UNIT_ENTERED_VEHICLE = handlers.ACTIONBAR_UPDATE_STATE
+handlers.UNIT_EXITED_VEHICLE = handlers.ACTIONBAR_UPDATE_STATE
+function handlers.COMPANION_UPDATE(kind)
+	if kind == "MOUNT" then
+		handlers.ACTIONBAR_UPDATE_STATE()
+	end
+end
 
 function handlers.ACTIONBAR_UPDATE_COOLDOWN()
 	ForAll(Update.Cooldown)
@@ -266,7 +275,14 @@ end
 -- Frame
 -- ---------------------------------------------------------------------------
 
-local UNIT_EVENTS = { UNIT_INVENTORY_CHANGED = "player" }
+local UNIT_EVENTS = {
+	UNIT_INVENTORY_CHANGED = "player",
+	UNIT_ENTERED_VEHICLE = "player",
+	UNIT_EXITED_VEHICLE = "player",
+	-- Only the player's own loss of control touches the action cooldowns.
+	LOSS_OF_CONTROL_ADDED = "player",
+	LOSS_OF_CONTROL_UPDATE = "player",
+}
 
 local frame = CreateFrame("Frame")
 Events.frame = frame

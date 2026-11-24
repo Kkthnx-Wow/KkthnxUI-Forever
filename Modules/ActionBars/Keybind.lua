@@ -2,94 +2,140 @@
 	Addon: KkthnxUI
 	File: Modules/ActionBars/Keybind.lua
 	Purpose:
-		Shorten hotkey text so it fits the small corner of a button. The library owns the
-		HotKey font string and rewrites it on rebind, so we hook its SetText and
-		re-apply the abbreviations. Localized key names are resolved first with an
-		English fallback so it reads correctly on every client.
+		Shorten hotkey text so it fits the small corner of a button. The library and
+		the Blizzard pet, stance and possess buttons write the HotKey font string
+		with GetBindingText, so we hook its SetText and rewrite the result.
+
+		GetBindingText only abbreviates modifiers ("s-", "c-", "a-"). Every other key
+		comes through as its full localized name, such as "Mouse Button 5". Those
+		names differ in word order between locales, so instead of pattern matching we
+		ask the client for the exact name of each key and look it up whole.
 -----------------------------------------------------------------------------]]
 
-local K = KkthnxUI[1]
+local K, C = KkthnxUI[1], KkthnxUI[2]
 
 local Module = K:GetModule("ActionBars")
 
 local _G = _G
-local gsub = string.gsub
+local GetBindingText = GetBindingText
 local ipairs = ipairs
+local pairs = pairs
+local string_sub = string.sub
+local type = type
 
--- Game strings go into the table below as patterns, and a localized name can hold
--- a pattern character (a hyphen, a bracket). Escape them so they match literally.
-local function Literal(text)
-	return (gsub(text, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+-- Binding key tokens and the label shown for them. Keys not listed (letters,
+-- digits, F keys, punctuation) are already short and pass through unchanged.
+local SHORT = {
+	MOUSEWHEELUP = "MU",
+	MOUSEWHEELDOWN = "MD",
+	NUMPADDECIMAL = "N.",
+	NUMPADDIVIDE = "N/",
+	NUMPADMINUS = "N-",
+	NUMPADMULTIPLY = "N*",
+	NUMPADPLUS = "N+",
+	NUMLOCK = "NL",
+	PAGEUP = "PU",
+	PAGEDOWN = "PD",
+	HOME = "Hm",
+	END = "End",
+	INSERT = "Ins",
+	DELETE = "Del",
+	BACKSPACE = "BS",
+	TAB = "Tab",
+	ESCAPE = "Esc",
+	SPACE = "Sp",
+	CAPSLOCK = "CL",
+	ENTER = "Ent",
+	UP = "Up",
+	DOWN = "Dn",
+	LEFT = "Lt",
+	RIGHT = "Rt",
+	PRINTSCREEN = "PS",
+	SCROLLLOCK = "SL",
+	PAUSE = "Pa",
+}
+for i = 1, 31 do
+	SHORT["BUTTON" .. i] = "M" .. i
+end
+for i = 0, 9 do
+	SHORT["NUMPAD" .. i] = "N" .. i
 end
 
--- Localized modifier and key names with English fallbacks.
-local L_BUTTON = Literal((_G.KEY_BUTTON3 and _G.KEY_BUTTON3:gsub("3", "")) or "Button")
-local L_MOUSEWHEELUP = Literal(_G.KEY_MOUSEWHEELUP or "Mouse Wheel Up")
-local L_MOUSEWHEELDN = Literal(_G.KEY_MOUSEWHEELDOWN or "Mouse Wheel Down")
-local L_NUMPAD = Literal((_G.KEY_NUMPAD0 and _G.KEY_NUMPAD0:gsub("0", "")) or "Num Pad")
-local L_PAGEUP = Literal(_G.KEY_PAGEUP or "Page Up")
-local L_PAGEDOWN = Literal(_G.KEY_PAGEDOWN or "Page Down")
-local L_SPACE = Literal(_G.KEY_SPACE or "Space")
-local L_INSERT = Literal(_G.KEY_INSERT or "Insert")
-local L_HOME = Literal(_G.KEY_HOME or "Home")
-local L_DELETE = Literal(_G.KEY_DELETE or "Delete")
+-- Display name -> label. Filled from the raw token, the KEY_ global and what
+-- GetBindingText returns, so it matches whichever form reaches the font string.
+local keyLabel = {}
+for token, label in pairs(SHORT) do
+	keyLabel[token] = label
+	local name = _G["KEY_" .. token]
+	if type(name) == "string" and name ~= "" then
+		keyLabel[name] = label
+	end
+	local shown = GetBindingText(token, true)
+	if type(shown) == "string" and shown ~= "" then
+		keyLabel[shown] = label
+	end
+	shown = GetBindingText(token)
+	if type(shown) == "string" and shown ~= "" then
+		keyLabel[shown] = label
+	end
+end
 
--- Order matters: modifiers first, then named keys, then generic patterns.
-local REPLACEMENTS = {
-	{ "(CTRL%-)", "c" },
-	{ "(Ctrl%-)", "c" },
-	{ "(ALT%-)", "a" },
-	{ "(Alt%-)", "a" },
-	{ "(SHIFT%-)", "s" },
-	{ "(Shift%-)", "s" },
-	{ "(META%-)", "m" },
-	{ "(Meta%-)", "m" },
-	{ L_MOUSEWHEELUP, "MU" },
-	{ "MOUSEWHEELUP", "MU" },
-	{ L_MOUSEWHEELDN, "MD" },
-	{ "MOUSEWHEELDOWN", "MD" },
-	{ L_BUTTON, "M" },
-	{ "BUTTON", "M" },
-	{ L_PAGEUP, "PU" },
-	{ "PAGEUP", "PU" },
-	{ L_PAGEDOWN, "PD" },
-	{ "PAGEDOWN", "PD" },
-	{ L_HOME, "Hm" },
-	{ "HOME", "Hm" },
-	{ "END", "End" },
-	{ L_INSERT, "Ins" },
-	{ "INSERT", "Ins" },
-	{ L_DELETE, "Del" },
-	{ "DELETE", "Del" },
-	{ "BACKSPACE", "BS" },
-	{ "TAB", "Tab" },
-	{ "ESCAPE", "Esc" },
-	{ L_SPACE, "Sp" },
-	{ "SPACE", "Sp" },
-	{ "CAPSLOCK", "CL" },
-	{ "NUMLOCK", "NL" },
-	{ "NUMPADDIVIDE", "N/" },
-	{ "NUMPADMULTIPLY", "N*" },
-	{ "NUMPADPLUS", "N+" },
-	{ "NUMPADMINUS", "N-" },
-	{ L_NUMPAD, "N" },
-	{ "NUMPAD", "N" },
+-- Modifier prefixes as they can appear in hotkey text, each with our letter.
+-- Some locales share an abbreviation (French uses "m" for both Shift and Meta),
+-- so the first claim wins and Shift is listed ahead of Meta.
+local MODIFIERS = {
+	{ "SHIFT", "s" },
+	{ "CTRL", "c" },
+	{ "ALT", "a" },
+	{ "META", "m" },
 }
+local prefixes = {}
+do
+	local taken = {}
+	local function Add(prefix, letter)
+		if type(prefix) == "string" and prefix ~= "-" and not taken[prefix] then
+			taken[prefix] = true
+			prefixes[#prefixes + 1] = { prefix, #prefix, letter }
+		end
+	end
+	for _, mod in ipairs(MODIFIERS) do
+		local token, letter = mod[1], mod[2]
+		Add(token .. "-", letter)
+		Add((_G[token .. "_KEY_TEXT_ABBR"] or "") .. "-", letter)
+		Add((_G[token .. "_KEY_TEXT"] or "") .. "-", letter)
+	end
+end
 
--- Keys come from a small fixed set, so each distinct text is worked out once and
--- remembered. Running the whole table on every SetText costs 38 substitutions.
+-- Strip leading modifier prefixes into letters, then look the key up whole.
+local function Build(text)
+	local mods = ""
+	local matched = true
+	while matched do
+		matched = false
+		for _, entry in ipairs(prefixes) do
+			local prefix, length = entry[1], entry[2]
+			-- Keep at least one character so the minus key itself is never eaten.
+			if #text > length and string_sub(text, 1, length) == prefix then
+				mods = mods .. entry[3]
+				text = string_sub(text, length + 1)
+				matched = true
+				break
+			end
+		end
+	end
+	return mods .. (keyLabel[text] or text)
+end
+
+-- Keys come from a small fixed set, so each distinct text is worked out once.
 local abbreviated = {}
 
 local function Shorten(text)
 	local short = abbreviated[text]
 	if short == nil then
-		short = text
 		if text == _G.RANGE_INDICATOR then
 			short = ""
 		else
-			for _, pair in ipairs(REPLACEMENTS) do
-				short = gsub(short, pair[1], pair[2])
-			end
+			short = Build(text)
 		end
 		abbreviated[text] = short
 	end
@@ -103,14 +149,22 @@ local function Abbreviate(hotkey)
 		return
 	end
 	local text = hotkey:GetText()
-	if not text then
+	if not text or text == "" then
+		return
+	end
+	-- In the hotkey range mode the dot is the out-of-range signal on a button with
+	-- no key shown, so it must survive. Otherwise it is blanked like stock art.
+	if text == _G.RANGE_INDICATOR and C.ActionBar.RangeColoring == "hotkey" then
 		return
 	end
 
-	text = Shorten(text)
+	local short = Shorten(text)
+	if short == text then
+		return
+	end
 
 	hotkey.__setting = true
-	hotkey:SetText(text)
+	hotkey:SetText(short)
 	hotkey.__setting = false
 end
 
