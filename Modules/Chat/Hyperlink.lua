@@ -35,8 +35,12 @@ local function OnHyperlinkEnter(frame, link)
 	end
 end
 
-local function OnHyperlinkLeave()
-	GameTooltip:Hide()
+-- Only a tooltip this window took is hidden, so leaving a link does not close one
+-- that something else owns.
+local function OnHyperlinkLeave(frame)
+	if GameTooltip:IsOwned(frame) then
+		GameTooltip:Hide()
+	end
 end
 
 -- Hook one window. Idempotent, and also called from StyleFrame so a whisper or new

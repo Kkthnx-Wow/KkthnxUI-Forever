@@ -13,9 +13,17 @@ local Module = K:NewModule("Chat")
 
 local _G = _G
 local ipairs = ipairs
+local pairs = pairs
+local type = type
+local hooksecurefunc = hooksecurefunc
 local gsub = string.gsub
 local concat = table.concat
 local IsSecret = K.IsSecret
+local GetCVar = GetCVar
+local SetCVar = SetCVar
+
+-- The chat timestamp format this module writes to the showTimestamps setting.
+local TIMESTAMP_FORMAT = "%H:%M "
 
 local NUM_FRAMES = Constants.ChatFrameConstants.MaxChatWindows
 
@@ -123,6 +131,87 @@ local function ColorEditBox(editBox)
 	end
 end
 
+-- ---------------------------------------------------------------------------
+-- Characters left
+-- ---------------------------------------------------------------------------
+-- A count of what is left to type, on the right of the box, that warms from
+-- quiet grey through gold to red as the message nears the limit. The limit is
+-- the box's own visible byte limit (255 for chat), which counts what you see:
+-- an item link costs its name, not its hidden link code, and an accented letter
+-- costs the two or three bytes it takes. So the count strips those codes and
+-- counts bytes, the same way the box itself does.
+
+local COUNTER_ROOM = 30 -- right inset kept clear of typed text for the count
+local WARN_AT = 60 -- the count starts warming up from here
+
+-- Visible bytes in the box: colour codes, links and texture tags take no room.
+local function VisibleBytes(text)
+	text = gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+	text = gsub(text, "|r", "")
+	text = gsub(text, "|H.-|h", "")
+	text = gsub(text, "|h", "")
+	text = gsub(text, "|T.-|t", "")
+	text = gsub(text, "|A.-|a", "")
+	text = gsub(text, "||", "|")
+	return #text
+end
+
+local function UpdateCounter(editBox)
+	local counter = editBox.KKUI_Counter
+	if not counter then
+		return
+	end
+	local text = editBox:GetText()
+	if not text or text == "" then
+		counter:Hide()
+		return
+	end
+	local limit = editBox.GetVisibleTextByteLimit and editBox:GetVisibleTextByteLimit() or 0
+	if not limit or limit <= 0 then
+		limit = 255
+	end
+	local left = limit - VisibleBytes(text)
+	if left < 0 then
+		left = 0
+	end
+	counter:SetText(left)
+	if left > WARN_AT then
+		local c = K.Colors.muted
+		counter:SetTextColor(c[1], c[2], c[3])
+	else
+		-- Gold at the warning point, full red at the limit.
+		local t = 1 - left / WARN_AT
+		local a, b = K.Colors.highlight, K.Colors.negative
+		counter:SetTextColor(a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t)
+	end
+	counter:Show()
+end
+
+-- Blizzard sets the right inset on every header refresh, so widen it after.
+local function KeepCounterRoom(editBox)
+	if not editBox.KKUI_Counter then
+		return
+	end
+	local left, right, top, bottom = editBox:GetTextInsets()
+	if left and right and right < COUNTER_ROOM then
+		editBox:SetTextInsets(left, COUNTER_ROOM, top or 0, bottom or 0)
+	end
+end
+
+local function AddCounter(editBox)
+	if editBox.KKUI_Counter or not C.Chat.CharacterCount then
+		return
+	end
+	local counter = editBox:CreateFontString(nil, "OVERLAY")
+	K.SetFont(counter, (C.Chat.FontSize or 12) - 1, K.FontOutlineStyle())
+	counter:SetPoint("RIGHT", editBox, "RIGHT", -6, 0)
+	counter:SetJustifyH("RIGHT")
+	counter:Hide()
+	editBox.KKUI_Counter = counter
+	editBox:HookScript("OnTextChanged", UpdateCounter)
+	KeepCounterRoom(editBox)
+end
+
 local function SkinEditBox(editBox)
 	if editBox.__skinned then
 		return
@@ -201,8 +290,10 @@ local function SkinEditBox(editBox)
 	-- method because the old global ChatEdit_UpdateHeader is gone in 12.x.
 	if editBox.UpdateHeader then
 		hooksecurefunc(editBox, "UpdateHeader", ColorEditBox)
+		hooksecurefunc(editBox, "UpdateHeader", KeepCounterRoom)
 	end
 	ColorEditBox(editBox)
+	AddCounter(editBox)
 
 	editBox:HookScript("OnEditFocusGained", function(self)
 		Reposition(self)
@@ -317,47 +408,90 @@ end
 -- ---------------------------------------------------------------------------
 -- Channel shortening
 -- ---------------------------------------------------------------------------
--- Matched on the channel LINK token, which is language independent, so this
--- works on every client without a translation table.
+-- The channel tag is shortened after the line is stored, never on the way in.
+--
+-- Swapping our own function into frame.AddMessage put addon code in the middle
+-- of every chat event. Blizzard's handler carries on after AddMessage (sound,
+-- reply target, the text to speech observer), and all of that then ran tainted.
+-- Blizzard wraps its own message filters in securecallfunction for this reason.
+-- hooksecurefunc runs after the original call has finished, so the handler stays
+-- clean. The hook then rewrites the text of the line just stored, which is the
+-- newest entry in the frame's history buffer.
+--
+-- Built-in tags are matched on the channel link token and the label inside the
+-- brackets. The leader variants share the plain token (party leader is
+-- |Hchannel:PARTY|h[Party Leader]|h), so the label is read from the client's own
+-- format strings to tell them apart in any locale.
 
-local LINK_SHORT = {
+local CHANNEL_SHORT = {
 	GUILD = "G",
+	OFFICER = "O",
 	PARTY = "P",
 	PARTY_LEADER = "PL",
 	RAID = "R",
 	RAID_LEADER = "RL",
 	INSTANCE_CHAT = "I",
 	INSTANCE_CHAT_LEADER = "IL",
-	OFFICER = "O",
 }
 
-local function ShortenLine(text)
-	-- Midnight can hand the message filter a secret string, which cannot be indexed
-	-- or run through gsub, so leave it untouched.
-	if type(text) ~= "string" or IsSecret(text) then
-		return text
+-- token .. label -> short tag, built once from the CHAT_<TYPE>_GET strings.
+local tagShort = {}
+-- token -> short tag, for a label the client's strings did not cover.
+local tokenShort = {}
+for chatType, short in pairs(CHANNEL_SHORT) do
+	local fmt = _G["CHAT_" .. chatType .. "_GET"]
+	local token, label
+	if type(fmt) == "string" then
+		token, label = fmt:match("|Hchannel:([^|]+)|h%[([^%]]+)%]|h")
 	end
-	-- Numbered custom channels: [5. General] becomes [5].
-	text = gsub(text, "(|Hchannel:channel:%d+|h)%[(%d+)%. [^%]]+%]|h", "%1[%2]|h")
-	-- Built-in channels by link token: [Guild] becomes [G], etc.
-	text = gsub(text, "|Hchannel:(%u[%u_]+)|h%[[^%]]+%]|h", function(token)
-		local short = LINK_SHORT[token]
-		if short then
-			return "|Hchannel:" .. token .. "|h[" .. short .. "]|h"
-		end
-	end)
-	return text
+	if token then
+		tagShort[token .. label] = short
+		tokenShort[token] = tokenShort[token] or CHANNEL_SHORT[token]
+	end
 end
 
-local function HookShortening(frame)
-	if frame.__shortHooked then
+local function ShortTag(token, label)
+	local short = tagShort[token .. label] or tokenShort[token]
+	if short then
+		return "|Hchannel:" .. token .. "|h[" .. short .. "]|h"
+	end
+end
+
+local function ShortenLine(text)
+	-- Numbered custom channels: [5. General] becomes [5].
+	text = gsub(text, "(|Hchannel:channel:%d+|h)%[(%d+)%. [^%]]+%]|h", "%1[%2]|h")
+	-- Built-in channels by link token and label: [Party Leader] becomes [PL].
+	return (gsub(text, "|Hchannel:(%u[%u_]+)|h%[([^%]]+)%]|h", ShortTag))
+end
+
+local function ShortenNewest(frame, text)
+	-- A secret line can be neither read nor compared, so it is left as it is.
+	if type(text) ~= "string" or IsSecret(text) or not text:find("|Hchannel:", 1, true) then
 		return
 	end
-	frame.__shortHooked = true
-	local original = frame.AddMessage
-	frame.AddMessage = function(self, text, ...)
-		return original(self, ShortenLine(text), ...)
+	local buffer = frame.historyBuffer
+	local entry = buffer and buffer:GetEntryAtIndex(1)
+	local message = entry and entry.message
+	-- Only the entry this call stored. Compared only once it is known not to be
+	-- secret, since comparing a secret errors.
+	if not message or IsSecret(message) or message ~= text then
+		return
 	end
+	local short = ShortenLine(text)
+	if short ~= text then
+		entry.message = short
+		frame:MarkDisplayDirty()
+	end
+end
+
+local shortened = {}
+
+local function HookShortening(frame)
+	if shortened[frame] or not frame.historyBuffer then
+		return
+	end
+	shortened[frame] = true
+	hooksecurefunc(frame, "AddMessage", ShortenNewest)
 end
 
 -- ---------------------------------------------------------------------------
@@ -618,6 +752,10 @@ end
 
 -- Drop textures and atlases so the copied text is clean, keeping the colour.
 local function CleanMessage(msg, r, g, b)
+	-- Emoji icons go back to the text that was typed rather than vanishing.
+	if Module.RestoreEmojis then
+		msg = Module.RestoreEmojis(msg)
+	end
 	msg = gsub(msg, "|T(.-):.-|t", "")
 	msg = gsub(msg, "|A(.-):.-|a", "")
 	return K.RGBToHex(r or 1, g or 1, b or 1) .. msg .. "|r"
@@ -1010,9 +1148,13 @@ function Module:OnEnable()
 		return
 	end
 
-	-- Timestamps through the built-in CVar (24h HH:MM).
+	-- Timestamps through the built-in CVar (24h HH:MM). With the option off, our
+	-- own format is put back to the game's default, a format the player chose
+	-- in the game's settings is left alone.
 	if C.Chat.Timestamps then
-		SetCVar("showTimestamps", "%H:%M ")
+		SetCVar("showTimestamps", TIMESTAMP_FORMAT)
+	elseif GetCVar("showTimestamps") == TIMESTAMP_FORMAT then
+		SetCVar("showTimestamps", "none")
 	end
 
 	if C.Chat.ClassColorNames then
@@ -1058,26 +1200,11 @@ function Module:OnEnable()
 	-- Pin the chat to the bottom-left corner. Edit Mode keeps trying to place it,
 	-- so we hook SetPoint and re-apply, guarded against re-entry. The y offset
 	-- leaves room for the quick-bar that sits just below the frame.
-	-- Edit Mode owns the default chat frame on retail (FCF_RestorePositionAndDimensions
-	-- bails out for it and says so). While Edit Mode still counts the window as being
-	-- in its default position, ApplySystemAnchor hands it back to the managed frame
-	-- container on every world enter, and the container then places it, which is what
-	-- shifted the chat after a loading screen or a teleport. Our SetPoint hook lost
-	-- that race because the container positions the frame afterwards.
-	--
-	-- BreakFromFrameManager is Blizzard's own path for a system that should not be
-	-- managed. It removes the frame from the container, reparents it to UIParent, and
-	-- sets ignoreFramePositionManager, which the managed frame system checks before
-	-- laying a frame out.
-	local function DetachChat()
-		local frame = _G.ChatFrame1
-		if frame.BreakFromFrameManager then
-			frame:BreakFromFrameManager()
-		end
-		-- Set it directly too. BreakFromFrameManager returns early when the frame has
-		-- no container yet, which is the case on an early login pass.
-		frame.ignoreFramePositionManager = true
-	end
+	-- Edit Mode owns the default chat frame (FCF_RestorePositionAndDimensions
+	-- bails out for it). The chat window is not one of Edit Mode's managed
+	-- frames on this client (no isManagedFrame), so nothing has to be detached
+	-- from a container, and no field is written on ChatFrame1, which secure
+	-- gamepad chat focus reads.
 
 	-- A frame of ours that owns the spot, with the chat window stretched across it.
 	-- Chasing the chat's own single anchor never held, because the client restores
@@ -1117,7 +1244,6 @@ function Module:OnEnable()
 			return
 		end
 		anchoring = true
-		DetachChat()
 		ClearClampInsets()
 		local frame = _G.ChatFrame1
 		frame:SetUserPlaced(true)
@@ -1277,12 +1403,28 @@ function Module:OnEnable()
 		for _, event in ipairs(URL_EVENTS) do
 			ChatFrameUtil.AddMessageEventFilter(event, URLFilter)
 		end
-		hooksecurefunc("SetItemRef", function(link)
-			local url = link:match("^kkurl:(.+)")
-			if url then
-				ShowURL(url)
+		-- A registered handler answers the click as handled, so SetItemRef stops
+		-- there. A plain hook ran after SetItemRef had already opened an empty
+		-- ItemRefTooltip for a link type the client did not know.
+		local LinkUtil = LinkUtil
+		if LinkUtil and LinkUtil.RegisterLinkHandler and LinkProcessorResponse then
+			if not LinkUtil.IsLinkHandlerRegistered("kkurl") then
+				LinkUtil.RegisterLinkHandler("kkurl", function(link)
+					local url = link:match("^kkurl:(.+)")
+					if url then
+						ShowURL(url)
+					end
+					return LinkProcessorResponse.Handled
+				end)
 			end
-		end)
+		else
+			hooksecurefunc("SetItemRef", function(link)
+				local url = link:match("^kkurl:(.+)")
+				if url then
+					ShowURL(url)
+				end
+			end)
+		end
 	end
 
 	if C.Chat.HyperlinkTooltip then
@@ -1306,6 +1448,9 @@ function Module:OnEnable()
 	if self.SetupKeywords then
 		self:SetupKeywords()
 	end
+	if self.SetupEmojis then
+		self:SetupEmojis()
+	end
 	if self.SetupHistory then
 		self:SetupHistory()
 	end
@@ -1321,8 +1466,11 @@ function Module:OnEnable()
 		-- window pulled out of the dock is left at full alpha.
 		local main = _G.ChatFrame1
 		local windows = {}
+		-- Edit box names built once, since the hover check runs ten times a second.
+		local editBoxNames = {}
 		for i = 1, NUM_FRAMES do
 			windows[#windows + 1] = _G["ChatFrame" .. i]
+			editBoxNames[i] = "ChatFrame" .. i .. "EditBox"
 		end
 		local bar = C.Chat.ChatBar and _G.KKUI_ChatBar
 		local function IsDocked(f)
@@ -1342,7 +1490,7 @@ function Module:OnEnable()
 				elapsed = 0
 				local over = false
 				for i = 1, NUM_FRAMES do
-					local editBox = _G["ChatFrame" .. i .. "EditBox"]
+					local editBox = _G[editBoxNames[i]]
 					if editBox and editBox:HasFocus() then
 						over = true
 						break

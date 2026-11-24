@@ -176,8 +176,8 @@ function Module:SetupHistory()
 	end
 
 	-- Capture the line as each frame prints it. The hook gets the same arguments the
-	-- frame did, before our own AddMessage wrappers reshape the text, which is what
-	-- we want: the replay goes back through those wrappers.
+	-- frame did, before the channel shortening rewrites the stored line, which is
+	-- what we want: the replay goes back through AddMessage and is shortened again.
 	active = true
 	for i = 1, NUM_FRAMES do
 		local frame = _G["ChatFrame" .. i]

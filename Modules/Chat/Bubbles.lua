@@ -2,39 +2,39 @@
 	Addon: KkthnxUI
 	File: Modules/Chat/Bubbles.lua
 	Purpose:
-		Give the in-world chat bubbles our border and dark background instead of
-		the stock rounded art. Bubbles are created and pooled by the client, so we
-		watch the chat events that spawn them and, a frame later, walk the live
-		bubble list and style any we have not touched yet. Each bubble is styled
-		once and flagged, so the walk stays cheap.
+		Replace the in-world chat bubbles with compact ones of our own. Blizzard's
+		bubble is kept, made invisible, and used only as a position: we draw our
+		own bubble in its place with the chat font, a width cap, the speaker's
+		name, emoji icons, the panel gradient and the nameplate shadow, and follow
+		it every frame while any bubble is on screen.
+
+		Bubbles in instances are forbidden to addons and are left exactly as the
+		client draws them, as is any bubble whose text comes back secret.
 -----------------------------------------------------------------------------]]
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
 
 local Module = K:GetModule("Chat")
 
-local ipairs = ipairs
 local pairs = pairs
 local wipe = wipe
-local math_max = math.max
+local abs = math.abs
+local floor = math.floor
+local math_min = math.min
+local GetTime = GetTime
 local GetCVarBool = GetCVarBool
 local CreateFrame = CreateFrame
+local WorldFrame = _G.WorldFrame
 local Ambiguate = Ambiguate
 local GetPlayerInfoByGUID = GetPlayerInfoByGUID
+local UnitTokenFromGUID = UnitTokenFromGUID
+local UnitLevel = UnitLevel
+local GetMaxLevelForPlayerExpansion = GetMaxLevelForPlayerExpansion
 local IsSecret = K.IsSecret
 local GetAllChatBubbles = C_ChatBubbles and C_ChatBubbles.GetAllChatBubbles
 
--- A bubble carries no reference to whoever spoke, only the words. The chat event
--- that spawns it does know, so the sender is stashed against the message text as
--- it arrives and looked up again when the bubble turns up a frame later. Cleared
--- on a loading screen so the tables cannot grow forever.
-local senderByMessage = {}
-local guidByMessage = {}
-local stashed = 0
-local MAX_STASHED = 300
-
--- The events that spawn a bubble, paired with the cvar that has to be on for
--- that kind to appear. No point walking the list if the bubble is disabled.
+-- The events that spawn a bubble, paired with the cvar that has to be on for that
+-- kind to appear.
 local SPAWN_EVENTS = {
 	CHAT_MSG_SAY = "chatBubbles",
 	CHAT_MSG_YELL = "chatBubbles",
@@ -43,137 +43,246 @@ local SPAWN_EVENTS = {
 	CHAT_MSG_PARTY = "chatBubblesParty",
 	CHAT_MSG_PARTY_LEADER = "chatBubblesParty",
 	CHAT_MSG_MONSTER_PARTY = "chatBubblesParty",
+	CHAT_MSG_RAID = "chatBubblesRaid",
+	CHAT_MSG_RAID_LEADER = "chatBubblesRaid",
+	CHAT_MSG_RAID_WARNING = "chatBubblesRaid",
 }
 
--- How far our backdrop sits inside the bubble holder, in the bubble's own space.
-local INSET = 4
+local PADDING = 8
+-- Width cap in characters of chat font, so a bigger font gets a wider bubble.
+local WIDTH_PER_FONT_PX = 22
+-- How long after a spawning event we keep looking for the new bubble. It is not
+-- on the list on the frame the message arrives.
+local SCAN_WINDOW = 0.5
+local FADE_IN = 0.15
 
--- The bubble's own text. Blizzard keeps it on the holder, but fall back to a scan
--- so a layout change does not silently kill the name.
-local function BubbleText(holder)
-	if holder.String then
-		return holder.String
-	end
-	for _, region in ipairs({ holder:GetRegions() }) do
-		if region.GetObjectType and region:GetObjectType() == "FontString" then
-			return region
-		end
-	end
+-- A bubble carries no reference to whoever spoke, only the words. The chat event
+-- does know, so the sender is stashed against the text and looked up when the
+-- bubble shows. Capped and wiped on a loading screen so it cannot grow forever.
+local senderByMessage = {}
+local guidByMessage = {}
+local stashed = 0
+local MAX_STASHED = 300
+
+local layer -- holds every bubble of ours, scaled to match UIParent
+local driver -- runs the scan and the follow loop, only while there is work
+local mirrors = {} -- Blizzard bubble -> our bubble, for every bubble adopted
+local scanUntil = 0
+local nextLevel = 0
+
+local function FontSize()
+	return C.Chat.FontSize or 13
 end
 
--- Put the speaker's name above the bubble, class coloured. Bubbles are pooled, so
--- this runs on every show and clears itself when the message is not one we saw.
-local function UpdateBubbleName(bubble, holder)
-	local label = bubble.KKUI_Name
-	if not label then
-		return
+-- The speaker's level, difficulty coloured, when they are under the level cap.
+-- The bubble only has a GUID, so this works when the client can map it to a unit,
+-- which in practice means the speaker has a nameplate or is your target or group.
+local function SpeakerLevel(guid)
+	local unit = guid and UnitTokenFromGUID and UnitTokenFromGUID(guid)
+	if not unit or IsSecret(unit) then
+		return ""
 	end
-
-	local str = BubbleText(holder)
-	local text = str and str:GetText()
-	if not text or IsSecret(text) then
-		label:SetText("")
-		return
+	local level = UnitLevel(unit)
+	local cap = GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion()
+	if not level or IsSecret(level) or level <= 0 or (cap and level >= cap) then
+		return ""
 	end
+	local color = K.UnitDifficultyColor and K.UnitDifficultyColor(unit)
+	if color then
+		return K.RGBToHex(color.r, color.g, color.b) .. level .. "|r "
+	end
+	-- White of its own, or it takes the chat colour of the text around it.
+	return "|cffffffff" .. level .. "|r "
+end
 
+local function SpeakerPrefix(text)
+	if not C.Chat.BubbleName then
+		return ""
+	end
 	local sender = senderByMessage[text]
 	if not sender then
-		label:SetText("")
-		return
+		return ""
 	end
-
-	-- Class colour when the speaker resolves, otherwise our own accent.
 	local color
 	local guid = guidByMessage[text]
-	if guid and not IsSecret(guid) then
+	if guid then
 		local _, class = GetPlayerInfoByGUID(guid)
 		if class and not IsSecret(class) then
 			color = K.ClassColors[class]
 		end
 	end
-
-	local r = color and (color.r or color[1]) or K.Colors.accent[1]
-	local g = color and (color.g or color[2]) or K.Colors.accent[2]
-	local b = color and (color.b or color[3]) or K.Colors.accent[3]
-	label:SetText(sender)
-	label:SetTextColor(r, g, b)
+	color = color or K.Colors.accent
+	local r, g, b = color.r or color[1], color.g or color[2], color.b or color[3]
+	return SpeakerLevel(guid) .. K.RGBToHex(r, g, b) .. sender .. ":|r "
 end
 
--- Style one bubble. The first child is the holder that carries the text, the
--- default backdrop on its BORDER layer, and a pointer tail. We drop both and
--- give the holder our own look.
-local function SkinBubble(bubble)
-	if bubble.KKUI_Styled then
-		return
-	end
+local function CreateMirror()
+	local frame = CreateFrame("Frame", nil, layer)
+	frame:Hide()
+	-- The same blue panel gradient as the config window, with the nameplate shadow.
+	K.CreateGradientBackground(frame, 0.85)
+	K.CreateShadow(frame)
 
+	local text = frame:CreateFontString(nil, "OVERLAY")
+	text:SetPoint("TOPLEFT", PADDING, -PADDING)
+	text:SetJustifyH("LEFT")
+	text:SetWordWrap(true)
+	frame.text = text
+
+	local fade = frame:CreateAnimationGroup()
+	local alpha = fade:CreateAnimation("Alpha")
+	alpha:SetFromAlpha(0)
+	alpha:SetToAlpha(1)
+	alpha:SetDuration(FADE_IN)
+	frame.fade = fade
+	return frame
+end
+
+-- The client colours a bubble's text by chat type (party blue, yell red, NPC
+-- yellow), so the shadow borrows that colour, softly. Plain say is white text and
+-- keeps the black shadow, since a white glow would only blur it.
+local TINT_ALPHA = 0.6
+
+local function TintShadow(mirror, r, g, b)
+	if C.Chat.BubbleChatColor and not (r > 0.95 and g > 0.95 and b > 0.95) then
+		K.SetShadowColor(mirror, r, g, b, TINT_ALPHA)
+	else
+		K.SetShadowColor(mirror, 0, 0, 0, 1)
+	end
+end
+
+-- New words in a bubble: set the text, size the box around it, fade it in.
+local function SetMirrorText(mirror, message, r, g, b)
+	local fs = mirror.text
+	local size = FontSize()
+	fs:SetFont(K.GetFont(C.Chat.Font), size, C.Chat.FontOutline and "OUTLINE" or "")
+	fs:SetShadowColor(0, 0, 0, 1)
+	fs:SetShadowOffset(1, -1)
+	fs:SetTextColor(r, g, b)
+	TintShadow(mirror, r, g, b)
+
+	local shown = SpeakerPrefix(message) .. (Module.Emojify and Module.Emojify(message) or message)
+	fs:SetText(shown)
+	fs:SetWidth(0)
+	local natural = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth()
+	local width = math_min(natural, size * WIDTH_PER_FONT_PX)
+	fs:SetWidth(width + 1)
+	mirror:SetSize(floor(width + 1 + PADDING * 2 + 0.5), floor(fs:GetStringHeight() + PADDING * 2 + 0.5))
+
+	-- Newest bubble on top where two overlap.
+	nextLevel = nextLevel % 100 + 1
+	mirror:SetFrameLevel(nextLevel * 3)
+	mirror.message = message
+	mirror:Show()
+	mirror.fade:Play()
+end
+
+local function Release(bubble, holder)
+	local mirror = mirrors[bubble]
+	if mirror then
+		mirror:Hide()
+		mirror.message = nil
+	end
+	if holder then
+		holder:SetAlpha(1)
+	end
+end
+
+-- Keep one bubble's mirror in step with it. Returns true while it is on screen.
+local function Follow(bubble, mirror)
+	if bubble:IsForbidden() or not bubble:IsShown() then
+		mirror:Hide()
+		mirror.message = nil
+		return false
+	end
 	local holder = bubble:GetChildren()
-	if not holder or holder:IsForbidden() then
-		return
+	local str = holder and holder.String
+	if not str then
+		mirror:Hide()
+		return false
 	end
 
-	holder:DisableDrawLayer("BORDER")
-	if holder.Tail then
-		holder.Tail:SetAlpha(0)
+	local message = str:GetText()
+	if not message or message == "" or IsSecret(message) then
+		-- Nothing we may read, so hand the bubble back to the client.
+		Release(bubble, holder)
+		return false
+	end
+	holder:SetAlpha(0)
+
+	if message ~= mirror.message then
+		SetMirrorText(mirror, message, str:GetTextColor())
 	end
 
-	-- Chat bubbles live in the WorldFrame, which does not inherit the UI scale. Our
-	-- border is sized in pixel perfect units derived from UIParent, so drawn straight
-	-- onto the holder it comes out at the wrong thickness against the rest of the UI.
-	-- Put the art on its own frame and scale that back to the UI's effective scale.
-	-- Scaling the holder itself is not an option, it would take the text with it.
-	local backdrop = CreateFrame("Frame", nil, holder)
-	backdrop:SetScale(UIParent:GetEffectiveScale())
-	backdrop:SetPoint("TOPLEFT", holder, "TOPLEFT", INSET, -INSET)
-	backdrop:SetPoint("BOTTOMRIGHT", holder, "BOTTOMRIGHT", -INSET, INSET)
-	backdrop:SetFrameLevel(math_max(0, holder:GetFrameLevel() - 1))
-
-	K.CreateBackground(backdrop, 0.05, 0.05, 0.05, 0.9)
-	K.CreateBorder(backdrop)
-
-	bubble.KKUI_Backdrop = backdrop
-
-	-- Speaker name above the bubble. Parented to the holder rather than our scaled
-	-- backdrop so it sits in the same space as the bubble's own text and matches its
-	-- size. The client reuses bubbles, so the name is refreshed on every show rather
-	-- than written once.
-	if C.Chat.BubbleName then
-		local name = holder:CreateFontString(nil, "OVERLAY")
-		local font, size, outline = GameFontNormal:GetFont()
-		name:SetFont(font, size * 0.9, outline)
-		name:SetPoint("BOTTOM", holder, "TOP", 0, 2)
-		name:SetJustifyH("CENTER")
-		bubble.KKUI_Name = name
-
-		UpdateBubbleName(bubble, holder)
-		bubble:HookScript("OnShow", function(self)
-			UpdateBubbleName(self, holder)
-		end)
+	-- Centre over the bubble, bottom on its bottom, in our layer's coordinates.
+	local cx, bottom = holder:GetCenter(), holder:GetBottom()
+	if not cx or not bottom then
+		return true
 	end
-
-	bubble.KKUI_Styled = true
+	local ratio = holder:GetEffectiveScale() / layer:GetEffectiveScale()
+	local x, y = cx * ratio, bottom * ratio
+	if not mirror.x or abs(mirror.x - x) > 0.5 or abs(mirror.y - y) > 0.5 then
+		mirror.x, mirror.y = x, y
+		mirror:ClearAllPoints()
+		mirror:SetPoint("BOTTOM", layer, "BOTTOMLEFT", x, y)
+	end
+	return true
 end
 
--- A short pulse after a spawning event: the bubble is not on the list on the
--- same frame it is requested, so give it a moment then style everything unstyled.
-local watcher
-
-local function OnUpdate(self, elapsed)
-	self.elapsed = (self.elapsed or 0) + elapsed
-	if self.elapsed < 0.1 then
+local function Adopt(bubble)
+	if mirrors[bubble] or bubble:IsForbidden() then
 		return
 	end
-	self.elapsed = 0
-	self:Hide()
-
-	-- The list can come back as a secret table, which cannot be walked.
-	local bubbles = GetAllChatBubbles()
-	if not bubbles or IsSecret(bubbles) then
+	local holder = bubble:GetChildren()
+	if not holder or holder:IsForbidden() or not holder.String then
 		return
 	end
-	for _, bubble in pairs(bubbles) do
-		SkinBubble(bubble)
+	mirrors[bubble] = CreateMirror()
+	-- The client reuses bubbles, and ours keeps it invisible. Wake the follow loop
+	-- whenever it comes back, whatever chat type brought it, so it is never left
+	-- hidden with nothing drawn over it.
+	bubble:HookScript("OnShow", function()
+		driver:Show()
+	end)
+end
+
+local function OnUpdate(self)
+	if GetTime() < scanUntil then
+		-- The list can come back as a secret table, which cannot be walked.
+		local list = GetAllChatBubbles()
+		if list and not IsSecret(list) then
+			for _, bubble in pairs(list) do
+				Adopt(bubble)
+			end
+		end
 	end
+
+	local active = false
+	for bubble, mirror in pairs(mirrors) do
+		if Follow(bubble, mirror) then
+			active = true
+		end
+	end
+
+	-- Sleep once nothing is on screen and no new bubble is expected. A chat event
+	-- or a bubble's OnShow wakes us again.
+	if not active and GetTime() >= scanUntil then
+		self:Hide()
+	end
+end
+
+local function Stash(message, sender, guid)
+	if not (message and sender) or IsSecret(message) or IsSecret(sender) then
+		return
+	end
+	if stashed >= MAX_STASHED then
+		wipe(senderByMessage)
+		wipe(guidByMessage)
+		stashed = 0
+	end
+	stashed = stashed + 1
+	senderByMessage[message] = Ambiguate(sender, "none")
+	guidByMessage[message] = (guid and not IsSecret(guid)) and guid or nil
 end
 
 local function OnEvent(self, event, message, sender, _, _, _, _, _, _, _, _, _, guid)
@@ -181,6 +290,18 @@ local function OnEvent(self, event, message, sender, _, _, _, _, _, _, _, _, _, 
 		wipe(senderByMessage)
 		wipe(guidByMessage)
 		stashed = 0
+		for bubble in pairs(mirrors) do
+			mirrors[bubble]:Hide()
+			mirrors[bubble].message = nil
+		end
+		return
+	end
+	if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+		layer:SetScale(UIParent:GetEffectiveScale() / WorldFrame:GetEffectiveScale())
+		for _, mirror in pairs(mirrors) do
+			mirror.x = nil
+			mirror.message = nil -- resize on the next frame
+		end
 		return
 	end
 
@@ -188,24 +309,8 @@ local function OnEvent(self, event, message, sender, _, _, _, _, _, _, _, _, _, 
 	if not (cvar and GetCVarBool(cvar)) then
 		return
 	end
-
-	-- Stash who said it against the words, which is the only handle the bubble
-	-- gives us later. Both can be secret on Midnight, and a secret cannot key a
-	-- table, so an unreadable message simply goes unnamed.
-	if C.Chat.BubbleName and message and not IsSecret(message) and sender and not IsSecret(sender) then
-		-- A cap as well as the loading screen wipe, so a long stretch of yell spam in a
-		-- city cannot grow the tables without limit.
-		if stashed >= MAX_STASHED then
-			wipe(senderByMessage)
-			wipe(guidByMessage)
-			stashed = 0
-		end
-		stashed = stashed + 1
-		senderByMessage[message] = Ambiguate(sender, "none")
-		guidByMessage[message] = (guid and not IsSecret(guid)) and guid or nil
-	end
-
-	self.elapsed = 0
+	Stash(message, sender, guid)
+	scanUntil = GetTime() + SCAN_WINDOW
 	self:Show()
 end
 
@@ -214,13 +319,21 @@ function Module:SetupBubbles()
 		return
 	end
 
-	watcher = CreateFrame("Frame")
-	watcher:Hide()
+	-- On the WorldFrame so bubbles stay with the UI hidden, as the client's do,
+	-- scaled so our shadow and font match the rest of the UI.
+	layer = CreateFrame("Frame", nil, WorldFrame)
+	layer:SetAllPoints(WorldFrame)
+	layer:SetFrameStrata("BACKGROUND")
+	layer:SetScale(UIParent:GetEffectiveScale() / WorldFrame:GetEffectiveScale())
+
+	driver = CreateFrame("Frame", nil, layer)
+	driver:Hide()
 	for event in pairs(SPAWN_EVENTS) do
-		watcher:RegisterEvent(event)
+		driver:RegisterEvent(event)
 	end
-	-- Drop the caches on a loading screen so they cannot grow for a whole session.
-	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-	watcher:SetScript("OnEvent", OnEvent)
-	watcher:SetScript("OnUpdate", OnUpdate)
+	driver:RegisterEvent("PLAYER_ENTERING_WORLD")
+	driver:RegisterEvent("UI_SCALE_CHANGED")
+	driver:RegisterEvent("DISPLAY_SIZE_CHANGED")
+	driver:SetScript("OnEvent", OnEvent)
+	driver:SetScript("OnUpdate", OnUpdate)
 end

@@ -258,6 +258,47 @@ K.ConfigDefaults = {
 			},
 		},
 
+		-- Main hand, off hand and ranged swing bars, each on its own mover.
+		Swing = {
+			Enable = true,
+			Spark = true,
+			Drain = false, -- empty the bar as the swing runs instead of filling it
+			RangeCheck = true, -- dim a bar once its swing ends while the target is out of reach
+			RangeAlpha = 0.4,
+		Waypoints = true, -- /way and Alt+click on the map set the game's own super-tracked waypoint
+			HasteAdjust = true, -- stretch or shrink a running swing when attack speed changes
+			MainHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.36, 0.55, 0.81 }, -- accent blue
+			},
+			OffHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.62, 0.48, 0.86 }, -- violet, so the two hands read apart
+			},
+			Ranged = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.95, 0.69, 0.26 }, -- gold
+			},
+		},
+
 		Castbar = {
 			Enable = true,
 			ShowIcon = true,
@@ -385,18 +426,27 @@ K.ConfigDefaults = {
 	-- Movable, reskinned micro menu.
 	MicroMenu = {
 		Enable = true,
-		ButtonSize = 28,
-		Spacing = 6,
-		Orientation = "HORIZONTAL", -- HORIZONTAL or VERTICAL
-		Order = "DEFAULT", -- DEFAULT or REVERSE
-		HideStock = true, -- hide the game's own micro menu while ours is off
-	},
+		CursorTrail = false, -- a trail behind the mouse pointer
+		CursorTrailStyle = "Comet", -- Ribbon, Particles or Comet
+		CursorTrailLength = 48, -- most trail points on screen at once
+		CursorTrailSpacing = 8, -- pixels the pointer must travel before another point is dropped
+		CursorTrailLifetime = 0.45, -- seconds a point takes to fade out
+		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
+		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
+		CursorTrailSize = 18, -- particle size and ribbon width
 
-	-- Movable, reskinned bag bar.
+		CursorTrailShrink = true, -- taper the ribbon and shrink particles as they fade
+		CursorTrailDrift = true, -- particles drift apart as they fade
+		CursorTrailTwinkle = true, -- particles flicker as they fade
+		CursorTrailHead = true, -- a glow on the pointer itself
+		CursorTrailHeadShape = "IconGlow",
+		CursorTrailHeadSize = 34,
 	BagBar = {
 		Enable = true,
 		ButtonSize = 30,
 		Spacing = 6,
+		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
 		Orientation = "HORIZONTAL", -- HORIZONTAL or VERTICAL
 		Order = "DEFAULT", -- DEFAULT puts the backpack first, REVERSE puts it last
 		ShowKeyring = true, -- the keyring button, when the client has one
@@ -430,6 +480,8 @@ K.ConfigDefaults = {
 		CursorTrailStyle = "Comet", -- Ribbon, Particles or Comet
 		CursorTrailLength = 48, -- most trail points on screen at once
 		CursorTrailSpacing = 8, -- pixels the pointer must travel before another point is dropped
+		MaxCameraDistance = false, -- raise the camera distance setting to the top of the game's own slider
+		EasyFishing = false, -- double right-click on the world to cast Fishing
 		CursorTrailLifetime = 0.45, -- seconds a point takes to fade out
 		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
 		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
@@ -443,7 +495,6 @@ K.ConfigDefaults = {
 		CursorTrailHeadSize = 34,
 		CustomCategories = {}, -- custom category key -> display name
 		ItemAssignments = {}, -- itemID -> category key the player pinned it to
-	},
 
 		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
 		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
@@ -497,11 +548,14 @@ K.ConfigDefaults = {
 		Width = 232, -- minimum window width, grown to fit the longest item name
 		RollFrames = true, -- compact group loot roll bars in place of the game's roll frames
 		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		Emojis = true, -- show :) and :shortcodes: as small icons in player chat
 		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
-		RollWidth = 380, -- room for the name beside four buttons and the BoP tag
+		BubbleName = true, -- start the bubble with who is speaking, class coloured
+		BubbleChatColor = true, -- tint the bubble shadow by chat type (party, raid, yell)
 		RollHeight = 26,
 	},
 
+		CharacterCount = true, -- characters left to type, on the right of the chat edit box
 	-- Tint already-known collectibles green at vendors, AH, and guild bank.
 	AlreadyKnown = {
 		Enable = true,
