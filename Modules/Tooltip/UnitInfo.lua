@@ -307,7 +307,9 @@ function Module:OnUnitTooltip(tt)
 		-- so the line is left out rather than erroring the whole tooltip.
 		if targetName and not IsSecret(targetName) then
 			local value
-			if targetName == K.Name then
+			-- By unit, not by name, so a player or pet sharing your name is not you.
+			local isYou = UnitIsUnit(unit .. "target", "player")
+			if not IsSecret(isYou) and isYou then
 				value = ColorText("negative", ">" .. string.upper(YOU) .. "<")
 			else
 				local r, g, b = UnitColor(unit .. "target")
@@ -403,7 +405,9 @@ function Module:SetupUnitInfo()
 	local modifierWatcher = CreateFrame("Frame")
 	modifierWatcher:RegisterEvent("MODIFIER_STATE_CHANGED")
 	modifierWatcher:SetScript("OnEvent", function(_, _, key)
-		if not C.Tooltip.ItemLevelOnShift then
+		-- Nothing on the unit tooltip depends on shift unless the item level line is
+		-- on and gated by it, and a rebuild drops lines a frame added after SetUnit.
+		if not (C.Tooltip.ShowItemLevel and C.Tooltip.ItemLevelOnShift) then
 			return
 		end
 		if key ~= "LSHIFT" and key ~= "RSHIFT" then

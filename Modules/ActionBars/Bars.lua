@@ -449,9 +449,17 @@ function Module:SetupFade(bar, cfg)
 		mouseover = cfg.Mouseover and true or false,
 		hovered = false,
 	}
-	state.current = state.target
+	-- A re-run (any re-layout, a mover drop, a font change) carries on from where
+	-- the bar is, so a faded bar does not flash to full and fade out again.
+	local prev = faders[bar]
+	if prev then
+		state.current = prev.current
+		state.hovered = prev.hovered
+	else
+		state.current = state.target
+	end
 	faders[bar] = state
-	bar:SetAlpha(state.target)
+	bar:SetAlpha(state.current)
 
 	-- The hooks read the live state through the weak table, so they are added once
 	-- and a later SetupFade with new settings just swaps the state under them.
