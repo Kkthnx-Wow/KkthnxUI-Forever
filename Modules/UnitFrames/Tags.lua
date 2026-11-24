@@ -25,7 +25,11 @@ local UnitIsAFK = UnitIsAFK
 local UnitIsConnected = UnitIsConnected
 local UnitIsDND = UnitIsDND
 local UnitIsPlayer = UnitIsPlayer
-local UnitReaction = UnitReaction
+local UnitExists = UnitExists
+local UnitDetailedThreatSituation = UnitDetailedThreatSituation
+local GetThreatStatusColor = GetThreatStatusColor
+local IsInGroup = IsInGroup
+local floor = math.floor
 
 -- ---------------------------------------------------------------------------
 -- Name
@@ -64,8 +68,8 @@ oUF.Tags.Methods["kkui:namecolor"] = function(unit)
 	else
 		-- Reaction is likewise secret for hostile units, so only index our table
 		-- with a plain value.
-		local reaction = UnitReaction(unit, "player")
-		if reaction and not issecretvalue(reaction) then
+		local reaction = K.UnitReactionIndex(unit)
+		if reaction then
 			color = oUF.colors.reaction[reaction]
 		end
 	end
@@ -193,3 +197,38 @@ oUF.Tags.Methods["kkui:level"] = function(unit)
 	return level
 end
 oUF.Tags.Events["kkui:level"] = "UNIT_LEVEL PLAYER_LEVEL_UP UNIT_CLASSIFICATION_CHANGED"
+
+-- Level colour by difficulty, for units you can attack. Uses the same helper as
+-- the nameplates and tooltip so all three agree, and the server's difficulty
+-- rating where oUF's [difficulty] only compares levels.
+oUF.Tags.Methods["kkui:difficulty"] = function(unit)
+	local color = K.UnitDifficultyColor(unit)
+	return color and K.RGBToHex(color.r, color.g, color.b) or ""
+end
+oUF.Tags.Events["kkui:difficulty"] = "UNIT_LEVEL PLAYER_LEVEL_UP UNIT_FACTION"
+
+-- ---------------------------------------------------------------------------
+-- Threat
+-- ---------------------------------------------------------------------------
+
+-- Your share of the target's threat, 100 meaning you have or are about to pull
+-- it, coloured by the game's threat state. Alone with no pet it is always 100,
+-- so it only shows in a group or with a pet. The game can hand back secret
+-- threat values (a boss target, for one), and then nothing is shown.
+oUF.Tags.Methods["kkui:threat"] = function(unit)
+	if not IsInGroup() and not UnitExists("pet") then
+		return ""
+	end
+	local _, status, percent = UnitDetailedThreatSituation("player", unit)
+	if percent == nil or IsSecret(percent) or IsSecret(status) or percent <= 0 then
+		return ""
+	end
+	local hex = ""
+	if status then
+		hex = K.RGBToHex(GetThreatStatusColor(status))
+	end
+	return hex .. floor(percent + 0.5) .. "%|r"
+end
+-- The situation event and UNIT_PET name the player, so the tag is given
+-- "player" as an extra unit where it is built.
+oUF.Tags.Events["kkui:threat"] = "UNIT_THREAT_LIST_UPDATE UNIT_THREAT_SITUATION_UPDATE UNIT_PET GROUP_ROSTER_UPDATE"

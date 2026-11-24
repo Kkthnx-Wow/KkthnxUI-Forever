@@ -35,6 +35,15 @@ local function BuildMirrored(self, cfg, nameSize, style)
 	end
 	Build.Range(self)
 
+	-- Your threat on the target, on the free left end of the health bar.
+	if style == "target" and C.Unitframe.Target.Threat then
+		local threat = Module.NewText(self.Health, 11)
+		threat:SetPoint("LEFT", self.Health, "LEFT", 3, 0)
+		threat:SetJustifyH("LEFT")
+		self:Tag(threat, "[kkui:threat]", "player")
+		self.ThreatText = threat
+	end
+
 	-- Name first so it sits directly above health, then the aura panels on top.
 	Build.Name(self, nameSize)
 	Build.Auras(self, cfg)

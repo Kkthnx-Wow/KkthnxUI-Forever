@@ -28,6 +28,8 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local GetPhysicalScreenSize = GetPhysicalScreenSize
 local InCombatLockdown = InCombatLockdown
+local UnitCanAttack = UnitCanAttack
+local UnitEffectiveLevel = UnitEffectiveLevel
 
 -- ---------------------------------------------------------------------------
 -- Player info
@@ -291,6 +293,33 @@ end
 -- Some retail values are "secret" (protected) and cannot be read in combat.
 K.IsSecret = _G.issecretvalue or function()
 	return false
+end
+
+-- Difficulty colour for a unit's level, shared by the unit frames, nameplates and
+-- tooltip so they always agree. Only units we can attack get one, as on the
+-- Blizzard target frame, since the colour says how hard a fight would be. It asks
+-- the server, which accounts for scaled zones and level sync, and falls back to
+-- the level gap. Returns nil for everyone else, who keep the plain text colour.
+function K.UnitDifficultyColor(unit)
+	if not UnitCanAttack("player", unit) then
+		return nil
+	end
+	local PlayerInfo = _G.C_PlayerInfo
+	if PlayerInfo and PlayerInfo.GetContentDifficultyCreatureForPlayer and _G.GetDifficultyColor then
+		local difficulty = PlayerInfo.GetContentDifficultyCreatureForPlayer(unit)
+		if difficulty ~= nil and not K.IsSecret(difficulty) then
+			return _G.GetDifficultyColor(difficulty)
+		end
+	end
+	if not _G.GetCreatureDifficultyColor then
+		return nil
+	end
+	local level = UnitEffectiveLevel(unit)
+	if level == nil or K.IsSecret(level) then
+		return nil
+	end
+	-- Skull level reads as far above you.
+	return _G.GetCreatureDifficultyColor(level > 0 and level or 999)
 end
 
 -- Gear whose look is not in the transmog collection yet. A grey piece like that is

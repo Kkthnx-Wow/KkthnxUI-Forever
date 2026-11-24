@@ -22,6 +22,8 @@ local UnitIsPlayer = UnitIsPlayer
 local UnitInPartyIsAI = UnitInPartyIsAI
 local UnitReaction = UnitReaction
 local UnitCanAttack = UnitCanAttack
+local UnitIsTapDenied = UnitIsTapDenied
+local UnitPlayerControlled = UnitPlayerControlled
 local UnitThreatSituation = UnitThreatSituation
 local oUF = K.oUF
 
@@ -188,8 +190,8 @@ local function UnitBorderColor(frame, unit)
 		return nil
 	end
 
-	local reaction = UnitReaction(unit, "player")
-	if reaction and not IsSecret(reaction) then
+	local reaction = K.UnitReactionIndex(unit)
+	if reaction then
 		return colors.reaction[reaction]
 	end
 	return nil
@@ -216,22 +218,29 @@ function Module.RefreshHealthBorder(self)
 	end
 end
 
--- Enemy fill override, run after oUF's own colouring. Players and friendly units
--- keep the colour oUF gave them. Enemies get a threat colour when that option is
--- on, and a solid hostile colour when their reaction is secret, so a mob we are
--- fighting never falls back to the plain green health fill.
-local function ColorEnemyFill(element, unit)
+-- NPC fill override, run after oUF's own colouring. Players and tapped mobs keep
+-- the colour oUF gave them. Enemies get a threat colour when that option is on.
+-- With reaction colours on, NPCs take the game's selection colour like Blizzard's
+-- plates. A mob whose reaction is secret gets a solid hostile colour, so one we
+-- are fighting never falls back to the plain green health fill.
+local function ColorNPCFill(element, unit)
 	local isPlayer = UnitIsPlayer(unit)
 	if IsSecret(isPlayer) or isPlayer then
 		return
 	end
 
-	local canAttack = UnitCanAttack("player", unit)
-	if IsSecret(canAttack) or not canAttack then
-		return -- friendly npc: leave oUF's reaction colour
+	local controlled = UnitPlayerControlled(unit)
+	if not IsSecret(controlled) and not controlled then
+		local tapDenied = UnitIsTapDenied(unit)
+		if IsSecret(tapDenied) or tapDenied then
+			return
+		end
 	end
 
-	if C.Unitframe.ThreatHealthColor then
+	local canAttack = UnitCanAttack("player", unit)
+	local attackable = not IsSecret(canAttack) and canAttack
+
+	if attackable and C.Unitframe.ThreatHealthColor then
 		local status = UnitThreatSituation("player", unit)
 		if status and not IsSecret(status) then
 			local color = K.ThreatFillColor(status, K.PlayerIsTank())
@@ -242,8 +251,21 @@ local function ColorEnemyFill(element, unit)
 		end
 	end
 
-	-- If the reaction is readable oUF already coloured it right, so only step in
-	-- when it is secret: use the hostile colour instead of the stock green.
+	if C.Unitframe.ClassHealth then
+		local index = K.UnitReactionIndex(unit)
+		local color = index and oUF.colors.reaction[index]
+		if color then
+			element:SetStatusBarColor(color:GetRGB())
+			return
+		end
+	end
+
+	if not attackable then
+		return
+	end
+
+	-- A readable reaction means oUF's colour stands, so only step in when it is
+	-- secret: use the hostile colour instead of the stock green.
 	local reaction = UnitReaction(unit, "player")
 	if reaction and not IsSecret(reaction) then
 		return
@@ -275,12 +297,13 @@ local function OnHealthColor(element, unit)
 	frame.__unitColor = petColored and frame.colors.class[K.Class] or UnitBorderColor(frame, unit)
 	Module.RefreshHealthBorder(frame)
 
-	if element.__shaded then
-		ShadeBar(element)
+	if not petColored then
+		ColorNPCFill(element, unit)
 	end
 
-	if not petColored then
-		ColorEnemyFill(element, unit)
+	-- After the fill override, so the tint reads the colour the bar ends up with.
+	if element.__shaded then
+		ShadeBar(element)
 	end
 end
 

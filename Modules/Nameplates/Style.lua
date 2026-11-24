@@ -84,8 +84,8 @@ oUF.Tags.Methods["kkui:npnamecolor"] = function(unit)
 			end
 		end
 	else
-		local reaction = UnitReaction(unit, "player")
-		local color = reaction and not IsSecret(reaction) and oUF.colors.reaction[reaction]
+		local reaction = K.UnitReactionIndex(unit)
+		local color = reaction and oUF.colors.reaction[reaction]
 		if color then
 			return color:GenerateHexColorMarkup()
 		end
@@ -124,14 +124,14 @@ oUF.Tags.Methods["kkui:nplevel"] = function(unit)
 	if level <= 0 then
 		return K.ColorText("negative", "??") .. " "
 	end
-	-- Coloured by difficulty against your level, the same as the unit frames.
-	local color = GetCreatureDifficultyColor and GetCreatureDifficultyColor(level)
+	-- Coloured by difficulty when attackable, the same as the unit frames.
+	local color = K.UnitDifficultyColor(unit)
 	if color then
 		return K.RGBToHex(color.r, color.g, color.b) .. level .. "|r "
 	end
 	return level .. " "
 end
-oUF.Tags.Events["kkui:nplevel"] = "UNIT_LEVEL PLAYER_LEVEL_UP"
+oUF.Tags.Events["kkui:nplevel"] = "UNIT_LEVEL PLAYER_LEVEL_UP UNIT_FACTION"
 
 -- An NPC's title, such as Butcher or Flight Master, is the second line of its
 -- tooltip when that line is not the level line. Kept per NPC ID, since every
@@ -211,6 +211,16 @@ local TARGET_ACCENT = { 1, 0.9, 0.2 }
 -- The shadow carries three cues, in priority order: the accent when this plate
 -- is your target, a threat colour when you hold or are pulling aggro, and plain
 -- black otherwise. Replaces the old border recolour.
+-- Runs on every health event of every plate, and the colour rarely changes, so
+-- the border is only repainted when it does.
+local function PaintShadow(shadow, r, g, b)
+	if shadow.__r == r and shadow.__g == g and shadow.__b == b then
+		return
+	end
+	shadow.__r, shadow.__g, shadow.__b = r, g, b
+	shadow:SetBackdropBorderColor(r, g, b, 1)
+end
+
 local function UpdateTargetHighlight(self)
 	local unit = self.unit
 	local isTarget = unit and UnitIsUnit(unit, "target")
@@ -237,7 +247,7 @@ local function UpdateTargetHighlight(self)
 	end
 
 	if C.Nameplate.TargetHighlight and not IsSecret(isTarget) and isTarget then
-		shadow:SetBackdropBorderColor(TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3], 1)
+		PaintShadow(shadow, TARGET_ACCENT[1], TARGET_ACCENT[2], TARGET_ACCENT[3])
 		return
 	end
 
@@ -245,12 +255,12 @@ local function UpdateTargetHighlight(self)
 		local status = UnitThreatSituation("player", unit)
 		if status and not IsSecret(status) and status >= 2 then
 			local r, g, b = GetThreatStatusColor(status)
-			shadow:SetBackdropBorderColor(r, g, b, 1)
+			PaintShadow(shadow, r, g, b)
 			return
 		end
 	end
 
-	shadow:SetBackdropBorderColor(0, 0, 0, 1)
+	PaintShadow(shadow, 0, 0, 0)
 end
 
 -- Elite / rare / boss classification icon.
@@ -493,12 +503,31 @@ local function UpdateQuest(self, force)
 		progress, fromParty, texture = CachedQuestProgress(unit, force)
 	end
 	if not progress then
-		if self.QuestCount then
-			self.QuestCount:SetText("")
+		if icon.__shown ~= false then
+			icon.__shown = false
+			if self.QuestCount then
+				self.QuestCount:SetText("")
+			end
+			icon:Hide()
 		end
-		icon:Hide()
 		return
 	end
+
+	-- Progress text: always, or only while this plate is your target.
+	local text = progress
+	if text ~= "" and self.QuestCount and C.Nameplate.QuestProgressOnTarget then
+		local isTarget = UnitIsUnit(unit, "target")
+		if IsSecret(isTarget) or not isTarget then
+			text = ""
+		end
+	end
+
+	-- Called on every health event, and the marker is the same nearly every time,
+	-- so nothing is written unless something in it changed.
+	if icon.__shown and icon.__party == fromParty and icon.__text == text and icon.__texture == texture then
+		return
+	end
+	icon.__shown, icon.__party, icon.__text = true, fromParty, text
 
 	-- Grey a party member's quest, full colour for your own. The count follows
 	-- the icon so the pair always reads as one marker.
@@ -515,15 +544,8 @@ local function UpdateQuest(self, force)
 	end
 	SetQuestArt(self, icon, texture)
 	icon:Show()
-
-	-- Progress text: always, or only while this plate is your target.
 	if self.QuestCount then
-		local show = progress ~= ""
-		if show and C.Nameplate.QuestProgressOnTarget then
-			local isTarget = UnitIsUnit(unit, "target")
-			show = not IsSecret(isTarget) and isTarget
-		end
-		self.QuestCount:SetText(show and progress or "")
+		self.QuestCount:SetText(text)
 	end
 end
 
@@ -846,8 +868,8 @@ local function CustomHealthColor(health, unit)
 		end
 	end
 
-	local reaction = UnitReaction(unit, "player")
-	if reaction and not IsSecret(reaction) then
+	local reaction = K.UnitReactionIndex(unit)
+	if reaction then
 		local c = oUF.colors.reaction[reaction]
 		if c then
 			health:SetStatusBarColor(c:GetRGB())
@@ -860,6 +882,17 @@ local function CustomHealthColor(health, unit)
 	if hostile then
 		health:SetStatusBarColor(hostile:GetRGB())
 	end
+end
+
+-- The threat fill and the threat shadow only read threat when health or the
+-- target changed, so a tank losing a mob at full health saw nothing. The mob's
+-- threat list event repaints both without a full health update.
+local function OnThreatChanged(self, _, unit)
+	if unit ~= self.unit or not self.Health then
+		return
+	end
+	CustomHealthColor(self.Health, unit)
+	UpdateTargetHighlight(self)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1241,8 +1274,9 @@ function Module.Style(self, unit)
 	BuildPrivateAuras(self)
 	BuildIndicators(self)
 
-	-- Raid target marker above the health bar.
-	local raid = self.Health:CreateTexture(nil, "OVERLAY")
+	-- Raid target marker above the name. On the plate, not the health bar, so it
+	-- still shows on name-only plates, which hide the health bar.
+	local raid = self:CreateTexture(nil, "OVERLAY")
 	raid:SetSize(20, 20)
 	raid:SetPoint("BOTTOM", self.Name, "TOP", 0, 2)
 	self.RaidTargetIndicator = raid
@@ -1254,6 +1288,9 @@ function Module.Style(self, unit)
 		self:RegisterEvent("PLAYER_FOCUS_CHANGED", OnFocusChanged, true)
 	end
 	self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", OnMouseover, true)
+	if C.Nameplate.ThreatColor or C.Nameplate.ThreatHealthColor then
+		self:RegisterEvent("UNIT_THREAT_LIST_UPDATE", OnThreatChanged)
+	end
 	if self.QuestIcon then
 		EnsureQuestWatcher()
 	end

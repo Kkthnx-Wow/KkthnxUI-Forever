@@ -85,7 +85,7 @@ function Build.PortraitLevel(self)
 	-- Centered level on the gradient strip above the portrait, using the exact
 	-- same helper as the name over the health bar so they match.
 	local level = Module.GradientLabel(self, holder, 12)
-	self:Tag(level, "[difficulty][kkui:level]")
+	self:Tag(level, "[kkui:difficulty][kkui:level]")
 	self.LevelText = level
 	return level
 end

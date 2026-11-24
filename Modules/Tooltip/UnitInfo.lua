@@ -35,7 +35,6 @@ local GetRaidTargetIndex = _G.GetRaidTargetIndex
 local IsInRaid = IsInRaid
 local GetNumGroupMembers = GetNumGroupMembers
 local GetGuildInfo = GetGuildInfo
-local GetCreatureDifficultyColor = _G.GetCreatureDifficultyColor
 local C_Item = C_Item
 local C_MountJournal = C_MountJournal
 local IsSecret = K.IsSecret
@@ -114,8 +113,8 @@ local function UnitColor(unit)
 			return K.ClassColorRGB(class)
 		end
 	else
-		local reaction = UnitReaction(unit, "player")
-		if reaction and not IsSecret(reaction) then
+		local reaction = K.UnitReactionIndex(unit)
+		if reaction then
 			-- Read our custom reaction palette so the tooltip matches the frames,
 			-- falling back to Blizzard's if ours has no entry for this reaction.
 			local color = K.oUF and K.oUF.colors and K.oUF.colors.reaction and K.oUF.colors.reaction[reaction]
@@ -252,10 +251,10 @@ function Module:OnUnitTooltip(tt)
 		local levelLine = FindLine(tt, function(t)
 			return t:find(LEVEL, 1, true) ~= nil
 		end)
-		if levelLine and GetCreatureDifficultyColor then
+		if levelLine then
 			-- One identity line: the level in its difficulty colour, then the rest.
 			-- The word "Level" goes, the number reads as a level on its own.
-			local color = GetCreatureDifficultyColor(level)
+			local color = K.UnitDifficultyColor(unit)
 			local levelText = level > 0 and tostring(level) or "??"
 			if color then
 				levelText = RGBText(color.r, color.g, color.b, levelText)
@@ -339,7 +338,9 @@ function Module:OnUnitTooltip(tt)
 		local names = {}
 		for i = 1, GetNumGroupMembers() do
 			local member = prefix .. i
-			if not UnitIsUnit(member, "player") then
+			-- UnitIsUnit can answer secret, so a secret answer skips the member.
+			local isSelf = UnitIsUnit(member, "player")
+			if not IsSecret(isSelf) and not isSelf then
 				local isTarget = UnitIsUnit(member .. "target", unit)
 				if not IsSecret(isTarget) and isTarget then
 					local mname = UnitName(member)

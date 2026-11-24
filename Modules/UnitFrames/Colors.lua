@@ -10,6 +10,31 @@
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
 
+local IsSecret = K.IsSecret
+local UnitReaction = UnitReaction
+local UnitSelectionType = UnitSelectionType
+
+-- Selection types 0 to 3 (hostile, unfriendly, neutral, friendly) mapped onto
+-- our reaction palette slots.
+local SELECTION_REACTION = { [0] = 2, [1] = 3, [2] = 4, [3] = 5 }
+
+-- Palette slot for an NPC's colour. The game's selection type wins over raw
+-- reaction because it is what Blizzard colours by: a hated NPC that will not
+-- attack you reads unfriendly orange, and turns red once it fights you.
+function K.UnitReactionIndex(unit)
+	local selection = UnitSelectionType and UnitSelectionType(unit, true)
+	if selection and not IsSecret(selection) then
+		local index = SELECTION_REACTION[selection]
+		if index then
+			return index
+		end
+	end
+	local reaction = UnitReaction(unit, "player")
+	if reaction and not IsSecret(reaction) then
+		return reaction
+	end
+end
+
 local oUF = K.oUF
 local colors = oUF and oUF.colors
 if not colors then
