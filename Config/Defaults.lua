@@ -79,6 +79,7 @@ K.ConfigDefaults = {
 		PowerFormat = "Current", -- None, Current, Percent, Both
 		NameColor = true,
 		NameLength = 18,
+		FirstNameOnly = false, -- drop the surname from player names (raid frames always do)
 
 		-- Custom power bar colours, applied over the oUF defaults. Keyed by power
 		-- token so both unit frames and nameplates use them.
@@ -592,7 +593,6 @@ K.ConfigDefaults = {
 		ShowRaidIcon = true, -- raid target marker ahead of the unit name
 		ShowTargetedBy = true, -- who in your group is targeting this unit
 		ShowTitle = true, -- swap in the player's title (PvP name)
-		ShowRealm = true, -- append the realm for cross-realm players
 		HidePvP = true, -- hide the big red PvP line
 		UnitFrameHint = true, -- the "right click for frame settings" line on unit frame tooltips
 	},

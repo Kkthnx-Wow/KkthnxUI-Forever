@@ -31,6 +31,11 @@ local GetThreatStatusColor = GetThreatStatusColor
 local IsInGroup = IsInGroup
 local floor = math.floor
 
+-- Forever gives a player's surname as UnitName's second value, not a realm.
+-- Blizzard's own GetUnitName joins the two with this separator.
+local nameConsts = Constants and Constants.CharacterNameSeparatorConsts
+local SURNAME_SEPARATOR = nameConsts and nameConsts.CHARACTERNAME_SURNAME_SEPARATOR or " "
+
 -- ---------------------------------------------------------------------------
 -- Name
 -- ---------------------------------------------------------------------------
@@ -94,6 +99,16 @@ local function TrimName(name, limit, ellipsis)
 	return name
 end
 
+-- The name to show, with the surname unless First Name Only is set. NPCs and
+-- players without a surname have no second value. The name passed in is already
+-- known not to be secret, and a secret surname cannot be joined, so it is left off.
+local function FullName(name, surname)
+	if C.Unitframe.FirstNameOnly or not surname or IsSecret(surname) or surname == "" then
+		return name
+	end
+	return name .. SURNAME_SEPARATOR .. surname
+end
+
 -- The party and raid name rules, shared with config mode so a made up name is
 -- cut exactly the way a real one would be. Callers pass a plain string.
 function K.FormatPartyName(name)
@@ -114,7 +129,7 @@ function K.FormatRaidName(name)
 end
 
 oUF.Tags.Methods["kkui:name"] = function(unit)
-	local name = UnitName(unit)
+	local name, surname = UnitName(unit)
 	if not name then
 		return ""
 	end
@@ -124,20 +139,20 @@ oUF.Tags.Methods["kkui:name"] = function(unit)
 		return name
 	end
 
-	return TrimName(name, C.Unitframe.NameLength or 0, true)
+	return TrimName(FullName(name, surname), C.Unitframe.NameLength or 0, true)
 end
 oUF.Tags.Events["kkui:name"] = "UNIT_NAME_UPDATE"
 
 -- Party name with its own length. Zero follows the shared Name Length.
 oUF.Tags.Methods["kkui:nameparty"] = function(unit)
-	local name = UnitName(unit)
+	local name, surname = UnitName(unit)
 	if not name then
 		return ""
 	end
 	if IsSecret(name) then
 		return name
 	end
-	return K.FormatPartyName(name)
+	return K.FormatPartyName(FullName(name, surname))
 end
 oUF.Tags.Events["kkui:nameparty"] = "UNIT_NAME_UPDATE"
 
@@ -151,6 +166,8 @@ oUF.Tags.Methods["kkui:nameshort"] = function(unit)
 	if IsSecret(name) then
 		return name
 	end
+	-- Always the first name alone. The cut is only a few letters, so a surname
+	-- would only ever show as a stray letter after a short first name.
 	return K.FormatRaidName(name)
 end
 oUF.Tags.Events["kkui:nameshort"] = "UNIT_NAME_UPDATE"

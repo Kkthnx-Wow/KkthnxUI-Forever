@@ -164,13 +164,9 @@ function Module:OnUnitTooltip(tt)
 					name = pvpName
 				end
 			end
-			-- Append the realm for cross-realm players.
-			if db.ShowRealm then
-				local realm = select(2, UnitName(unit))
-				if realm and not IsSecret(realm) and realm ~= "" then
-					name = name .. "-" .. realm
-				end
-			end
+			-- No realm is appended. On Forever UnitName's second value is the
+			-- surname, which the name line already carries, so appending it gave
+			-- "Kkthnx Pewpew-Pewpew".
 			-- Faction crest ahead of the name, standing in for the text line.
 			local prefix = ""
 			if db.ShowFactionIcon then

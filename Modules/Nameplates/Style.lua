@@ -344,7 +344,11 @@ local function ReadQuestTooltip(unit)
 		if t == LT.QuestPlayer then
 			-- A "<name>'s quest" divider, everything after belongs to that player.
 			if not IsSecret(line.leftText) then
-				ownerIsPlayer = line.leftText == K.Name
+				-- A Forever name can carry a surname, which UnitName gives as its
+				-- second value, so match the first name alone or with it.
+				local text = line.leftText
+				local first, surname = UnitName("player")
+				ownerIsPlayer = text == first or (surname ~= nil and surname ~= "" and text == first .. " " .. surname)
 			end
 		elseif t == LT.QuestObjective and (ownerIsPlayer or C.Nameplate.QuestShowParty) then
 			-- The line says itself whether it is done. Trust that when it is there,

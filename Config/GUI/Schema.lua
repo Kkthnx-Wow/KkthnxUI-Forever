@@ -606,6 +606,10 @@ GUI.schema = {
 			{ kind = "dropdown", label = L["Power Text"], path = { "Unitframe", "PowerFormat" }, options = TEXT_FORMATS, reload = true },
 			{ kind = "check", label = L["Colored Names"], path = { "Unitframe", "NameColor" }, apply = RefreshTags("kkui:namecolor"), tooltip = L["Class colour for players, reaction colour for everything else."] },
 			{ kind = "slider", label = L["Name Length"], path = { "Unitframe", "NameLength" }, min = 0, max = 30, step = 1, apply = RefreshTags("kkui:name"), tooltip = L["Zero shows the full name."] },
+			{ kind = "check", label = L["First Name Only"], path = { "Unitframe", "FirstNameOnly" }, since = "1.1.1", apply = function()
+				RefreshTags("kkui:name")()
+				RefreshTags("kkui:nameparty")()
+			end, tooltip = L["Show players by their first name and leave the surname off, on unit frames, party frames and nameplates. Raid frames always show the first name."] },
 
 			{ kind = "header", label = L["Portrait"] },
 			{ kind = "check", label = L["Show Portrait"], path = { "Unitframe", "Portrait" }, reload = true },
@@ -914,7 +918,6 @@ GUI.schema = {
 			{ kind = "check", label = L["Health Bar Value"], path = { "Tooltip", "HealthValue" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the health amount and percent on the tooltip's health bar."] },
 			{ kind = "header", label = L["Unit Info"] },
 			{ kind = "check", label = L["Class Colored Name"], path = { "Tooltip", "ClassColorName" }, dependsOn = { "Tooltip", "Enable" } },
-			{ kind = "check", label = L["Show Realm Name"], path = { "Tooltip", "ShowRealm" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Append the realm for players from another realm."] },
 			{ kind = "check", label = L["Show Raid Target Icon"], path = { "Tooltip", "ShowRaidIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the skull/star/etc. marker ahead of a marked unit's name."] },
 			{ kind = "check", label = L["Show Faction Icon"], path = { "Tooltip", "ShowFactionIcon" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show a Horde/Alliance crest on the name and hide the faction text line."] },
 			{ kind = "check", label = L["Unit Frame Click Hint"], path = { "Tooltip", "UnitFrameHint" }, since = "1.0.0-beta6", dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the line telling you to right click a unit frame for its menu."] },
