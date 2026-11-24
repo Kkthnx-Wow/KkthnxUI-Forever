@@ -566,6 +566,7 @@ K.ConfigDefaults = {
 		ChatBar = true,
 		SideButtons = true, -- vertical icon strip on the left of the chat
 		SpamFilter = false,
+		HideFleeEmotes = true, -- drop "attempts to run away in fear!" creature emotes
 		CopyButton = true,
 		Timestamps = true,
 		GradientBackdrop = true,

@@ -1438,6 +1438,9 @@ function Module:OnEnable()
 	if C.Chat.SpamFilter then
 		self:EnableFilter()
 	end
+	if C.Chat.HideFleeEmotes then
+		self:EnableFleeFilter()
+	end
 	if C.Chat.SkinBubbles then
 		self:SetupBubbles()
 	end

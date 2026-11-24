@@ -203,6 +203,10 @@ function GUI.AttachTooltip(frame, control, refresh)
 			GameTooltip:AddLine(" ")
 			GameTooltip:AddLine(dependency and format(L["Turn on %s first to use this."], dependency) or L["Another setting has to be on first."], 1, 0.5, 0.25, true)
 		end
+		if control.enabledWhen and not control.enabledWhen() and control.whenReason then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(control.whenReason, 1, 0.5, 0.25, true)
+		end
 		if control.disabledWhen and GUI.GetValue(control.disabledWhen) then
 			local managing = DependencyLabel(control.disabledWhen)
 			GameTooltip:AddLine(" ")
@@ -327,10 +331,12 @@ GUI.dependents = {}
 
 -- `dependsOn` greys a control while that setting is off. `disabledWhen` is the
 -- reverse, it greys the control while that setting is on, for a value another
--- setting manages (the UI scale slider while Auto UI Scale is on).
+-- setting manages (the UI scale slider while Auto UI Scale is on). `enabledWhen`
+-- is a test for anything else, such as a choice that does not use this setting,
+-- with `whenReason` as the tooltip line saying why.
 function GUI.RegisterDependent(widget, control)
-	if control.dependsOn or control.disabledWhen then
-		GUI.dependents[#GUI.dependents + 1] = { widget = widget, path = control.dependsOn, off = control.disabledWhen }
+	if control.dependsOn or control.disabledWhen or control.enabledWhen then
+		GUI.dependents[#GUI.dependents + 1] = { widget = widget, path = control.dependsOn, off = control.disabledWhen, when = control.enabledWhen }
 	end
 end
 
@@ -342,6 +348,9 @@ function GUI.RefreshDependencies()
 				enabled = GUI.GetValue(entry.path) and true or false
 			end
 			if enabled and entry.off and GUI.GetValue(entry.off) then
+				enabled = false
+			end
+			if enabled and entry.when and not entry.when() then
 				enabled = false
 			end
 			entry.widget.KKUI_Disabled = not enabled

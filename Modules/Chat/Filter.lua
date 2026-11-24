@@ -6,9 +6,12 @@
 		author sent in the public channels within the last half minute. Only the
 		noisy public channels are filtered so guild, party, and whispers are never
 		touched.
+
+		Separately, an option hides the "attempts to run away in fear!" emote
+		creatures send when they flee at low health.
 -----------------------------------------------------------------------------]]
 
-local K = KkthnxUI[1]
+local K, L = KkthnxUI[1], KkthnxUI[3]
 
 local Module = K:GetModule("Chat")
 
@@ -67,9 +70,9 @@ function Module:EnableFilter()
 
 		local key = author .. "\001" .. msg
 		local repeated = seen[key] and (now - seen[key]) < WINDOW or false
-		if not repeated then
-			seen[key] = now
-		end
+		-- A repeat restarts the window too, so a line spammed every 20 seconds stays
+		-- hidden instead of slipping through once each window.
+		seen[key] = now
 		if lineID then
 			verdicts[lineID] = repeated
 		end
@@ -79,4 +82,22 @@ function Module:EnableFilter()
 	for _, event in ipairs(FILTER_EVENTS) do
 		ChatFrameUtil.AddMessageEventFilter(event, RepeatFilter)
 	end
+end
+
+-- Creature emotes arrive with a literal %s where the name goes, and the chat
+-- frame fills it in later, so the flee line is one fixed string to match.
+-- Other locales can add their own text under this key. Read when the filter is
+-- enabled, after every locale file has loaded.
+local flee
+
+local function FleeFilter(_, _, msg)
+	if not msg or IsSecret(msg) then
+		return false
+	end
+	return msg == flee
+end
+
+function Module:EnableFleeFilter()
+	flee = L["%s attempts to run away in fear!"]
+	ChatFrameUtil.AddMessageEventFilter("CHAT_MSG_MONSTER_EMOTE", FleeFilter)
 end

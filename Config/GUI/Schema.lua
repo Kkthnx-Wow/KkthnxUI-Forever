@@ -242,6 +242,27 @@ local TRAIL_STYLES = {
 	{ text = L["Particles"], value = "Particles" },
 }
 
+-- Several trail settings only matter for some styles, so they grey out while
+-- another style is picked rather than looking broken.
+local function TrailStyle()
+	return C.Misc.CursorTrailStyle
+end
+local function TrailUsesRibbon()
+	return TrailStyle() ~= "Particles"
+end
+local function TrailUsesParticles()
+	return TrailStyle() ~= "Ribbon"
+end
+local function TrailIsParticles()
+	return TrailStyle() == "Particles"
+end
+local function TrailHeadOptional()
+	return TrailStyle() ~= "Comet"
+end
+local function TrailHasHead()
+	return C.Misc.CursorTrailHead or TrailStyle() == "Comet"
+end
+
 local function ApplyTrail()
 	local trail = K:GetModule("CursorTrail", true)
 	if trail and trail.ApplySettings then
@@ -807,6 +828,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Channel Quick Bar"], path = { "Chat", "ChatBar" }, reload = true, dependsOn = { "Chat", "Enable" } },
 			{ kind = "check", label = L["Side Button Strip"], path = { "Chat", "SideButtons" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A fading column of icon buttons on the left of the chat for channels, copy, scroll, and config."] },
 			{ kind = "check", label = L["Repeat Spam Filter"], path = { "Chat", "SpamFilter" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Drop identical messages repeated in public channels within 30 seconds."] },
+			{ kind = "check", label = L["Hide Flee Emotes"], path = { "Chat", "HideFleeEmotes" }, since = "1.1.1", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Hide the line a creature sends when it attempts to run away in fear."] },
 			{ kind = "check", label = L["Gradient Backdrop"], path = { "Chat", "GradientBackdrop" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A soft class-colored fade behind the chat that fades out to the right."] },
 			{ kind = "check", label = L["Copy Button"], path = { "Chat", "CopyButton" }, reload = true, dependsOn = { "Chat", "Enable" }, disabledWhen = { "Chat", "SideButtons" }, tooltip = L["A copy button on each chat window. The side button strip has its own, so this one is only used while the strip is off."] },
 			{ kind = "check", label = L["Timestamps"], path = { "Chat", "Timestamps" }, reload = true, dependsOn = { "Chat", "Enable" } },
@@ -1112,19 +1134,19 @@ GUI.schema = {
 			{ kind = "header", label = L["Cursor Trail"] },
 			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
 			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
-			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
-			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
+			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailUsesRibbon, whenReason = L["Only the Comet and Ribbon styles use this."], options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
+			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailUsesParticles, whenReason = L["Only the Particles and Comet styles use this."], options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
 			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
 			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
 			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
 			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
 			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
 			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
-			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
-			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
-			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
-			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
-			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
+			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailIsParticles, whenReason = L["Only the Particles style uses this."], tooltip = L["Particles drift apart slowly as they fade."] },
+			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailIsParticles, whenReason = L["Only the Particles style uses this."], tooltip = L["Particles flicker as they fade."] },
+			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailHeadOptional, whenReason = L["The Comet style always shows the pointer glow."], tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
+			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailHasHead, whenReason = L["Turn on Pointer Glow, or use the Comet style."], options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
+			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, enabledWhen = TrailHasHead, whenReason = L["Turn on Pointer Glow, or use the Comet style."] },
 			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
 			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
 			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
