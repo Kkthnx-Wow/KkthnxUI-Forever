@@ -52,9 +52,11 @@ local FOLLOW = 4
 -- warrior at range by Shoot. Unknown spells are dropped when the list is built.
 local HARM = {
 	DRUID = { 5176, 8921, 6807 }, -- Wrath, Moonfire, Maul
-	-- Auto Shot has a minimum range, so melee needs its own probe. Raptor Strike is
-	-- known from level 1, Wing Clip only from 12.
-	HUNTER = { 75, 2973, 2974 }, -- Auto Shot, Raptor Strike, Wing Clip
+	-- Auto Shot has a minimum range, so melee needs its own probe. Raptor Strike
+	-- cannot be it. It is an on-next-swing ability, and its range check answers
+	-- true at any distance on Forever, which kept every enemy at full alpha.
+	-- Wing Clip, from level 12, covers melee.
+	HUNTER = { 75, 2974 }, -- Auto Shot, Wing Clip
 	MAGE = { 133, 116, 5143 }, -- Fireball, Frostbolt, Arcane Missiles
 	PALADIN = { 20271, 853 }, -- Judgement, Hammer of Justice
 	PRIEST = { 585, 589 }, -- Smite, Shadow Word: Pain
@@ -111,13 +113,18 @@ end
 -- Returns inRange, and a secret flag when the game will only hand back a
 -- secret answer, which is then passed straight to SetAlphaFromBoolean.
 local function UnitRange(unit)
-	if not UnitExists(unit) or UnitIsUnit(unit, "player") or not UnitIsConnected(unit) then
+	-- UnitIsUnit can be secret for compound tokens like targettarget, which this
+	-- poll covers, so its answer is only used when it can be read.
+	local isPlayer = UnitIsUnit(unit, "player")
+	if not UnitExists(unit) or (not IsSecret(isPlayer) and isPlayer) or not UnitIsConnected(unit) then
 		return true
 	end
 
 	if UnitPlayerOrPetInParty(unit) or UnitPlayerOrPetInRaid(unit) then
 		local inRange, checked = UnitInRange(unit)
-		if IsSecret(inRange) then
+		-- Both returns can be secret, so either one being secret hands the
+		-- game's answer straight through instead of reading it here.
+		if IsSecret(inRange) or IsSecret(checked) then
 			return inRange, true
 		end
 		if checked then
