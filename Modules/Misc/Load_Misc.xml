@@ -12,6 +12,7 @@
 	<Script file="ButtonPreview.lua" />
 	<Script file="CursorTrail.lua" />
 	<Script file="GCDBar.lua" />
+	<Script file="SwingTimer.lua" />
 	<Script file="Focus.lua" />
 	<Script file="Mail.lua" />
 	<Script file="MoveFrames.lua" />

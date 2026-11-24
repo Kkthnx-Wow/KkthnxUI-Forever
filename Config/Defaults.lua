@@ -105,8 +105,8 @@ K.ConfigDefaults = {
 			[8] = { 0.25, 0.72, 0.30 },
 		},
 
-		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, SwingTimer = true, AutoShotBar = true, AutoShotWidth = 242, AutoShotHeight = 12, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
-		Target = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true },
+		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
+		Target = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true, Threat = false },
 		TargetOfTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true },
 		Focus = { Enable = true, Width = 204, Height = 34, PowerHeight = 14, ShowPower = true, Debuffs = true },
@@ -135,6 +135,46 @@ K.ConfigDefaults = {
 		ClassPower = {
 			Height = 14,
 			Spacing = 6,
+		},
+
+		-- Main hand, off hand and ranged swing bars, each on its own mover.
+		Swing = {
+			Enable = true,
+			Spark = true,
+			Drain = false, -- empty the bar as the swing runs instead of filling it
+			RangeCheck = true, -- dim a bar once its swing ends while the target is out of reach
+			RangeAlpha = 0.4,
+			HasteAdjust = true, -- stretch or shrink a running swing when attack speed changes
+			MainHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.36, 0.55, 0.81 }, -- accent blue
+			},
+			OffHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.62, 0.48, 0.86 }, -- violet, so the two hands read apart
+			},
+			Ranged = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.95, 0.69, 0.26 }, -- gold
+			},
 		},
 
 		Castbar = {
@@ -393,10 +433,19 @@ K.ConfigDefaults = {
 		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
 		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
 		CursorTrailSize = 18, -- particle size and ribbon width
+		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
+		CursorTrailShrink = true, -- taper the ribbon and shrink particles as they fade
+		CursorTrailDrift = true, -- particles drift apart as they fade
+		CursorTrailTwinkle = true, -- particles flicker as they fade
+		CursorTrailHead = true, -- a glow on the pointer itself
+		CursorTrailHeadShape = "IconGlow",
+		CursorTrailHeadSize = 34,
 		CursorTrailAlpha = 0.85,
 		CursorTrailShrink = true, -- taper the ribbon and shrink particles as they fade
 		CursorTrailDrift = true, -- particles drift apart as they fade
 		CursorTrailTwinkle = true, -- particles flicker as they fade
+		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
 		CursorTrailHead = true, -- a glow on the pointer itself
 		CursorTrailHeadShape = "IconGlow",
 		CursorTrailHeadSize = 34,

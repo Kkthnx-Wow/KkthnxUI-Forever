@@ -46,10 +46,10 @@ Module.Styles.Player = function(self)
 	if cfg.ClassPower then
 		Build.ClassPower(self)
 	end
-	-- Totems and the swing timer hang below the frame. They go first so the buff
-	-- row, when it is switched on, starts under them instead of on top of them.
+	-- Totems hang below the frame. They go first so the buff row, when it is
+	-- switched on, starts under them instead of on top of them. The swing bars
+	-- live in Modules/Misc/SwingTimer.lua on movers of their own.
 	Build.Totems(self)
-	Build.SwingTimer(self)
 	Build.Auras(self, cfg)
 
 	-- Sit evenly between the action bars below and the unit frames above.
