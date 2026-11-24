@@ -24,6 +24,7 @@ local GetNumQuestChoices = GetNumQuestChoices
 local GetQuestItemInfo = GetQuestItemInfo
 local GetQuestReward = GetQuestReward
 local GetQuestMoneyToGet = GetQuestMoneyToGet
+local GetNumQuestRewards = GetNumQuestRewards
 
 local COIN_ICON = "Interface\\Icons\\INV_Misc_Coin_01"
 
@@ -41,7 +42,8 @@ function Module:OnQuestProgress()
 	if not self:CanAutomate() or not self:ShouldTurnIn(GetQuestID()) then
 		return
 	end
-	if IsQuestCompletable() and not CostsGold() then
+	local questID = GetQuestID()
+	if IsQuestCompletable() and not CostsGold() and self:TryAction("progress", questID) then
 		CompleteQuest()
 	end
 end
@@ -119,6 +121,25 @@ local function FindBestChoice(numChoices)
 	return bestIndex
 end
 
+-- Items the reward page will hand over: every fixed reward plus the one choice.
+local function RewardItemCount(numChoices)
+	return (GetNumQuestRewards() or 0) + (numChoices > 0 and 1 or 0)
+end
+
+-- Take the reward, unless the bags cannot hold it. With no free slot at all the
+-- game would refuse, so the quest is held and the window left to you rather than
+-- trying. Fewer free slots than items is still tried, since rewards can stack
+-- onto what you carry, and a refusal then holds the quest just the same.
+function Module:TakeReward(questID, choice, numChoices)
+	if RewardItemCount(numChoices) > 0 and self.FreeBagSlots() == 0 then
+		self:HoldQuest(questID, "bags")
+		return
+	end
+	if self:TryAction("reward", questID) then
+		GetQuestReward(choice)
+	end
+end
+
 -- Complete the quest, dealing with a choice of rewards as the mode says.
 local pendingQuestID
 function Module:OnQuestComplete()
@@ -135,7 +156,7 @@ function Module:OnQuestComplete()
 	if numChoices <= 1 then
 		if turnIn then
 			-- The same value the game's own button passes.
-			GetQuestReward(numChoices == 1 and 1 or 0)
+			self:TakeReward(questID, numChoices == 1 and 1 or 0, numChoices)
 		end
 		return
 	end
@@ -169,7 +190,7 @@ function Module:OnQuestComplete()
 	end
 
 	if mode == "TAKE" and turnIn then
-		GetQuestReward(bestIndex)
+		self:TakeReward(questID, bestIndex, numChoices)
 	else
 		ShowMarker(bestIndex)
 	end

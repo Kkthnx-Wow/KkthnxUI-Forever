@@ -45,21 +45,25 @@ local QuestLogPushQuest = QuestLogPushQuest
 -- Quests offered and completed through a gossip window. Returns true when a
 -- quest was picked, so the gossip skip leaves the window alone.
 function Module:HandleGossipQuests()
+	-- A quest on hold (full bags, not enough gold) is passed over, so the next one
+	-- in the list still gets its turn instead of the window retrying the first.
 	for _, quest in next, C_GossipInfo.GetActiveQuests() do
-		if quest.isComplete and not IsSecret(quest.isComplete) and self:ShouldTurnIn(quest.questID, quest.frequency, quest.repeatable or false) then
+		if quest.isComplete and not IsSecret(quest.isComplete) and self:ShouldTurnIn(quest.questID, quest.frequency, quest.repeatable or false) and self:TryAction("select", quest.questID) then
 			C_GossipInfo.SelectActiveQuest(quest.questID)
 			return true
 		end
 	end
 
 	for _, quest in next, C_GossipInfo.GetAvailableQuests() do
-		if self:ShouldAccept(quest.questID, quest.isTrivial, quest.frequency, quest.repeatable or false) then
+		if self:ShouldAccept(quest.questID, quest.isTrivial, quest.frequency, quest.repeatable or false) and self:TryAction("select", quest.questID) then
 			C_GossipInfo.SelectAvailableQuest(quest.questID)
 			return true
 		end
 	end
 
-	return false
+	-- Quests are listed but none was picked, so the gossip skip must leave this
+	-- window alone too.
+	return (C_GossipInfo.GetNumActiveQuests() + C_GossipInfo.GetNumAvailableQuests()) > 0
 end
 
 -- Fired for both quest gossip and plain gossip. Deal with quests first, then let
@@ -81,7 +85,8 @@ function Module:OnQuestGreeting()
 
 	for index = 1, GetNumActiveQuests() do
 		local _, isComplete = GetActiveTitle(index)
-		if isComplete and self:ShouldTurnIn(GetActiveQuestID(index)) then
+		local questID = GetActiveQuestID(index)
+		if isComplete and self:ShouldTurnIn(questID) and self:TryAction("select", questID) then
 			SelectActiveQuest(index)
 			return
 		end
@@ -89,7 +94,7 @@ function Module:OnQuestGreeting()
 
 	for index = 1, GetNumAvailableQuests() do
 		local isTrivial, frequency, isRepeatable, _, questID = GetAvailableQuestInfo(index)
-		if self:ShouldAccept(questID, isTrivial, frequency, isRepeatable or false) then
+		if self:ShouldAccept(questID, isTrivial, frequency, isRepeatable or false) and self:TryAction("select", questID) then
 			SelectAvailableQuest(index)
 			return
 		end
@@ -118,7 +123,7 @@ function Module:OnQuestDetail()
 		return
 	end
 
-	if self:ShouldAccept(questID) then
+	if self:ShouldAccept(questID) and self:TryAction("accept", questID) then
 		AcceptQuest()
 	end
 end
@@ -135,7 +140,7 @@ function Module:OnQuestLogUpdate()
 
 	for index = 1, GetNumAutoQuestPopUps() do
 		local questID, popUpType = GetAutoQuestPopUp(index)
-		if self:ValidQuest(questID) and handledPopups[questID] ~= popUpType then
+		if self:ValidQuest(questID) and handledPopups[questID] ~= popUpType and not self:IsHeld(questID) then
 			if popUpType == "OFFER" and self:ShouldAccept(questID) then
 				handledPopups[questID] = popUpType
 				ShowQuestOffer(questID)

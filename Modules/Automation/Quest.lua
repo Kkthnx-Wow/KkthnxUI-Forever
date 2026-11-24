@@ -26,6 +26,9 @@ local tostring = tostring
 local tconcat = table.concat
 local tsort = table.sort
 local pairs = pairs
+local ipairs = ipairs
+local next = next
+local _G = _G
 local IsSecret = K.IsSecret
 local IsShiftKeyDown = IsShiftKeyDown
 local IsControlKeyDown = IsControlKeyDown
@@ -206,6 +209,204 @@ function Module:ShouldTurnIn(questID, frequency, isRepeatable)
 	return true
 end
 
+-- ---------------------------------------------------------------------------
+-- Failure guard
+-- ---------------------------------------------------------------------------
+-- The game refuses a turn-in with full bags, then shows the NPC's window again.
+-- Without memory of that, the window picked the same quest and tried again,
+-- forever. Now every action we take is recorded, a refusal that follows it puts
+-- that quest on hold, and the hold lifts when the thing that blocked it changes:
+-- bag space for a full inventory, gold for a gold cost, or a short wait for the
+-- rest. On top of that no quest gets the same action more than twice in a short
+-- window, so a refusal we do not recognise cannot loop either.
+
+local GetTime = GetTime
+local GetTitleText = GetTitleText
+local C_Container = C_Container
+local strfind = string.find
+local gsub = string.gsub
+
+local ATTEMPT_WINDOW = 15 -- seconds in which repeated tries count together
+local ATTEMPT_LIMIT = 2 -- tries of one action on one quest inside that window
+local ERROR_WINDOW = 3 -- seconds after an action that a refusal is pinned on it
+local HOLD_TIMEOUT = 60 -- a hold with no clearing event lifts after this long
+
+-- Why a quest is on hold, each with the change that lifts it.
+local BAGS, MONEY, ITEMS, OTHER = "bags", "money", "items", "other"
+
+local attempts = {} -- "kind:questID" -> { count, first }
+local holds = {} -- questID -> { reason, at, free }
+local lastAction -- { kind, questID, at }
+
+-- A format string from the client turned into a plain Lua pattern.
+local function ToPattern(text)
+	if not text then
+		return nil
+	end
+	text = gsub(text, "([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
+	-- A single %s or %d in the client string stands for the quest name or a count.
+	text = gsub(text, "%%[sd]", ".+")
+	return "^" .. text .. "$"
+end
+
+-- Refusal messages and the hold each one means.
+local REFUSALS = {
+	{ _G.ERR_INV_FULL, BAGS },
+	{ _G.ERR_BAG_FULL, BAGS },
+	{ _G.ERR_ITEM_MAX_COUNT, BAGS },
+	{ _G.ERR_QUEST_FAILED_BAG_FULL_S, BAGS },
+	{ _G.ERR_QUEST_FAILED_MAX_COUNT_S, BAGS },
+	{ _G.ERR_QUEST_FAILED_NOT_ENOUGH_MONEY, MONEY },
+	{ _G.ERR_QUEST_FAILED_MISSING_ITEMS, ITEMS },
+	{ _G.ERR_QUEST_LOG_FULL, OTHER },
+	{ _G.ERR_QUEST_FAILED_S, OTHER },
+	{ _G.ERR_QUEST_FAILED_LOW_LEVEL, OTHER },
+	{ _G.ERR_QUEST_FAILED_TOO_MANY_DAILY_QUESTS_I, OTHER },
+}
+for _, entry in ipairs(REFUSALS) do
+	entry[3] = ToPattern(entry[1])
+end
+
+local HOLD_TEXT = {
+	[BAGS] = L["your bags are full"],
+	[MONEY] = L["it costs more gold than you have"],
+	[ITEMS] = L["the required items are not in your bags"],
+	[OTHER] = L["the game refused it"],
+}
+
+-- Free slots in the ordinary bags, the ones a quest reward can land in.
+local function FreeBagSlots()
+	local free = 0
+	for bag = 0, 4 do
+		local slots, family = C_Container.GetContainerNumFreeSlots(bag)
+		if slots and family == 0 then
+			free = free + slots
+		end
+	end
+	return free
+end
+Module.FreeBagSlots = FreeBagSlots
+
+local function QuestName(questID)
+	local title = C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)
+	if not title or IsSecret(title) then
+		title = GetTitleText and GetTitleText()
+	end
+	if not title or IsSecret(title) or title == "" then
+		title = tostring(questID)
+	end
+	return title
+end
+
+-- Put a quest on hold and say so once.
+function Module:HoldQuest(questID, reason)
+	if not self:ValidQuest(questID) then
+		return
+	end
+	local current = holds[questID]
+	holds[questID] = { reason = reason, at = GetTime(), free = FreeBagSlots() }
+	if not current or current.reason ~= reason then
+		K.Print(L["Auto quest paused %s because %s. It picks up again once that changes."], K.ColorText("highlight", QuestName(questID)), HOLD_TEXT[reason] or HOLD_TEXT[OTHER])
+	end
+end
+
+-- Is this quest on hold? A hold past its timeout lifts here.
+function Module:IsHeld(questID)
+	local hold = questID and holds[questID]
+	if not hold then
+		return false
+	end
+	if GetTime() - hold.at > HOLD_TIMEOUT then
+		holds[questID] = nil
+		return false
+	end
+	return true
+end
+
+-- Ask before taking an action on a quest. Records it, and says no when the quest
+-- is on hold or has had this action twice already in the window.
+function Module:TryAction(kind, questID)
+	if not self:ValidQuest(questID) or self:IsHeld(questID) then
+		return false
+	end
+	local now = GetTime()
+	local key = kind .. ":" .. questID
+	local record = attempts[key]
+	if record and now - record.first > ATTEMPT_WINDOW then
+		record = nil
+	end
+	if not record then
+		record = { count = 0, first = now }
+		attempts[key] = record
+	end
+	if record.count >= ATTEMPT_LIMIT then
+		-- Something keeps refusing this without a message we know.
+		self:HoldQuest(questID, OTHER)
+		return false
+	end
+	record.count = record.count + 1
+	lastAction = { kind = kind, questID = questID, at = now }
+	return true
+end
+
+-- A quest that went through clears everything we held about it.
+function Module:ForgetQuest(questID)
+	if not questID then
+		return
+	end
+	holds[questID] = nil
+	for _, kind in ipairs({ "accept", "select", "progress", "reward" }) do
+		attempts[kind .. ":" .. questID] = nil
+	end
+	if lastAction and lastAction.questID == questID then
+		lastAction = nil
+	end
+end
+
+-- A refusal right after one of our actions is pinned on that quest.
+function Module:OnQuestError(_, _, message)
+	if not lastAction or not message or IsSecret(message) then
+		return
+	end
+	if GetTime() - lastAction.at > ERROR_WINDOW then
+		return
+	end
+	for _, entry in ipairs(REFUSALS) do
+		if entry[3] and strfind(message, entry[3]) then
+			local questID = lastAction.questID
+			lastAction = nil
+			self:HoldQuest(questID, entry[2])
+			return
+		end
+	end
+end
+
+-- Lift holds once what blocked them has changed. Bag holds lift when a slot
+-- opens up compared to when the hold began, gold holds on any money change.
+function Module:OnBagsChanged()
+	if not next(holds) then
+		return
+	end
+	local free = FreeBagSlots()
+	for questID, hold in pairs(holds) do
+		if (hold.reason == BAGS and free > hold.free) or hold.reason == ITEMS then
+			holds[questID] = nil
+		end
+	end
+end
+
+function Module:OnMoneyChanged()
+	for questID, hold in pairs(holds) do
+		if hold.reason == MONEY then
+			holds[questID] = nil
+		end
+	end
+end
+
+function Module:OnQuestDone(_, questID)
+	self:ForgetQuest(questID)
+end
+
 -- Item values are needed to pick the best quest reward, and may be cold.
 function Module:WaitForItemData(itemID, callback)
 	Item:CreateFromItemID(itemID):ContinueOnItemLoad(callback)
@@ -243,5 +444,11 @@ function Module:SetupQuests()
 		if self.SetupGossip then
 			self:SetupGossip()
 		end
+		-- The failure guard: refusals, and the changes that lift a hold.
+		self:RegisterEvent("UI_ERROR_MESSAGE", "OnQuestError")
+		self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagsChanged")
+		self:RegisterEvent("PLAYER_MONEY", "OnMoneyChanged")
+		self:RegisterEvent("QUEST_TURNED_IN", "OnQuestDone")
+		self:RegisterEvent("QUEST_ACCEPTED", "OnQuestDone")
 	end)
 end
