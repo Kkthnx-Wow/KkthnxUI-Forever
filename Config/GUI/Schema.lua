@@ -230,6 +230,72 @@ local function ExtraButton(title, name, controls, tooltip)
 	}
 end
 
+-- Cursor trail. Everything but the enable switch and the pool size applies live.
+local TRAIL_DEP = { "Misc", "CursorTrail" }
+
+local TRAIL_STYLES = {
+	{ text = L["Comet"], value = "Comet" },
+	{ text = L["Ribbon"], value = "Ribbon" },
+	{ text = L["Particles"], value = "Particles" },
+}
+
+local function ApplyTrail()
+	local trail = K:GetModule("CursorTrail", true)
+	if trail and trail.ApplySettings then
+		trail:ApplySettings()
+	end
+end
+
+-- A dropdown list from one of the trail art lists, each row showing its art.
+local function TrailArtOptions(list)
+	local options = {}
+	for _, entry in ipairs(list) do
+		options[#options + 1] = { text = L[entry.text], value = entry.key, glyph = entry }
+	end
+	return options
+end
+
+-- Swing bars. Everything but the master switch applies live.
+local function ApplySwing()
+	local swing = K:GetModule("SwingTimer", true)
+	if swing and swing.ApplySettings then
+		swing:ApplySettings()
+	end
+end
+
+local SWING_DEP = { "Unitframe", "Swing", "Enable" }
+
+local SWING_VISIBILITY = {
+	{ text = L["Always"], value = "always" },
+	{ text = L["In Combat"], value = "combat" },
+	{ text = L["While Swinging"], value = "swinging" },
+	{ text = L["Hidden"], value = "hidden" },
+}
+
+local function SwingControls()
+	local list = {
+		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
+		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
+		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
+		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
+		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },
+		{ kind = "slider", label = L["Out Of Range Opacity"], path = { "Unitframe", "Swing", "RangeAlpha" }, min = 0.1, max = 0.9, step = 0.05, apply = ApplySwing, dependsOn = { "Unitframe", "Swing", "RangeCheck" } },
+	}
+	for _, hand in ipairs({ { "MainHand", L["Main Hand"] }, { "OffHand", L["Off Hand"] }, { "Ranged", L["Ranged"] } }) do
+		local key = hand[1]
+		list[#list + 1] = { kind = "header", label = hand[2] }
+		list[#list + 1] = { kind = "dropdown", label = L["Visibility"], path = { "Unitframe", "Swing", key, "Visibility" }, options = SWING_VISIBILITY, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["In Combat also keeps a swing that is still running when the fight ends. While Swinging shows the bar only during a swing."] }
+		list[#list + 1] = { kind = "slider", label = L["Width"], path = { "Unitframe", "Swing", key, "Width" }, min = 60, max = 600, step = 2, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "slider", label = L["Height"], path = { "Unitframe", "Swing", key, "Height" }, min = 4, max = 40, step = 1, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "slider", label = L["Scale"], path = { "Unitframe", "Swing", key, "Scale" }, min = 0.5, max = 2, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "slider", label = L["Opacity"], path = { "Unitframe", "Swing", key, "Alpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "check", label = L["Show Bar Title"], path = { "Unitframe", "Swing", key, "ShowTitle" }, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "check", label = L["Show Time"], path = { "Unitframe", "Swing", key, "ShowTime" }, apply = ApplySwing, dependsOn = SWING_DEP }
+		list[#list + 1] = { kind = "color", label = L["Bar Color"], path = { "Unitframe", "Swing", key, "Color" }, apply = ApplySwing, dependsOn = SWING_DEP }
+	end
+	return list
+end
+
 -- Re-apply the custom colour tables and recolour every live frame so a picker
 -- change shows immediately without a reload.
 local function ApplyUnitColors()
@@ -1046,23 +1112,27 @@ GUI.schema = {
 			{ kind = "color", label = L["GCD Bar Colour"], path = { "Misc", "GCDBarColor" }, reload = true, dependsOn = { "Misc", "GCDBar" }, tooltip = L["Used when class colour is off."] },
 
 			{ kind = "header", label = L["Cursor Trail"] },
-			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["Trail a line of fading dots behind the mouse pointer so it stays easy to find."] },
-			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Most dots that can be on screen at once. Higher looks denser and costs more."] },
-			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 4, max = 30, step = 1, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Pixels the pointer must travel before another dot is dropped. Lower is a denser line."] },
-			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Seconds a dot takes to fade out. This is what sets how long the tail looks."] },
-			{ kind = "dropdown", label = L["Trail Shape"], path = { "Misc", "CursorTrailShape" }, reload = true, dependsOn = { "Misc", "CursorTrail" }, options = {
-				{ text = L["Glow"], value = "Glow" },
-				{ text = L["Spark"], value = "Spark" },
-				{ text = L["Ping"], value = "Ping" },
-				{ text = L["Streak"], value = "Streak" },
-			} },
-			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 8, max = 48, step = 1, reload = true, dependsOn = { "Misc", "CursorTrail" } },
-			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, reload = true, dependsOn = { "Misc", "CursorTrail" } },
-			{ kind = "check", label = L["Shrink Over Time"], path = { "Misc", "CursorTrailShrink" }, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Dots get smaller as they fade out."] },
-			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Show the trail only while you are in combat."] },
-			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
-			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, reload = true, dependsOn = { "Misc", "CursorTrail" } },
-			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, reload = true, dependsOn = { "Misc", "CursorTrail" }, tooltip = L["Used when class colour is off."] },
+			{ kind = "check", label = L["Enable Cursor Trail"], path = { "Misc", "CursorTrail" }, reload = true, tooltip = L["A trail behind the mouse pointer so it stays easy to find. Everything below applies straight away except the trail length."] },
+			{ kind = "dropdown", label = L["Trail Style"], path = { "Misc", "CursorTrailStyle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TRAIL_STYLES, tooltip = L["Comet is a ribbon with a glow on the pointer and sparks shed along it. Ribbon is one continuous tapered stroke. Particles are glows that drift and twinkle."] },
+			{ kind = "dropdown", label = L["Ribbon Texture"], path = { "Misc", "CursorTrailRibbon" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailRibbons), glyphPreview = true, tooltip = L["The art the ribbon is drawn with, for the Comet and Ribbon styles."] },
+			{ kind = "dropdown", label = L["Particle Texture"], path = { "Misc", "CursorTrailShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true, tooltip = L["The art for particles and comet sparks."] },
+			{ kind = "slider", label = L["Trail Size"], path = { "Misc", "CursorTrailSize" }, min = 4, max = 48, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particle size and ribbon width."] },
+			{ kind = "slider", label = L["Trail Opacity"], path = { "Misc", "CursorTrailAlpha" }, min = 0.1, max = 1, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP },
+			{ kind = "slider", label = L["Trail Lifetime"], path = { "Misc", "CursorTrailLifetime" }, min = 0.15, max = 1.2, step = 0.05, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Seconds a part of the trail takes to fade out. This is what sets how long the tail looks."] },
+			{ kind = "slider", label = L["Trail Spacing"], path = { "Misc", "CursorTrailSpacing" }, min = 3, max = 30, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Pixels the pointer travels between trail points. Lower is smoother."] },
+			{ kind = "slider", label = L["Trail Length"], path = { "Misc", "CursorTrailLength" }, min = 16, max = 120, step = 4, reload = true, dependsOn = TRAIL_DEP, tooltip = L["Most trail points on screen at once. Higher allows a longer tail on fast moves."] },
+			{ kind = "check", label = L["Taper As It Fades"], path = { "Misc", "CursorTrailShrink" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The ribbon narrows and particles shrink toward the end of the tail."] },
+			{ kind = "check", label = L["Particles Drift"], path = { "Misc", "CursorTrailDrift" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles drift apart slowly as they fade."] },
+			{ kind = "check", label = L["Particles Twinkle"], path = { "Misc", "CursorTrailTwinkle" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Particles flicker as they fade."] },
+			{ kind = "check", label = L["Pointer Glow"], path = { "Misc", "CursorTrailHead" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["A glow on the pointer itself while it moves. Always on for Comet."] },
+			{ kind = "dropdown", label = L["Pointer Glow Texture"], path = { "Misc", "CursorTrailHeadShape" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, options = TrailArtOptions(C.Media.TrailGlows), glyphPreview = true },
+			{ kind = "slider", label = L["Pointer Glow Size"], path = { "Misc", "CursorTrailHeadSize" }, min = 12, max = 80, step = 1, apply = ApplyTrail, dependsOn = TRAIL_DEP },
+			{ kind = "check", label = L["Trail Uses Class Colour"], path = { "Misc", "CursorTrailClassColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP },
+			{ kind = "color", label = L["Trail Colour"], path = { "Misc", "CursorTrailColor" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Used when class colour is off."] },
+			{ kind = "check", label = L["Fade To Tail Colour"], path = { "Misc", "CursorTrailFade" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["The trail shifts from its colour to the tail colour as it fades."] },
+			{ kind = "color", label = L["Tail Colour"], path = { "Misc", "CursorTrailTailColor" }, apply = ApplyTrail, dependsOn = { "Misc", "CursorTrailFade" } },
+			{ kind = "check", label = L["Trail In Combat Only"], path = { "Misc", "CursorTrailCombat" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Show the trail only while you are in combat."] },
+			{ kind = "check", label = L["Hide While Turning"], path = { "Misc", "CursorTrailHideTurning" }, apply = ApplyTrail, dependsOn = TRAIL_DEP, tooltip = L["Hide the trail while you turn or look with the mouse, where the pointer is parked and would smear."] },
 		},
 	},
 

@@ -385,18 +385,27 @@ K.ConfigDefaults = {
 		GCDBarClassColor = true,
 		GCDBarColor = { 0.36, 0.55, 0.81 }, -- used when class colour is off
 
-		CursorTrail = false, -- glowing dots trailing the mouse pointer
-		CursorTrailLength = 48, -- most dots that can be on screen at once
-		CursorTrailSpacing = 8, -- pixels the pointer must travel before another dot is dropped
-		CursorTrailLifetime = 0.45, -- seconds a dot takes to fade out
-		CursorTrailShape = "Glow", -- Glow, Spark, Ping, or Streak
-		CursorTrailSize = 18,
+		CursorTrail = false, -- a trail behind the mouse pointer
+		CursorTrailStyle = "Comet", -- Ribbon, Particles or Comet
+		CursorTrailLength = 48, -- most trail points on screen at once
+		CursorTrailSpacing = 8, -- pixels the pointer must travel before another point is dropped
+		CursorTrailLifetime = 0.45, -- seconds a point takes to fade out
+		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
+		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
+		CursorTrailSize = 18, -- particle size and ribbon width
 		CursorTrailAlpha = 0.85,
-		CursorTrailShrink = true, -- dots get smaller as they fade
+		CursorTrailShrink = true, -- taper the ribbon and shrink particles as they fade
+		CursorTrailDrift = true, -- particles drift apart as they fade
+		CursorTrailTwinkle = true, -- particles flicker as they fade
+		CursorTrailHead = true, -- a glow on the pointer itself
+		CursorTrailHeadShape = "IconGlow",
+		CursorTrailHeadSize = 34,
 		CursorTrailCombat = false, -- only show the trail while in combat
 		CursorTrailHideTurning = true, -- hide it while turning or looking with the mouse
 		CursorTrailClassColor = true,
 		CursorTrailColor = { 0.36, 0.55, 0.81 }, -- used when class colour is off
+		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
 	},
 
 	-- Small quality-of-life automations.

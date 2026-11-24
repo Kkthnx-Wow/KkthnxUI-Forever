@@ -9,6 +9,7 @@
 
 local K, C = KkthnxUI[1], KkthnxUI[2]
 
+local ipairs = ipairs
 local pairs = pairs
 local media = K.MediaFolder
 
@@ -61,6 +62,51 @@ C.Media = {
 	},
 	Sounds = {},
 }
+
+-- Cursor trail art, in the order the options list it. Every atlas here is on
+-- the Forever client. White and soft art takes the trail colour cleanly, gold or
+-- orange art blends with it. The first four keep their old keys, so a saved
+-- shape still resolves.
+C.Media.TrailGlows = {
+	{ key = "Glow", text = "Soft Glow", file = [[Interface\GLUES\Models\UI_Draenei\GenericGlow64]] },
+	{ key = "Spark", text = "Star", file = [[Interface\Cooldown\star4]] },
+	{ key = "Ping", text = "Ping", file = [[Interface\Cooldown\ping4]] },
+	{ key = "Streak", text = "Streak", file = [[Interface\CastingBar\UI-CastingBar-Spark]] },
+	{ key = "IconGlow", text = "Halo", atlas = "AftLevelup-WhiteIconGlow" },
+	{ key = "Orb", text = "Orb", atlas = "Artifacts-Anim-Orb" },
+	{ key = "SpikeyGlow", text = "Spiky Glow", atlas = "ChallengeMode-WhiteSpikeyGlow" },
+	{ key = "StarBurst", text = "Star Burst", atlas = "AftLevelup-WhiteStarBurst" },
+	{ key = "NodeGlow", text = "Node Glow", atlas = "heartofazeroth-node-glow" },
+	{ key = "Dot", text = "Dot", atlas = "common-radiobutton-dot" },
+	{ key = "Ember", text = "Ember", atlas = "XPBarAnim-OrangeSpark" },
+}
+C.Media.TrailRibbons = {
+	{ key = "GlowLine", text = "Glow Line", atlas = "Cast_Standard_LineGlow" },
+	{ key = "LevelLine", text = "Level Up Line", atlas = "AftLevelup-GlowLine" },
+	{ key = "XPTrail", text = "Comet Tail", atlas = "XPBarAnim-OrangeTrail" },
+	{ key = "XPGlow", text = "Soft Band", atlas = "XPBarAnim-OrangeGlow" },
+	{ key = "Channel", text = "Channel Spark", atlas = "Azerite-SmallChannel-Spark" },
+	{ key = "Solid", text = "Solid", file = [[Interface\Buttons\WHITE8X8]] },
+}
+
+-- Look an entry up by key in one of the lists above.
+function K.FindTrailArt(list, key)
+	for _, entry in ipairs(list) do
+		if entry.key == key then
+			return entry
+		end
+	end
+	return list[1]
+end
+
+-- Put a trail entry on a texture or line, atlas or file.
+function K.SetTrailArt(region, entry)
+	if entry.atlas then
+		region:SetAtlas(entry.atlas, false)
+	else
+		region:SetTexture(entry.file)
+	end
+end
 
 local statusbars = C.Media.Statusbars
 local fonts = C.Media.Fonts

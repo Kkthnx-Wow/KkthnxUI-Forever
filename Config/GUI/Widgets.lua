@@ -721,6 +721,26 @@ function GUI.CreateDropdown(parent, control)
 		return preview
 	end
 
+	-- A glow or particle list draws each choice as a small square of the art
+	-- itself, lit the way the trail draws it, in the class colour.
+	local function AddGlyphPreview(owner, entry)
+		local glyph = owner:CreateTexture(nil, "ARTWORK")
+		glyph:SetSize(18, 18)
+		glyph:SetBlendMode("ADD")
+		glyph:SetVertexColor(CLASS.r, CLASS.g, CLASS.b)
+		if entry then
+			K.SetTrailArt(glyph, entry)
+		end
+		return glyph
+	end
+
+	local buttonGlyph
+	if control.glyphPreview then
+		buttonGlyph = AddGlyphPreview(button)
+		buttonGlyph:SetPoint("RIGHT", arrow, "LEFT", -4, 0)
+		text:SetPoint("RIGHT", buttonGlyph, "LEFT", -4, 0)
+	end
+
 	local buttonPreview
 	if control.barPreview then
 		buttonPreview = AddBarPreview(button, 3)
@@ -734,6 +754,9 @@ function GUI.CreateDropdown(parent, control)
 			if opt.value == value then
 				if buttonPreview and opt.bar then
 					K.SetTextureAsset(buttonPreview, opt.bar)
+				end
+				if buttonGlyph and opt.glyph then
+					K.SetTrailArt(buttonGlyph, opt.glyph)
 				end
 				return opt.text
 			end
@@ -806,6 +829,10 @@ function GUI.CreateDropdown(parent, control)
 		end
 		rowText:SetPoint("LEFT", 8, 0)
 		rowText:SetPoint("RIGHT", -4, 0)
+		if opt.glyph then
+			AddGlyphPreview(row, opt.glyph):SetPoint("RIGHT", row, "RIGHT", -6, 0)
+			rowText:SetPoint("RIGHT", -28, 0)
+		end
 		rowText:SetJustifyH("LEFT")
 		rowText:SetText(opt.text)
 		-- The current choice gets an accent bar down its left edge and white
