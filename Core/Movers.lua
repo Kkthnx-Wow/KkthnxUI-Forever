@@ -7,30 +7,52 @@
 		moves the widget, and only the mover position is saved.
 
 		Dragging is hand rolled rather than StartMoving so we can snap to the
-		screen centre, the screen edges, and the edges of other movers, with live
-		guides, an optional grid, and live coordinates. Positions are stored per
-		profile as an offset from a chosen anchor point on UIParent, so a frame
-		pinned by the corner it lives near stays put across resolution and scale
-		changes. The anchor point is editable from the nudge popup.
+		screen, to other movers and to the grid, with live guides and live
+		coordinates. Positions are stored per profile as an offset from a chosen
+		anchor point on UIParent, so a frame pinned by the corner it lives near
+		stays put across resolution and scale changes. The anchor point is
+		editable from the nudge popup.
+
+		Snapping only looks at movers near the one being dragged. Every mover on
+		the screen used to offer its edges, which put a snap line every few pixels
+		and made a drag jump from line to line. A snap also holds until the cursor
+		has clearly left it, so a box does not flicker on a boundary. Every edge
+		lands on a whole physical pixel, so a box never shimmers or shifts when it
+		is let go.
 -----------------------------------------------------------------------------]]
 
 local K, L = KkthnxUI[1], KkthnxUI[3]
 
+local _G = _G
 local ipairs = ipairs
 local pairs = pairs
+local tonumber = tonumber
+local floor = math.floor
 local abs = math.abs
+local max = math.max
+local min = math.min
 local sort = table.sort
+local tremove = table.remove
+local format = string.format
 local strfind = string.find
+local CreateFrame = CreateFrame
 local InCombatLockdown = InCombatLockdown
 local GetCursorPosition = GetCursorPosition
+local IsShiftKeyDown = IsShiftKeyDown
+local IsControlKeyDown = IsControlKeyDown
+local UIParent = UIParent
 
 local movers = {}      -- key -> mover frame
 local moverOrder = {}  -- creation order, for deterministic reset
 local editing = false
 local panel
-local gridShown = false
 
-local SNAP = 8 -- snap distance in UIParent pixels
+local SNAP = 8          -- distance that catches a snap, in UIParent units
+local RELEASE = 12      -- distance that lets a held snap go
+local NEAR = 48         -- a mover offers snap lines only within this gap
+local GAP = 6           -- spacing snap between neighbours, the unit frame gap
+local GRID_STEPS = { 8, 16, 32, 64 }
+local UNDO_LIMIT = 50
 
 -- Frame levels while editing. Boxes are stacked by size, the smallest on top, so
 -- a small box inside a large one can always be reached. The hovered box goes
@@ -41,17 +63,16 @@ local HOVER_LEVEL = 2000
 -- Assigned by the popup section further down, so a drag or a nudge can push live
 -- numbers into an open popup instead of leaving it showing stale ones.
 local NotifyPopup = function() end
+local RefreshPanel = function() end
 
--- The placement tools in the palette: highlight gold for the numbers and the
--- hover flash, faint accent lines for the grid, and the panel colour for the
--- mover boxes, dense enough to hide the text of the frame beneath.
 local P = K.Colors
 local THEME = {
 	coords = P.highlight, -- coordinate text and titles
-	grid = { P.accent[1], P.accent[2], P.accent[3], 0.10 }, -- grid lines
-	center = { P.accent[1], P.accent[2], P.accent[3], 0.40 }, -- centre cross
+	grid = { P.accent[1], P.accent[2], P.accent[3], 0.12 }, -- grid lines
+	center = { P.accent[1], P.accent[2], P.accent[3], 0.45 }, -- centre cross
 	backdrop = { P.panel[1], P.panel[2], P.panel[3], 0.88 }, -- mover fill
 	flash = { P.highlight[1], P.highlight[2], P.highlight[3], 1 }, -- hover / locate flash
+	guide = { P.positive[1], P.positive[2], P.positive[3], 1 }, -- snap guides and snapped target
 	rest = { 1, 1, 1, 1 }, -- resting border colour
 }
 
@@ -68,6 +89,45 @@ local function Store()
 		KkthnxUIDB.movers[profile] = store
 	end
 	return store
+end
+
+-- Account wide placement preferences: snapping on or off, the grid and its step.
+local function Options()
+	local db = KkthnxUIDB.moverOptions
+	if not db then
+		db = { snap = true, grid = false, gridStep = 32 }
+		KkthnxUIDB.moverOptions = db
+	end
+	return db
+end
+
+-- One physical pixel in UIParent units. Read live, since the UI scale can change.
+local function PixelSize()
+	local mult = K.Pixel and K.Pixel.mult
+	if not mult or mult <= 0 then
+		return 1
+	end
+	return mult
+end
+
+local function PixelRound(value)
+	local px = PixelSize()
+	return floor(value / px + 0.5) * px
+end
+
+-- Offsets are kept exact. Rounding them to whole numbers put the centre of an
+-- odd sized box on a half pixel, which is why a box shifted when it was let go.
+-- Only float noise is trimmed.
+local function Trim(value)
+	return floor(value * 10000 + 0.5) / 10000
+end
+
+-- Whole numbers read as whole numbers, a half pixel keeps its one decimal.
+local function FormatOffset(value)
+	if abs(value - floor(value + 0.5)) < 0.05 then
+		return format("%d", floor(value + 0.5))
+	end
+	return format("%.1f", value)
 end
 
 -- The anchor points a mover can be pinned by, in the order the popup cycles them.
@@ -104,7 +164,7 @@ local function OffsetFor(mover, point)
 	if not (mx and ux) then
 		return 0, 0
 	end
-	return K.Round(mx - ux), K.Round(my - uy)
+	return Trim(mx - ux), Trim(my - uy)
 end
 
 -- Read a saved position. Older profiles stored a bare { x, y } pair, which always
@@ -164,7 +224,7 @@ local function NotifyMoved(mover)
 	end
 end
 
--- Current position as a whole-pixel offset from the point this mover is pinned by.
+-- Current position as an offset from the point this mover is pinned by.
 local function CurrentOffset(mover)
 	return OffsetFor(mover, CurrentPoint(mover))
 end
@@ -185,19 +245,24 @@ local function ShowTag(mover)
 		tag.Text:SetPoint("CENTER")
 		tag.Text:SetWordWrap(false)
 	end
-	tagOwner = mover
 	local x, y = CurrentOffset(mover)
 	local c = THEME.coords
-	tag.Text:SetFormattedText("%s  %s%s  %d, %d|r", mover.moverLabel, K.RGBToHex(c), CurrentPoint(mover), x, y)
+	tag.Text:SetFormattedText("%s  %s%s  %s, %s|r", mover.moverLabel, K.RGBToHex(c), CurrentPoint(mover), FormatOffset(x), FormatOffset(y))
 	tag:SetWidth(tag.Text:GetStringWidth() + 14)
-	tag:ClearAllPoints()
 	-- Above the box, or below it when the box is against the top of the screen.
+	-- Only re-anchored when that choice or the owner changes.
 	local top = mover:GetTop()
-	if top and top > UIParent:GetHeight() - 26 then
-		tag:SetPoint("TOP", mover, "BOTTOM", 0, -4)
-	else
-		tag:SetPoint("BOTTOM", mover, "TOP", 0, 4)
+	local below = top and top > UIParent:GetHeight() - 26 or false
+	if tagOwner ~= mover or tag.__below ~= below then
+		tag:ClearAllPoints()
+		if below then
+			tag:SetPoint("TOP", mover, "BOTTOM", 0, -4)
+		else
+			tag:SetPoint("BOTTOM", mover, "TOP", 0, 4)
+		end
+		tag.__below = below
 	end
+	tagOwner = mover
 	tag:Show()
 end
 
@@ -215,22 +280,67 @@ local function UpdateTag(mover)
 	end
 end
 
-local function ApplyOffset(mover, offsetX, offsetY, point)
-	point = point or CurrentPoint(mover)
-	Store()[mover.moverKey] = { point = point, x = offsetX, y = offsetY }
+-- Put a mover at an offset, then pull its bottom left corner onto a whole
+-- physical pixel. A typed number, a centre anchor on an odd sized box, or a UI
+-- scale that is not pixel perfect would otherwise leave the edges between pixels.
+local function Place(mover, point, offsetX, offsetY)
 	mover:ClearAllPoints()
 	mover:SetPoint(point, UIParent, point, offsetX, offsetY)
+	local left, bottom = mover:GetLeft(), mover:GetBottom()
+	if left and bottom then
+		local dx, dy = PixelRound(left) - left, PixelRound(bottom) - bottom
+		if abs(dx) > 0.001 or abs(dy) > 0.001 then
+			offsetX, offsetY = Trim(offsetX + dx), Trim(offsetY + dy)
+			mover:ClearAllPoints()
+			mover:SetPoint(point, UIParent, point, offsetX, offsetY)
+		end
+	end
+	return offsetX, offsetY
+end
+
+-- ---------------------------------------------------------------------------
+-- Undo
+-- ---------------------------------------------------------------------------
+
+-- Each change remembers the saved position it replaced, so Undo can put it back.
+-- false stands for "had no saved position", which restores the default.
+local undo = {}
+local sessionStart -- every saved position as move mode opened, for Revert
+
+local function CopyEntry(entry)
+	if not entry then
+		return false
+	end
+	local copy = {}
+	for k, v in pairs(entry) do
+		copy[k] = v
+	end
+	return copy
+end
+
+local function Remember(mover)
+	undo[#undo + 1] = { key = mover.moverKey, entry = CopyEntry(Store()[mover.moverKey]) }
+	if #undo > UNDO_LIMIT then
+		tremove(undo, 1)
+	end
+	RefreshPanel()
+end
+
+local function ApplyOffset(mover, offsetX, offsetY, point)
+	point = point or CurrentPoint(mover)
+	offsetX, offsetY = Place(mover, point, offsetX, offsetY)
+	Store()[mover.moverKey] = { point = point, x = offsetX, y = offsetY }
 	UpdateTag(mover)
 	NotifyMoved(mover)
 end
 
 local function RestorePosition(mover)
-	mover:ClearAllPoints()
 	local point, x, y = SavedFor(mover)
 	if point then
-		mover:SetPoint(point, UIParent, point, x, y)
+		Place(mover, point, x, y)
 	else
 		local default = mover.moverDefault
+		mover:ClearAllPoints()
 		mover:SetPoint(default[1], default[2] or UIParent, default[3] or default[1], default[4] or 0, default[5] or 0)
 	end
 	UpdateTag(mover)
@@ -240,8 +350,45 @@ end
 -- Re-pin a mover by a different point without letting it move on screen: the new
 -- offsets are measured from where it already sits.
 local function SetAnchorPoint(mover, point)
+	Remember(mover)
 	local x, y = OffsetFor(mover, point)
 	ApplyOffset(mover, x, y, point)
+end
+
+local function Undo()
+	if InCombatLockdown() then
+		return
+	end
+	local last = tremove(undo)
+	if not last then
+		return
+	end
+	local mover = movers[last.key]
+	Store()[last.key] = last.entry or nil
+	if mover then
+		RestorePosition(mover)
+		NotifyPopup(mover)
+	end
+	RefreshPanel()
+end
+
+-- Put every mover back where it was when move mode opened.
+local function Revert()
+	if InCombatLockdown() or not sessionStart then
+		return
+	end
+	local store = Store()
+	for key in pairs(store) do
+		store[key] = nil
+	end
+	for key, entry in pairs(sessionStart) do
+		store[key] = CopyEntry(entry)
+	end
+	for _, mover in ipairs(moverOrder) do
+		RestorePosition(mover)
+	end
+	undo = {}
+	RefreshPanel()
 end
 
 -- ---------------------------------------------------------------------------
@@ -256,205 +403,386 @@ local function Guides()
 		holder:SetAllPoints(UIParent)
 		holder:SetFrameStrata("TOOLTIP")
 
+		local g = THEME.guide
 		guideV = holder:CreateTexture(nil, "OVERLAY")
-		guideV:SetColorTexture(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3], 0.9)
-		guideV:SetWidth(1)
+		guideV:SetColorTexture(g[1], g[2], g[3], 0.9)
+		guideV:SetPoint("TOP", UIParent, "TOP")
+		guideV:SetPoint("BOTTOM", UIParent, "BOTTOM")
 		guideV:Hide()
 		guideH = holder:CreateTexture(nil, "OVERLAY")
-		guideH:SetColorTexture(K.Colors.positive[1], K.Colors.positive[2], K.Colors.positive[3], 0.9)
-		guideH:SetHeight(1)
+		guideH:SetColorTexture(g[1], g[2], g[3], 0.9)
+		guideH:SetPoint("LEFT", UIParent, "LEFT")
+		guideH:SetPoint("RIGHT", UIParent, "RIGHT")
 		guideH:Hide()
 	end
 	return guideV, guideH
 end
 
-local grid
-local function BuildGrid()
-	if grid then
-		return grid
+local function ShowGuide(texture, vertical, pos)
+	local px = PixelSize()
+	texture:ClearAllPoints()
+	if vertical then
+		texture:SetPoint("TOP", UIParent, "TOPLEFT", pos, 0)
+		texture:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", pos, 0)
+		texture:SetWidth(px)
+	else
+		texture:SetPoint("LEFT", UIParent, "BOTTOMLEFT", 0, pos)
+		texture:SetPoint("RIGHT", UIParent, "BOTTOMRIGHT", 0, pos)
+		texture:SetHeight(px)
 	end
-	grid = CreateFrame("Frame", "KKUI_MoverGrid", UIParent)
-	grid:SetAllPoints(UIParent)
-	grid:SetFrameStrata("BACKGROUND")
+	texture:Show()
+end
+
+-- The grid is drawn out from the screen centre, so its lines meet the centre
+-- cross and the centre is always a grid line. Rebuilt when the step or the
+-- screen size changes, from a pool of line textures.
+local grid
+local gridLines = {}
+local gridBuiltFor
+
+local function GridStep()
+	return Options().gridStep or 32
+end
+
+local function BuildGrid()
+	if not grid then
+		grid = CreateFrame("Frame", "KKUI_MoverGrid", UIParent)
+		grid:SetAllPoints(UIParent)
+		grid:SetFrameStrata("BACKGROUND")
+		grid:Hide()
+	end
 
 	local w, h = UIParent:GetWidth(), UIParent:GetHeight()
-	local step = 32
-	local function Line(vertical, pos)
-		local tex = grid:CreateTexture(nil, "BACKGROUND")
-		tex:SetColorTexture(THEME.grid[1], THEME.grid[2], THEME.grid[3], THEME.grid[4])
-		if vertical then
-			tex:SetSize(1, h)
-			tex:SetPoint("LEFT", UIParent, "LEFT", pos, 0)
-		else
-			tex:SetSize(w, 1)
-			tex:SetPoint("TOP", UIParent, "TOP", 0, -pos)
-		end
+	local step = GridStep()
+	local signature = format("%d:%.1f:%.1f", step, w, h)
+	if gridBuiltFor == signature then
+		return grid
 	end
-	for x = 0, w, step do
-		Line(true, x)
-	end
-	for y = 0, h, step do
-		Line(false, y)
-	end
-	-- Bronze centre cross, a touch stronger than the grid lines.
-	local cv = grid:CreateTexture(nil, "ARTWORK")
-	cv:SetColorTexture(THEME.center[1], THEME.center[2], THEME.center[3], THEME.center[4])
-	cv:SetSize(1, h)
-	cv:SetPoint("CENTER")
-	local ch = grid:CreateTexture(nil, "ARTWORK")
-	ch:SetColorTexture(THEME.center[1], THEME.center[2], THEME.center[3], THEME.center[4])
-	ch:SetSize(w, 1)
-	ch:SetPoint("CENTER")
+	gridBuiltFor = signature
 
-	grid:Hide()
+	local px = PixelSize()
+	local used = 0
+	local function Line(vertical, pos, color)
+		used = used + 1
+		local tex = gridLines[used]
+		if not tex then
+			tex = grid:CreateTexture(nil, "BACKGROUND")
+			gridLines[used] = tex
+		end
+		tex:SetColorTexture(color[1], color[2], color[3], color[4])
+		tex:ClearAllPoints()
+		pos = PixelRound(pos)
+		if vertical then
+			tex:SetPoint("TOP", UIParent, "TOPLEFT", pos, 0)
+			tex:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", pos, 0)
+			tex:SetWidth(px)
+		else
+			tex:SetPoint("LEFT", UIParent, "BOTTOMLEFT", 0, pos)
+			tex:SetPoint("RIGHT", UIParent, "BOTTOMRIGHT", 0, pos)
+			tex:SetHeight(px)
+		end
+		tex:Show()
+	end
+
+	local cx, cy = w / 2, h / 2
+	for offset = step, cx, step do
+		Line(true, cx - offset, THEME.grid)
+		Line(true, cx + offset, THEME.grid)
+	end
+	for offset = step, cy, step do
+		Line(false, cy - offset, THEME.grid)
+		Line(false, cy + offset, THEME.grid)
+	end
+	Line(true, cx, THEME.center)
+	Line(false, cy, THEME.center)
+	for i = used + 1, #gridLines do
+		gridLines[i]:Hide()
+	end
 	return grid
+end
+
+local function GridShown()
+	return Options().grid and true or false
 end
 
 function K.ToggleMoverGrid(show)
 	if show == nil then
-		show = not gridShown
+		show = not GridShown()
 	end
-	gridShown = show
-	BuildGrid():SetShown(show)
+	Options().grid = show
+	BuildGrid():SetShown(show and editing)
+	RefreshPanel()
+end
+
+local function SetGridStep(step)
+	Options().gridStep = step
+	if grid and grid:IsShown() then
+		BuildGrid()
+	end
+	RefreshPanel()
 end
 
 -- ---------------------------------------------------------------------------
 -- Snapping
 -- ---------------------------------------------------------------------------
+-- Snap lines are gathered once when a drag starts, into reused arrays, since the
+-- other movers cannot move during it. Each line carries the span of the mover
+-- that offered it on the other axis, so it only counts while the dragged box is
+-- near that mover. Kinds: 0 lines up any edge or the centre, 1 is a spacing line
+-- for the dragged box's low edge (left or bottom), 2 for its high edge.
 
--- Collect candidate snap lines in UIParent-centre-offset space. X lines come
--- from the screen centre/edges and every other mover's left/centre/right, Y
--- lines likewise from top/centre/bottom.
-local function SnapTargets(self)
-	local ux, uy = UIParent:GetCenter()
-	local halfW, halfH = UIParent:GetWidth() / 2, UIParent:GetHeight() / 2
-	local xs = { 0, -halfW, halfW }
-	local ys = { 0, halfH, -halfH }
+local lineX = { pos = {}, lo = {}, hi = {}, kind = {}, owner = {}, n = 0 }
+local lineY = { pos = {}, lo = {}, hi = {}, kind = {}, owner = {}, n = 0 }
+
+local function AddLine(set, pos, lo, hi, kind, owner)
+	local n = set.n + 1
+	set.n = n
+	set.pos[n], set.lo[n], set.hi[n], set.kind[n], set.owner[n] = pos, lo, hi, kind, owner
+end
+
+local INF = 1e9
+
+local function GatherLines(self)
+	lineX.n, lineY.n = 0, 0
+	local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+	-- The screen edges and centre, always in reach.
+	AddLine(lineX, 0, -INF, INF, 0, false)
+	AddLine(lineX, w / 2, -INF, INF, 0, false)
+	AddLine(lineX, w, -INF, INF, 0, false)
+	AddLine(lineY, 0, -INF, INF, 0, false)
+	AddLine(lineY, h / 2, -INF, INF, 0, false)
+	AddLine(lineY, h, -INF, INF, 0, false)
 
 	for _, mover in ipairs(moverOrder) do
 		if mover ~= self and mover:IsShown() then
-			local cx, cy = mover:GetCenter()
-			if cx then
-				local ox, oy = cx - ux, cy - uy
-				local hw, hh = mover:GetWidth() / 2, mover:GetHeight() / 2
-				xs[#xs + 1] = ox
-				xs[#xs + 1] = ox - hw
-				xs[#xs + 1] = ox + hw
-				ys[#ys + 1] = oy
-				ys[#ys + 1] = oy - hh
-				ys[#ys + 1] = oy + hh
+			local left, right = mover:GetLeft(), mover:GetRight()
+			local bottom, top = mover:GetBottom(), mover:GetTop()
+			if left and bottom then
+				AddLine(lineX, left, bottom, top, 0, mover)
+				AddLine(lineX, (left + right) / 2, bottom, top, 0, mover)
+				AddLine(lineX, right, bottom, top, 0, mover)
+				AddLine(lineX, right + GAP, bottom, top, 1, mover)
+				AddLine(lineX, left - GAP, bottom, top, 2, mover)
+				AddLine(lineY, bottom, left, right, 0, mover)
+				AddLine(lineY, (bottom + top) / 2, left, right, 0, mover)
+				AddLine(lineY, top, left, right, 0, mover)
+				AddLine(lineY, top + GAP, left, right, 1, mover)
+				AddLine(lineY, bottom - GAP, left, right, 2, mover)
 			end
 		end
 	end
-	return xs, ys
 end
 
--- Snap the mover's nearest edge/centre to a target line within SNAP. Returns the
--- adjusted offset and the snapped screen coordinate for the guide (or nil).
--- The three candidate edges are measured from the original value, and only the
--- single closest match is applied. Mutating value inside the loop would let two
--- in-range edges stack their offsets and overshoot the snap line.
-local function SnapAxis(value, half, targets)
-	local edges = { value, value - half, value + half }
-	local best, bestLine, bestDelta
-	for _, edge in ipairs(edges) do
-		for _, target in ipairs(targets) do
-			local d = abs(edge - target)
-			if d <= SNAP and (not best or d < best) then
-				best = d
-				bestLine = target
-				bestDelta = target - edge
-			end
+-- How far the dragged box's span (a, b) sits from a line owner's span (lo, hi).
+local function SpanGap(a, b, lo, hi)
+	return max(0, lo - b, a - hi)
+end
+
+-- The distance from the edge a line wants to that line, or nil if the line does
+-- not apply to this box. edgeLow is the box's low edge, size its width or height.
+local function LineDelta(set, i, edgeLow, size, crossA, crossB)
+	if SpanGap(crossA, crossB, set.lo[i], set.hi[i]) > NEAR then
+		return
+	end
+	local pos, kind = set.pos[i], set.kind[i]
+	if kind == 1 then
+		return pos - edgeLow
+	elseif kind == 2 then
+		return pos - (edgeLow + size)
+	end
+	-- Whichever of the three edges is closest to an alignment line.
+	local d1, d2, d3 = pos - edgeLow, pos - (edgeLow + size / 2), pos - (edgeLow + size)
+	local best = d1
+	if abs(d2) < abs(best) then
+		best = d2
+	end
+	if abs(d3) < abs(best) then
+		best = d3
+	end
+	return best
+end
+
+-- Snap one axis. Returns the adjusted low edge, the line position for the guide
+-- and the mover that offered it. state holds the snap from the last frame, which
+-- is kept until the cursor is RELEASE away from it, so a box sitting between two
+-- lines does not hop between them.
+local function SnapAxis(set, state, edgeLow, size, crossA, crossB, gridCenter)
+	local held = state.index
+	if held and held <= set.n then
+		local d = LineDelta(set, held, edgeLow, size, crossA, crossB)
+		if d and abs(d) <= RELEASE then
+			return edgeLow + d, set.pos[held], set.owner[held]
 		end
 	end
-	if bestDelta then
-		value = value + bestDelta
+	state.index = nil
+
+	local bestIndex, bestDelta
+	for i = 1, set.n do
+		local d = LineDelta(set, i, edgeLow, size, crossA, crossB)
+		if d and abs(d) <= SNAP and (not bestDelta or abs(d) < abs(bestDelta)) then
+			bestIndex, bestDelta = i, d
+		end
 	end
-	return value, bestLine
+	if bestIndex then
+		state.index = bestIndex
+		return edgeLow + bestDelta, set.pos[bestIndex], set.owner[bestIndex]
+	end
+
+	-- No screen or mover line in reach: fall back to the grid while it is shown.
+	-- Whichever edge is nearer a grid line goes to it. Lines count out from the
+	-- centre, the way the grid is drawn.
+	if gridCenter then
+		local step = GridStep()
+		local lowLine = gridCenter + floor((edgeLow - gridCenter) / step + 0.5) * step
+		local highEdge = edgeLow + size
+		local highLine = gridCenter + floor((highEdge - gridCenter) / step + 0.5) * step
+		local dLow, dHigh = lowLine - edgeLow, highLine - highEdge
+		if abs(dLow) <= abs(dHigh) and abs(dLow) <= SNAP then
+			return lowLine, lowLine, false
+		elseif abs(dHigh) <= SNAP then
+			return edgeLow + dHigh, highLine, false
+		end
+	end
+	return edgeLow
 end
 
 -- ---------------------------------------------------------------------------
 -- Dragging
 -- ---------------------------------------------------------------------------
 
-local function OnMoveUpdate(self)
-	-- GetCursorPosition returns unscaled coordinates, dividing by this frame's own
-	-- effective scale converts them to its local space, matching GetCenter and the
-	-- SetPoint offsets used below.
-	local scale = self:GetEffectiveScale()
-	local mx, my = GetCursorPosition()
-	local cx = mx / scale - self.__grabX
-	local cy = my / scale - self.__grabY
-	local ux, uy = UIParent:GetCenter()
-	local ox, oy = cx - ux, cy - uy
+local snapX, snapY = {}, {}
+local litX, litY -- movers whose border is lit as the current snap target
 
-	local xs, ys = SnapTargets(self)
-	local lineX, lineY
-	ox, lineX = SnapAxis(ox, self:GetWidth() / 2, xs)
-	oy, lineY = SnapAxis(oy, self:GetHeight() / 2, ys)
+local function Rest(mover)
+	if mover and mover.KKUI_Border then
+		K.SetBorderColor(mover.KKUI_Border, THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+	end
+end
 
-	self:ClearAllPoints()
-	self:SetPoint("CENTER", UIParent, "CENTER", K.Round(ox), K.Round(oy))
+-- Light the boxes the drag is snapped to and put back any that no longer are.
+-- Both axes are handled together, so a box that is the target for one axis is
+-- never switched off by the other.
+local function SetLit(newX, newY)
+	if litX and litX ~= newX and litX ~= newY then
+		Rest(litX)
+	end
+	if litY and litY ~= newX and litY ~= newY then
+		Rest(litY)
+	end
+	local g = THEME.guide
+	if newX and newX ~= litX and newX ~= litY and newX.KKUI_Border then
+		K.SetBorderColor(newX.KKUI_Border, g[1], g[2], g[3], 1)
+	end
+	if newY and newY ~= newX and newY ~= litX and newY ~= litY and newY.KKUI_Border then
+		K.SetBorderColor(newY.KKUI_Border, g[1], g[2], g[3], 1)
+	end
+	litX, litY = newX, newY
+end
 
-	-- Report the offset in the point this mover is actually pinned by, so the live
-	-- readout matches what gets saved rather than a centre relative number.
-	ShowTag(self)
-	NotifyPopup(self)
-
-	-- Position the guide lines at any snapped axis.
+local function ClearSnapDisplay()
 	local vg, hg = Guides()
-	if lineX then
-		vg:ClearAllPoints()
-		vg:SetPoint("CENTER", UIParent, "CENTER", lineX, 0)
-		vg:SetHeight(UIParent:GetHeight())
-		vg:Show()
+	vg:Hide()
+	hg:Hide()
+	SetLit(nil, nil)
+end
+
+local function OnMoveUpdate(self)
+	local mx, my = GetCursorPosition()
+	local free = IsShiftKeyDown() or not Options().snap
+	-- Nothing to do while the cursor and the Shift key stay as they were.
+	if mx == self.__lastX and my == self.__lastY and free == self.__lastFree then
+		return
+	end
+	self.__lastX, self.__lastY, self.__lastFree = mx, my, free
+
+	-- GetCursorPosition is unscaled. Dividing by this frame's effective scale puts
+	-- it in UIParent units, the same space as GetLeft and SetPoint offsets.
+	local scale = self:GetEffectiveScale()
+	local w, h = self:GetWidth(), self:GetHeight()
+	local left = mx / scale - self.__grabX
+	local bottom = my / scale - self.__grabY
+
+	local guideX, guideY, ownerX, ownerY
+	if free then
+		snapX.index, snapY.index = nil, nil
+	else
+		local gw, gh
+		if GridShown() then
+			gw, gh = UIParent:GetWidth() / 2, UIParent:GetHeight() / 2
+		end
+		-- Each axis checks the other axis's span from the raw position, so the
+		-- two snaps cannot feed each other.
+		local rawLeft, rawBottom = left, bottom
+		left, guideX, ownerX = SnapAxis(lineX, snapX, rawLeft, w, rawBottom, rawBottom + h, gw)
+		bottom, guideY, ownerY = SnapAxis(lineY, snapY, rawBottom, h, rawLeft, rawLeft + w, gh)
+	end
+
+	-- Keep the whole box on screen, then onto whole pixels.
+	local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+	left = PixelRound(min(max(left, 0), sw - w))
+	bottom = PixelRound(min(max(bottom, 0), sh - h))
+
+	if left ~= self.__placedLeft or bottom ~= self.__placedBottom then
+		self.__placedLeft, self.__placedBottom = left, bottom
+		self:ClearAllPoints()
+		self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left, bottom)
+		ShowTag(self)
+		NotifyPopup(self)
+	end
+
+	local vg, hg = Guides()
+	if guideX then
+		ShowGuide(vg, true, PixelRound(guideX))
 	else
 		vg:Hide()
 	end
-	if lineY then
-		hg:ClearAllPoints()
-		hg:SetPoint("CENTER", UIParent, "CENTER", 0, lineY)
-		hg:SetWidth(UIParent:GetWidth())
-		hg:Show()
+	if guideY then
+		ShowGuide(hg, false, PixelRound(guideY))
 	else
 		hg:Hide()
 	end
+	SetLit(ownerX or nil, ownerY or nil)
 end
 
 local function OnDragStart(self)
-	if InCombatLockdown() then
+	if InCombatLockdown() or not editing then
 		return
 	end
-	-- Match OnMoveUpdate: convert the cursor into this frame's local space with its
-	-- own effective scale so the grab offset stays exact under any UI scale.
 	local scale = self:GetEffectiveScale()
 	local mx, my = GetCursorPosition()
-	local cx, cy = self:GetCenter()
-	self.__grabX = mx / scale - cx
-	self.__grabY = my / scale - cy
+	self.__grabX = mx / scale - self:GetLeft()
+	self.__grabY = my / scale - self:GetBottom()
+	self.__lastX, self.__lastY, self.__placedLeft, self.__placedBottom = nil, nil, nil, nil
+	snapX.index, snapY.index = nil, nil
+	GatherLines(self)
+	Remember(self)
 	self.__dragging = true
+	self.__wasDragged = true
 	self:SetScript("OnUpdate", OnMoveUpdate)
 end
 
-local function OnDragStop(self)
+-- Ends a drag and saves where it landed. Also called when move mode closes in
+-- the middle of a drag, so a box is never left somewhere it was not saved.
+local function FinishDrag(self)
+	if not self.__dragging then
+		return
+	end
 	self:SetScript("OnUpdate", nil)
 	self.__dragging = nil
 	-- Read the point before saving, so a first move keeps the point it was shown with.
 	local point = CurrentPoint(self)
 	local ox, oy = OffsetFor(self, point)
 	ApplyOffset(self, ox, oy, point)
-	if self:IsMouseOver() then
+	ClearSnapDisplay()
+	if self:IsMouseOver() and editing then
 		ShowTag(self)
 	else
 		HideTag(self)
 	end
 	NotifyPopup(self)
-	local vg, hg = Guides()
-	vg:Hide()
-	hg:Hide()
 end
 
--- Arrow keys nudge the focused mover one pixel at a time.
+-- Arrow keys nudge the hovered mover by one pixel, ten with Shift. Ctrl+Z undoes.
 local nudge = {
 	UP = { 0, 1 },
 	DOWN = { 0, -1 },
@@ -462,17 +790,32 @@ local nudge = {
 	RIGHT = { 1, 0 },
 }
 
+local function NudgeMover(mover, dx, dy)
+	if InCombatLockdown() then
+		return
+	end
+	local px = PixelSize()
+	local point = CurrentPoint(mover)
+	local ox, oy = OffsetFor(mover, point)
+	Remember(mover)
+	ApplyOffset(mover, ox + dx * px, oy + dy * px, point)
+	NotifyPopup(mover)
+end
+
 local function OnKeyDown(self, key)
+	if key == "Z" and IsControlKeyDown() then
+		self:SetPropagateKeyboardInput(false)
+		Undo()
+		return
+	end
 	local step = nudge[key]
 	if not step then
 		self:SetPropagateKeyboardInput(true)
 		return
 	end
 	self:SetPropagateKeyboardInput(false)
-	local point = CurrentPoint(self)
-	local ox, oy = OffsetFor(self, point)
-	ApplyOffset(self, ox + step[1], oy + step[2], point)
-	NotifyPopup(self)
+	local amount = IsShiftKeyDown() and 10 or 1
+	NudgeMover(self, step[1] * amount, step[2] * amount)
 end
 
 -- ---------------------------------------------------------------------------
@@ -491,7 +834,7 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 	mover:EnableMouse(false)
 	mover:RegisterForDrag("LeftButton")
 	mover:SetScript("OnDragStart", OnDragStart)
-	mover:SetScript("OnDragStop", OnDragStop)
+	mover:SetScript("OnDragStop", FinishDrag)
 	mover:Hide()
 
 	mover.moverKey = key
@@ -512,10 +855,17 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 	text:SetWordWrap(false)
 	mover.Label = text
 
-	-- A click (mouse up, including right after a drag) opens the nudge popup for
-	-- this mover so you can type exact coordinates or step it a pixel at a time.
-	mover:SetScript("OnMouseUp", function(self)
-		if editing then
+	-- A click opens the nudge popup for exact numbers. The mouse up that ends a
+	-- drag is not a click, so letting go of a box no longer pops the window open.
+	mover:SetScript("OnMouseUp", function(self, button)
+		if not editing then
+			return
+		end
+		if self.__wasDragged then
+			self.__wasDragged = nil
+			return
+		end
+		if button == "LeftButton" then
 			K.OpenMoverPopup(self)
 		end
 	end)
@@ -535,7 +885,9 @@ function K.CreateMover(frame, key, label, defaultPoint, width, height, attachPoi
 	mover:SetScript("OnLeave", function(self)
 		self:EnableKeyboard(false)
 		self:SetScript("OnKeyDown", nil)
-		K.SetBorderColor(self.KKUI_Border, THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+		if self ~= litX and self ~= litY then
+			K.SetBorderColor(self.KKUI_Border, THEME.rest[1], THEME.rest[2], THEME.rest[3], THEME.rest[4])
+		end
 		self:SetFrameLevel(self.__restLevel or 1)
 		if not self.__dragging then
 			HideTag(self)
@@ -579,12 +931,13 @@ function K.EnableFrameDrag(frame)
 		if not left then
 			return
 		end
-		-- Match the mover to the frame's new corner, then persist by centre offset
+		-- Match the mover to the frame's new corner, then persist by its own point
 		-- and re-anchor the frame to the mover as usual.
 		mover:ClearAllPoints()
 		mover:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-		local ox, oy = CurrentOffset(mover)
-		ApplyOffset(mover, ox, oy)
+		local point = CurrentPoint(mover)
+		local ox, oy = OffsetFor(mover, point)
+		ApplyOffset(mover, ox, oy, point)
 		self:ClearAllPoints()
 		self:SetPoint("TOPLEFT", mover, "TOPLEFT", 0, 0)
 	end)
@@ -599,7 +952,7 @@ function K.GetMoverList()
 	return list
 end
 
--- Reset a single mover to its default and flash it so it is easy to spot.
+-- Reset a single mover to its default.
 function K.ResetMover(key)
 	local mover = movers[key]
 	if not mover then
@@ -611,8 +964,10 @@ function K.ResetMover(key)
 		K.Print(L["Cannot move frames during combat."])
 		return
 	end
+	Remember(mover)
 	Store()[key] = nil
 	RestorePosition(mover)
+	NotifyPopup(mover)
 end
 
 function K.FlashMover(key)
@@ -640,10 +995,15 @@ local function RefreshPopup()
 	end
 	local ox, oy = CurrentOffset(popupTarget)
 	popup.Title:SetText(popupTarget.moverLabel)
-	popup.X:SetText(ox)
-	popup.Y:SetText(oy)
-	popup.X:SetCursorPosition(0)
-	popup.Y:SetCursorPosition(0)
+	-- Leave a field alone while it is being typed in.
+	if not popup.X:HasFocus() then
+		popup.X:SetText(FormatOffset(ox))
+		popup.X:SetCursorPosition(0)
+	end
+	if not popup.Y:HasFocus() then
+		popup.Y:SetText(FormatOffset(oy))
+		popup.Y:SetCursorPosition(0)
+	end
 
 	-- Spell out what the offsets are actually measured from, since the same pair of
 	-- numbers means somewhere quite different depending on the point.
@@ -660,23 +1020,15 @@ NotifyPopup = function(mover)
 	end
 end
 
-local function Nudge(dx, dy)
-	if not popupTarget then
-		return
-	end
-	local ox, oy = CurrentOffset(popupTarget)
-	ApplyOffset(popupTarget, ox + dx, oy + dy)
-	RefreshPopup()
-end
-
 local function ApplyInputs()
-	if not popupTarget then
+	if not popupTarget or InCombatLockdown() then
 		return
 	end
 	local x = tonumber(popup.X:GetText())
 	local y = tonumber(popup.Y:GetText())
 	if x and y then
-		ApplyOffset(popupTarget, K.Round(x), K.Round(y))
+		Remember(popupTarget)
+		ApplyOffset(popupTarget, x, y)
 	end
 	RefreshPopup()
 end
@@ -691,6 +1043,7 @@ local function BuildPopup()
 	popup:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 260)
 	popup:SetFrameStrata("DIALOG")
 	popup:SetMovable(true)
+	popup:SetClampedToScreen(true)
 	popup:EnableMouse(true)
 	popup:RegisterForDrag("LeftButton")
 	popup:SetScript("OnDragStart", popup.StartMoving)
@@ -716,9 +1069,9 @@ local function BuildPopup()
 	K.CreateBackground(group, 0.1, 0.08, 0.05, 0.55)
 	K.CreateBorder(group)
 
-	-- Directional nudge pad on the left, a clean plus with 2px gaps. Each button
-	-- carries a real arrow texture (SquareButtonTextures, tinted gold) rather than
-	-- a typed character, so it renders crisply regardless of the active font.
+	-- Directional nudge pad on the left. Shift steps ten pixels, the same as the
+	-- arrow keys. Each button carries a real arrow texture rather than a typed
+	-- character, so it renders crisply regardless of the active font.
 	local ARROW = {
 		up = { 0.45312500, 0.64062500, 0.01562500, 0.20312500 },
 		down = { 0.45312500, 0.64062500, 0.20312500, 0.01562500 },
@@ -739,7 +1092,10 @@ local function BuildPopup()
 		arrow:SetPoint("CENTER")
 
 		b:SetScript("OnClick", function()
-			Nudge(dx, dy)
+			if popupTarget then
+				local amount = IsShiftKeyDown() and 10 or 1
+				NudgeMover(popupTarget, dx * amount, dy * amount)
+			end
 		end)
 		return b
 	end
@@ -749,7 +1105,8 @@ local function BuildPopup()
 	MakeArrow("right", 70, -37, 1, 0)
 	MakeArrow("down", 40, -66, 0, -1)
 
-	-- X and Y inputs stacked on the right, inside the same group.
+	-- X and Y inputs stacked on the right, inside the same group. Enter or Tab
+	-- applies, and Tab moves to the other field.
 	local function MakeInput(label, yOff)
 		local text = group:CreateFontString(nil, "OVERLAY")
 		K.SetFont(text, 11, K.FontOutlineStyle())
@@ -765,13 +1122,24 @@ local function BuildPopup()
 			self:ClearFocus()
 			ApplyInputs()
 		end)
-		edit:SetScript("OnEscapePressed", edit.ClearFocus)
+		edit:SetScript("OnEscapePressed", function(self)
+			self:ClearFocus()
+			RefreshPopup()
+		end)
 		K.SkinEditBox(edit)
 		return edit
 	end
 
 	popup.X = MakeInput("X", -8)
 	popup.Y = MakeInput("Y", -52)
+	popup.X:SetScript("OnTabPressed", function(self)
+		ApplyInputs()
+		popup.Y:SetFocus()
+	end)
+	popup.Y:SetScript("OnTabPressed", function(self)
+		ApplyInputs()
+		popup.X:SetFocus()
+	end)
 
 	-- Anchor point picker. Clicking steps through the points, and the frame keeps
 	-- its place on screen because the new offsets are measured from where it
@@ -787,7 +1155,7 @@ local function BuildPopup()
 	anchor:SetPoint("TOPRIGHT", group, "BOTTOMRIGHT", 0, -6)
 	K.SkinButton(anchor)
 	anchor:SetScript("OnClick", function()
-		if not popupTarget then
+		if not popupTarget or InCombatLockdown() then
 			return
 		end
 		local current = CurrentPoint(popupTarget)
@@ -843,22 +1211,49 @@ K.OpenMoverPopup = OpenPopup
 -- Edit mode
 -- ---------------------------------------------------------------------------
 
+local function MakeButton(parent, text, width)
+	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+	button:SetSize(width, 22)
+	button:SetText(text)
+	K.SkinButton(button)
+	return button
+end
+
+local function MakeCheck(parent, text, onClick)
+	local check = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
+	K.SkinCheckBox(check)
+	check.Text:SetText(text)
+	check.Text:ClearAllPoints()
+	check.Text:SetPoint("LEFT", check, "RIGHT", 4, 0)
+	K.SetFont(check.Text, 12)
+	check:SetScript("OnClick", onClick)
+	return check
+end
+
 local function BuildPanel()
 	if panel then
 		return panel
 	end
 
 	panel = CreateFrame("Frame", "KKUI_MoverPanel", UIParent)
-	panel:SetSize(240, 152)
+	panel:SetSize(264, 196)
 	panel:SetPoint("TOP", UIParent, "TOP", 0, -120)
 	panel:SetFrameStrata("DIALOG")
 	panel:SetMovable(true)
+	panel:SetClampedToScreen(true)
 	panel:EnableMouse(true)
 	panel:RegisterForDrag("LeftButton")
 	panel:SetScript("OnDragStart", panel.StartMoving)
 	panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
 	K.CreateGradientBackground(panel)
 	K.CreateBorder(panel)
+	-- Escape closes move mode like any other window.
+	_G.tinsert(_G.UISpecialFrames, "KKUI_MoverPanel")
+	panel:SetScript("OnHide", function()
+		if editing then
+			K.ToggleMovers(false)
+		end
+	end)
 
 	local title = panel:CreateFontString(nil, "OVERLAY")
 	K.SetFont(title, 13, K.FontOutlineStyle())
@@ -869,45 +1264,89 @@ local function BuildPanel()
 	local hint = panel:CreateFontString(nil, "OVERLAY")
 	K.SetFont(hint, 10, K.FontOutlineStyle())
 	hint:SetPoint("TOP", title, "BOTTOM", 0, -6)
-	hint:SetWidth(220)
+	hint:SetWidth(240)
 	hint:SetJustifyH("CENTER")
 	hint:SetSpacing(3)
-	hint:SetText(L["Drag to move, edges snap. Hover and use arrow keys to nudge."])
+	hint:SetTextColor(K.Colors.secondary[1], K.Colors.secondary[2], K.Colors.secondary[3])
+	hint:SetText(L["Drag a box to move it. Hold Shift to place it freely. Hover and use the arrow keys to nudge, with Shift for ten. Click a box for exact numbers."])
 
-	-- Sits on the row above the two buttons, lined up with the left one. Hung off
-	-- the hint text it landed on top of the Lock button whenever the hint wrapped
-	-- to a third line.
-	local gridCheck = CreateFrame("CheckButton", nil, panel, "InterfaceOptionsCheckButtonTemplate")
-	gridCheck:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 36)
-	K.SkinCheckBox(gridCheck)
-	gridCheck.Text:SetText(L["Grid"])
-	gridCheck.Text:ClearAllPoints()
-	gridCheck.Text:SetPoint("LEFT", gridCheck, "RIGHT", 4, 0)
-	K.SetFont(gridCheck.Text, 12)
-	gridCheck:SetChecked(gridShown)
-	gridCheck:SetScript("OnClick", function(self)
+	-- Placement options: snapping, the grid and its step. The grid also becomes a
+	-- snap target while it is shown.
+	local snap = MakeCheck(panel, L["Snap"], function(self)
+		Options().snap = self:GetChecked() and true or false
+	end)
+	snap:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 66)
+	panel.Snap = snap
+
+	local gridCheck = MakeCheck(panel, L["Grid"], function(self)
 		K.ToggleMoverGrid(self:GetChecked() and true or false)
 	end)
+	gridCheck:SetPoint("LEFT", snap.Text, "RIGHT", 14, 0)
+	panel.Grid = gridCheck
 
-	local lock = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	lock:SetSize(100, 22)
-	lock:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 10)
-	lock:SetText(L["Lock"])
-	K.SkinButton(lock)
-	lock:SetScript("OnClick", function()
+	local stepButton = MakeButton(panel, "", 84)
+	stepButton:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 68)
+	stepButton:SetScript("OnClick", function()
+		local current = GridStep()
+		local nextStep = GRID_STEPS[1]
+		for i, step in ipairs(GRID_STEPS) do
+			if step == current then
+				nextStep = GRID_STEPS[(i % #GRID_STEPS) + 1]
+				break
+			end
+		end
+		SetGridStep(nextStep)
+	end)
+	panel.Step = stepButton
+
+	local undoButton = MakeButton(panel, L["Undo"], 118)
+	undoButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 38)
+	undoButton:SetScript("OnClick", Undo)
+	panel.Undo = undoButton
+
+	local revert = MakeButton(panel, L["Revert"], 118)
+	revert:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 38)
+	revert:SetScript("OnClick", Revert)
+	panel.Revert = revert
+
+	local done = MakeButton(panel, L["Done"], 118)
+	done:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 10)
+	done:SetScript("OnClick", function()
 		K.ToggleMovers(false)
 	end)
 
-	local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	reset:SetSize(100, 22)
+	local reset = MakeButton(panel, L["Reset All"], 118)
 	reset:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 10)
-	reset:SetText(L["Reset All"])
-	K.SkinButton(reset)
 	reset:SetScript("OnClick", function()
-		K.ResetMovers()
+		if K.Confirm then
+			K.Confirm(L["Put every frame back in its default place?"], K.ResetMovers)
+		else
+			K.ResetMovers()
+		end
 	end)
 
 	return panel
+end
+
+-- Keep the panel's controls in step with the options and the undo list.
+RefreshPanel = function()
+	if not panel then
+		return
+	end
+	panel.Snap:SetChecked(Options().snap)
+	panel.Grid:SetChecked(GridShown())
+	panel.Step:SetText(format(L["Grid %d"], GridStep()))
+	panel.Step:SetEnabled(GridShown())
+	panel.Undo:SetText(#undo > 0 and format("%s (%d)", L["Undo"], #undo) or L["Undo"])
+	panel.Undo:SetEnabled(#undo > 0)
+end
+
+local function SnapshotStore()
+	local copy = {}
+	for key, entry in pairs(Store()) do
+		copy[key] = CopyEntry(entry)
+	end
+	return copy
 end
 
 function K.ToggleMovers(show)
@@ -917,6 +1356,16 @@ function K.ToggleMovers(show)
 	if show and InCombatLockdown() then
 		K.Print(L["Cannot move frames during combat."])
 		return
+	end
+	if show == editing then
+		return
+	end
+
+	if not show then
+		-- A drag still running is finished and saved before anything closes.
+		for _, mover in ipairs(moverOrder) do
+			FinishDrag(mover)
+		end
 	end
 
 	editing = show
@@ -929,10 +1378,13 @@ function K.ToggleMovers(show)
 			mover:SetScript("OnKeyDown", nil)
 			mover:SetScript("OnUpdate", nil)
 			mover.__dragging = nil
+			mover.__wasDragged = nil
 		end
 	end
 
 	if show then
+		undo = {}
+		sessionStart = SnapshotStore()
 		-- Largest first, so each smaller box lands on a higher level.
 		local bySize = {}
 		for i, mover in ipairs(moverOrder) do
@@ -947,16 +1399,22 @@ function K.ToggleMovers(show)
 		end
 	else
 		HideTag()
+		ClearSnapDisplay()
+		sessionStart = nil
+		undo = {}
 	end
 
-	BuildPanel():SetShown(show)
-	if not show then
-		if gridShown then
-			K.ToggleMoverGrid(false)
-		end
-		if popup then
-			popup:Hide()
-		end
+	if GridShown() then
+		BuildGrid():SetShown(show)
+	elseif grid then
+		grid:Hide()
+	end
+
+	BuildPanel()
+	RefreshPanel()
+	panel:SetShown(show)
+	if not show and popup then
+		popup:Hide()
 	end
 end
 
@@ -976,14 +1434,27 @@ function K.ResetMovers()
 	for _, mover in ipairs(moverOrder) do
 		RestorePosition(mover)
 	end
+	undo = {}
+	RefreshPanel()
+	if popupTarget then
+		NotifyPopup(popupTarget)
+	end
 	K.Print(L["Frame positions reset."])
 end
 
 -- Placing frames is blocked in combat, so move mode closes when a fight starts.
+-- This event fires just before the lockdown, so a drag in progress still saves.
 local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
-combat:SetScript("OnEvent", function()
-	if editing then
-		K.ToggleMovers(false)
+combat:RegisterEvent("UI_SCALE_CHANGED")
+combat:RegisterEvent("DISPLAY_SIZE_CHANGED")
+combat:SetScript("OnEvent", function(_, event)
+	if event == "PLAYER_REGEN_DISABLED" then
+		if editing then
+			K.ToggleMovers(false)
+		end
+	elseif grid and grid:IsShown() then
+		-- The screen changed size, so the grid is drawn again for it.
+		BuildGrid()
 	end
 end)
