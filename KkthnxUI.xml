@@ -13,6 +13,7 @@
 	<Script file="Core\Config.lua" />
 	<Script file="Core\Media.lua" />
 	<Script file="Core\Border.lua" />
+	<Script file="Core\ItemLevel.lua" />
 	<Script file="Core\AuraContainer.lua" />
 	<Script file="Core\Skins.lua" />
 	<Script file="Core\Dialog.lua" />

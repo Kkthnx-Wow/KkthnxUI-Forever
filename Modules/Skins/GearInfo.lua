@@ -29,6 +29,7 @@ local C_Item = C_Item
 local Item = Item
 local GameTooltip = GameTooltip
 local UnitLevel = UnitLevel
+local GetInventoryItemLink = GetInventoryItemLink
 local GetMaxLevelForPlayerExpansion = GetMaxLevelForPlayerExpansion
 local IsSecret = K.IsSecret
 
@@ -213,7 +214,10 @@ function Module.UpdateGear(slot, unit, id, link)
 				-- slot once its data arrives, as Blizzard's socket display does.
 				frame.icon:SetTexture(MISSING_ICON)
 				Item:CreateFromItemID(gemID):ContinueOnItemLoad(function()
-					Module.UpdateGear(slot, unit, id, link)
+					-- The slot may show another item or another player by now.
+					if GetInventoryItemLink(unit, id) == link then
+						Module.UpdateGear(slot, unit, id, link)
+					end
 				end)
 			end
 		else

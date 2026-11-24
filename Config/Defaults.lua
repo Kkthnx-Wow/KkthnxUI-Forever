@@ -291,6 +291,48 @@ K.ConfigDefaults = {
 				Visibility = "swinging", -- always, combat, swinging or hidden
 				Width = 242,
 				Height = 14,
+		InspectItemLevel = true, -- the inspected player's average item level on the inspect window
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.95, 0.69, 0.26 }, -- gold
+			},
+		},
+
+		-- Main hand, off hand and ranged swing bars, each on its own mover.
+		Swing = {
+			Enable = true,
+			Spark = true,
+			Drain = false, -- empty the bar as the swing runs instead of filling it
+			RangeCheck = true, -- dim a bar once its swing ends while the target is out of reach
+			RangeAlpha = 0.4,
+		Waypoints = true, -- /way and Alt+click on the map set the game's own super-tracked waypoint
+			HasteAdjust = true, -- stretch or shrink a running swing when attack speed changes
+			MainHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.36, 0.55, 0.81 }, -- accent blue
+			},
+			OffHand = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
+				Scale = 1,
+				Alpha = 1,
+				ShowTitle = true,
+				ShowTime = true,
+				Color = { 0.62, 0.48, 0.86 }, -- violet, so the two hands read apart
+			},
+			Ranged = {
+				Visibility = "swinging", -- always, combat, swinging or hidden
+				Width = 242,
+				Height = 14,
 				Scale = 1,
 				Alpha = 1,
 				ShowTitle = true,
@@ -385,18 +427,27 @@ K.ConfigDefaults = {
 		FocusColor = { 0.85, 0.45, 1 },
 		NonTargetAlpha = 1, -- alpha of the other plates while you have a target, 1 is off
 		ExecuteColor = { 0.9, 0.2, 0.2 },
-		MaxDistance = 60,
-		MaxAuras = 5,
-		AuraSize = 26,
-		AuraSpacing = 6,
-		PrivateAuras = true, -- Blizzard private auras (boss mechanics) on the plate
-		PrivateAuraSize = 28,
+		CursorTrail = false, -- a trail behind the mouse pointer
+		CursorTrailStyle = "Comet", -- Ribbon, Particles or Comet
+		CursorTrailLength = 48, -- most trail points on screen at once
+		CursorTrailSpacing = 8, -- pixels the pointer must travel before another point is dropped
+		CursorTrailLifetime = 0.45, -- seconds a point takes to fade out
+		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
+		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
+		CursorTrailSize = 18, -- particle size and ribbon width
 		-- Custom health colours for priority mobs, keyed by npcID -> { r, g, b }.
-		CustomColors = {},
+		CursorTrailShrink = true, -- taper the ribbon and shrink particles as they fade
+		CursorTrailDrift = true, -- particles drift apart as they fade
+		CursorTrailTwinkle = true, -- particles flicker as they fade
+		CursorTrailHead = true, -- a glow on the pointer itself
+		CursorTrailHeadShape = "IconGlow",
+		CursorTrailHeadSize = 34,
 	},
 
 	Auras = {
 		Enable = true,
+		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
 		BuffSize = 30,
 		DebuffSize = 38, -- kept two steps larger than the buffs so debuffs stand out
 		PerRow = 14,
@@ -430,6 +481,8 @@ K.ConfigDefaults = {
 		CursorTrailStyle = "Comet", -- Ribbon, Particles or Comet
 		CursorTrailLength = 48, -- most trail points on screen at once
 		CursorTrailSpacing = 8, -- pixels the pointer must travel before another point is dropped
+		MaxCameraDistance = false, -- raise the camera distance setting to the top of the game's own slider
+		EasyFishing = false, -- double right-click on the world to cast Fishing
 		CursorTrailLifetime = 0.45, -- seconds a point takes to fade out
 		CursorTrailShape = "IconGlow", -- particle and spark art, a key in C.Media.TrailGlows
 		CursorTrailRibbon = "GlowLine", -- ribbon art, a key in C.Media.TrailRibbons
@@ -443,7 +496,6 @@ K.ConfigDefaults = {
 		CursorTrailHeadSize = 34,
 	BagBar = {
 		Enable = true,
-		ButtonSize = 30,
 		Spacing = 6,
 		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
 		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
@@ -497,11 +549,14 @@ K.ConfigDefaults = {
 		ItemAssignments = {}, -- itemID -> category key the player pinned it to
 
 		CursorTrailFade = false, -- shift from the trail colour to the tail colour as it fades
+		Emojis = true, -- show :) and :shortcodes: as small icons in player chat
 		CursorTrailTailColor = { 0.95, 0.69, 0.26 },
-	-- Movable experience / reputation / honor / house progress bar.
+		BubbleName = true, -- start the bubble with who is speaking, class coloured
+		BubbleChatColor = true, -- tint the bubble shadow by chat type (party, raid, yell)
 	ExpRep = {
 		Enable = true,
 		Width = 400,
+		CharacterCount = true, -- characters left to type, on the right of the chat edit box
 		Height = 14,
 		FontSize = 11,
 		ShowText = true,

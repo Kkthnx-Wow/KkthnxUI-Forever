@@ -26,10 +26,13 @@ local K, C = KkthnxUI[1], KkthnxUI[2]
 local Module = K:NewModule("CharacterFrames")
 
 local _G = _G
+local tostring = tostring
 local CreateFrame = CreateFrame
 local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
 local UnitClass = UnitClass
+local UnitGUID = UnitGUID
+local C_Timer = C_Timer
 local IsSecret = K.IsSecret
 
 -- Extra pixels given to the paper doll tab. The model, its background and both
@@ -61,6 +64,11 @@ local INSPECT_CHAINED = {
 }
 
 local ILVL_SIZE = 12
+-- Inspect data can arrive before every link is in, so the average is read
+-- again as items load, at most this many times, with this wait when nothing
+-- can be loaded.
+local INSPECT_LEVEL_DELAY = 0.5
+local INSPECT_LEVEL_TRIES = 5
 
 -- The class dressing room art is an atlas per class (checked in the 1.60.1
 -- client), already cropped to the painted area. Retail uses the same names.
@@ -228,7 +236,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local inspectStyled
-local inspectArt, inspectLevel, inspectClass
+local inspectArt, inspectLevel, inspectShade, inspectClass
 
 local function ApplyInspectWidth(frame)
 	if InCombatLockdown() then
@@ -247,9 +255,9 @@ local function ApplyInspectWidth(frame)
 	end
 end
 
--- Follow the inspected player: class art from their class, item level from the
--- inspect data. Both are cheap reads, done on the watcher's slow tick. The art
--- is only shown on the Character tab, the other tabs keep the stock inset.
+-- Follow the inspected player's class art, a cheap read done on the watcher's
+-- slow tick. The art is only shown on the Character tab, the other tabs keep
+-- the stock inset.
 local function RefreshInspectInfo(frame)
 	local paperDoll = _G.InspectPaperDollFrame
 	inspectArt:SetShown(paperDoll and paperDoll:IsShown() or false)
@@ -264,13 +272,100 @@ local function RefreshInspectInfo(frame)
 		inspectClass = class
 		SetClassArt(inspectArt, class)
 	end
+end
 
-	local api = _G.C_PaperDollInfo
-	local ilvl = api and api.GetInspectItemLevel and api.GetInspectItemLevel(unit)
-	if ilvl and not IsSecret(ilvl) and ilvl > 0 then
-		inspectLevel:SetFormattedText("%s: %d", _G.STAT_AVERAGE_ITEM_LEVEL or "Item Level", ilvl)
+-- The inspected player's average item level, read when inspect data arrives
+-- or their gear changes, never on a timer. Each read bumps the token, so a
+-- late retry or item load for an older read is dropped.
+local inspectLinks = {}
+local inspectToken = 0
+-- Off unless switched on with /kkdebug ilvl.
+local stream = K.Debug.Register("ilvl", "Tooltip and inspect window item level steps")
+
+local function ShowInspectLevel(level)
+	if level and level > 0 then
+		inspectLevel:SetFormattedText("%s: %.1f", _G.STAT_AVERAGE_ITEM_LEVEL or "Item Level", level)
 	else
 		inspectLevel:SetText("")
+	end
+	-- The strip only shows behind a number, never as an empty bar.
+	if inspectShade then
+		inspectShade:SetShown(level and level > 0 or false)
+	end
+end
+
+local function UpdateInspectLevel(frame, tries)
+	if tries == 0 then
+		inspectToken = inspectToken + 1
+	end
+	local token = inspectToken
+	local unit = frame.unit
+	if not (C.Skins.InspectItemLevel and unit and frame:IsShown()) then
+		ShowInspectLevel(nil)
+		return
+	end
+
+	local level, reason = K.GetInspectAverage(unit, inspectLinks)
+	stream:Log("window unit=%s try=%d level=%s reason=%s visible=%s", tostring(unit), tries, tostring(level), tostring(reason), tostring(inspectLevel:IsVisible()))
+	if reason == "partial" then
+		-- Links still arriving. Read again once the missing items load, or after
+		-- a short wait when there is nothing to load. Capped, then left blank
+		-- until the next inspect reply or gear change.
+		if tries < INSPECT_LEVEL_TRIES then
+			local function Again()
+				if token == inspectToken then
+					UpdateInspectLevel(frame, tries + 1)
+				end
+			end
+			if not K.LoadMissingGear(unit, Again) then
+				C_Timer.After(INSPECT_LEVEL_DELAY, Again)
+			end
+		end
+		return
+	elseif reason == "loading" then
+		K.LoadGearLinks(inspectLinks, function()
+			if token == inspectToken then
+				ShowInspectLevel(K.AverageFromLinks(inspectLinks))
+			end
+		end)
+		return
+	end
+	ShowInspectLevel(level)
+end
+
+local function WatchInspectLevel(frame)
+	local events = CreateFrame("Frame", nil, frame)
+	-- A child frame shows and hides with the window, so events are only listened
+	-- to while it is open, without hooking the Blizzard frame's own scripts.
+	events:SetScript("OnShow", function(self)
+		stream:Log("window shown unit=%s", tostring(frame.unit))
+		self:RegisterEvent("INSPECT_READY")
+		self:RegisterEvent("UNIT_INVENTORY_CHANGED")
+		UpdateInspectLevel(frame, 0)
+	end)
+	events:SetScript("OnHide", function(self)
+		self:UnregisterAllEvents()
+		inspectToken = inspectToken + 1
+		ShowInspectLevel(nil)
+	end)
+	events:SetScript("OnEvent", function(_, event, arg)
+		local unit = frame.unit
+		stream:Log("window event %s arg=%s unit=%s", event, IsSecret(arg) and "<secret>" or tostring(arg), tostring(unit))
+		if not unit then
+			return
+		end
+		if event == "INSPECT_READY" then
+			local guid = UnitGUID(unit)
+			if IsSecret(arg) or not guid or IsSecret(guid) or arg ~= guid then
+				return
+			end
+		elseif IsSecret(arg) or arg ~= unit then
+			return
+		end
+		UpdateInspectLevel(frame, 0)
+	end)
+	if frame:IsShown() then
+		events:GetScript("OnShow")(events)
 	end
 end
 
@@ -308,7 +403,20 @@ local function StyleInspectFrame()
 	inspectLevel = (paperDoll or frame):CreateFontString(nil, "OVERLAY")
 	K.SetFont(inspectLevel, ILVL_SIZE, K.FontOutlineStyle())
 	inspectLevel:SetJustifyH("CENTER")
-	inspectLevel:SetPoint("BOTTOM", inset, "BOTTOM", 0, 32)
+	-- Hung off the middle weapon slot rather than the inset. The weapon row is
+	-- placed from the window's bottom edge, so a line placed from the inset sat
+	-- behind the slots. Off the slot it always lands just above the row.
+	local weaponRow = _G.InspectSecondaryHandSlot or _G.InspectMainHandSlot
+	if weaponRow then
+		inspectLevel:SetPoint("BOTTOM", weaponRow, "TOP", 0, 6)
+	else
+		inspectLevel:SetPoint("BOTTOM", inset, "BOTTOM", 0, 32)
+	end
+	-- The same fading strip the minimap readouts and unit frame names sit on.
+	inspectShade = K.CreateTextShade(paperDoll or frame, "ARTWORK", 6)
+	inspectShade:SetRegion(inspectLevel, 12, 3)
+	inspectShade:SetColor(K.StripColor[1], K.StripColor[2], K.StripColor[3], K.GradientAlpha.strip)
+	WatchInspectLevel(frame)
 
 	-- Head starts the left column and Hands the right one, the rest are chained.
 	NudgeSlot(_G.InspectHeadSlot, INSPECT_SLOT_X, INSPECT_SLOT_Y)
