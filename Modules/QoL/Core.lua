@@ -29,6 +29,8 @@
 			QuestLevels.lua      quest levels in NPC quest lists and quest text titles
 			QuickDelete.lua      fill in the word the game asks for before deleting a good item
 			TradeInfo.lua        say who you are trading with on the trade window
+			FlightTimes.lua      time each flight, show it on the flight map and count down in the air
+			CancelBuffs.lua      take off listed buffs such as costumes as soon as they land
 
 		A feature only registers its events when its toggle is on, so a switched
 		off feature costs nothing. Toggles apply on reload.
@@ -184,6 +186,8 @@ local FEATURES = {
 	{ "TrainAll", "SetupTrainAll" },
 	{ "QuestLevels", "SetupQuestLevels" },
 	{ "EasyFishing", "SetupEasyFishing" },
+	{ "FlightTimes", "SetupFlightTimes" },
+	{ "CancelBuffs", "SetupCancelBuffs" },
 }
 
 function Module:OnEnable()

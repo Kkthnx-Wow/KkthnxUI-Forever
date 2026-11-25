@@ -22,14 +22,19 @@ local InCombatLockdown = InCombatLockdown
 -- Console variables that shape the plates. Kept conservative and only applied
 -- when out of combat, since some of these are protected during combat.
 function Module:SetupCVars()
+	-- A login or reload in combat would otherwise wait for the next loading screen.
 	if InCombatLockdown() then
+		K.DeferCombat("NameplateCVars", function()
+			Module:SetupCVars()
+		end)
 		return
 	end
 	local db = C.Nameplate
 
 	SetCVar("nameplateShowAll", 1)
 	SetCVar("nameplateShowSelf", 0)
-	SetCVar("nameplateShowEnemies", 1)
+	-- Out of combat here, so the combat only option starts with them hidden.
+	SetCVar("nameplateShowEnemies", db.EnemyCombatOnly and 0 or 1)
 	SetCVar("nameplateShowEnemyMinions", 1)
 	-- Off by default in the client, which leaves friendly NPCs with a widgets only
 	-- plate that oUF keeps hidden, so quest givers and vendors got no name at all.
@@ -101,6 +106,18 @@ function Module:OnEnable()
 
 	self:SetupCVars()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", "SetupCVars")
+
+	-- Enemy plates only while fighting. The setting cannot change during combat,
+	-- but PLAYER_REGEN_DISABLED fires just before the lockdown starts and
+	-- PLAYER_REGEN_ENABLED just after it ends, so both can still write it.
+	if C.Nameplate.EnemyCombatOnly then
+		self:RegisterEvent("PLAYER_REGEN_DISABLED", function()
+			SetCVar("nameplateShowEnemies", 1)
+		end)
+		self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+			SetCVar("nameplateShowEnemies", 0)
+		end)
+	end
 
 	if self.SetupTargetPower then
 		self:SetupTargetPower()

@@ -32,13 +32,13 @@ function Module:OnEnable()
 	if self.SetupItemCount then
 		self:SetupItemCount()
 	end
+	if self.SetupQuestItem then
+		self:SetupQuestItem()
+	end
 	if self.SetupIcons then
 		self:SetupIcons()
 	end
 	if self.SetupMountSource then
 		self:SetupMountSource()
-	end
-	if self.SetupItemLevel then
-		self:SetupItemLevel()
 	end
 end

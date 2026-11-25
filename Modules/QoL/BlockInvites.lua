@@ -10,6 +10,8 @@
 		looks like a friend's. An invite whose sender cannot be read is left for you
 		to decide. Nothing is turned away while you have a group finder application
 		or listing, since those invites come from strangers on purpose.
+
+		Quests a stranger in your group shares can be turned away as well.
 -----------------------------------------------------------------------------]]
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
@@ -20,6 +22,10 @@ local IsSecret = K.IsSecret
 local C_FriendList = C_FriendList
 local C_BattleNet = C_BattleNet
 local IsGuildMember = IsGuildMember
+local UnitGUID = UnitGUID
+local UnitIsPlayer = UnitIsPlayer
+local UnitName = UnitName
+local DeclineQuest = _G.DeclineQuest
 local format = string.format
 
 -- A group finder invite comes from a stranger by design, so while you have an
@@ -69,7 +75,27 @@ local function OnRequest()
 	K.Print(L["Declined a request to join your group."])
 end
 
+-- A party member shares a quest. The sharer stands in as the quest giver, so
+-- the "npc" unit is a player. Auto quest checks the same thing before it
+-- accepts, so the two cannot race.
+local function OnQuestDetail()
+	if not C.QoL.BlockSharedQuests then
+		return
+	end
+	local isPlayer = UnitIsPlayer("npc")
+	if not isPlayer or IsSecret(isPlayer) then
+		return
+	end
+	if K.IsKnownPlayer(UnitGUID("npc")) then
+		return
+	end
+	local name = UnitName("npc")
+	DeclineQuest()
+	K.Print(format(L["Declined a quest shared by %s."], (name and not IsSecret(name)) and name or UNKNOWN))
+end
+
 function Module:SetupBlockInvites()
 	self:RegisterEvent("PARTY_INVITE_REQUEST", OnInvite)
 	self:RegisterEvent("GROUP_INVITE_CONFIRMATION", OnRequest)
+	self:RegisterEvent("QUEST_DETAIL", OnQuestDetail)
 end

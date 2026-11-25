@@ -296,6 +296,15 @@ K.IsSecret = _G.issecretvalue or function()
 	return false
 end
 
+-- A friend, a Battle.net friend or a guild member, going by GUID so a look-alike
+-- name cannot pass. False for a missing or secret GUID.
+function K.IsKnownPlayer(guid)
+	if not guid or K.IsSecret(guid) then
+		return false
+	end
+	return _G.C_FriendList.IsFriend(guid) or _G.C_BattleNet.GetAccountInfoByGUID(guid) ~= nil or _G.IsGuildMember(guid) or false
+end
+
 -- Difficulty colour for a unit's level, shared by the unit frames, nameplates and
 -- tooltip so they always agree. Only units we can attack get one, as on the
 -- Blizzard target frame, since the colour says how hard a fight would be. It asks

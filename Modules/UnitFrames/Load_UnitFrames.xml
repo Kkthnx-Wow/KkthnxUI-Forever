@@ -17,6 +17,7 @@
 	<Script file="Elements\Range.lua" />
 	<Script file="Elements\Castbar.lua" />
 	<Script file="Elements\Forever.lua" />
+	<Script file="Elements\PetFeed.lua" />
 	<Script file="Elements\PowerTick.lua" />
 	<Script file="Elements\AuraWatch.lua" />
 

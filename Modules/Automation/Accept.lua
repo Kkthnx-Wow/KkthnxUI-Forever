@@ -20,6 +20,7 @@ local next = next
 local IsSecret = K.IsSecret
 local InCombatLockdown = InCombatLockdown
 local IsInGroup = IsInGroup
+local UnitGUID = UnitGUID
 local C_GossipInfo = C_GossipInfo
 local C_QuestLog = C_QuestLog
 
@@ -119,8 +120,14 @@ function Module:OnQuestDetail()
 		return
 	end
 
-	if self:IsSharedQuest() and not C.AutoQuest.SharedQuests then
-		return
+	if self:IsSharedQuest() then
+		if not C.AutoQuest.SharedQuests then
+			return
+		end
+		-- Left to the shared quest block, which declines it.
+		if C.QoL.BlockInvites and C.QoL.BlockSharedQuests and not K.IsKnownPlayer(UnitGUID("npc")) then
+			return
+		end
 	end
 
 	if self:ShouldAccept(questID) and self:TryAction("accept", questID) then

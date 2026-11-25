@@ -109,7 +109,7 @@ K.ConfigDefaults = {
 		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
 		Target = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true, Threat = false },
 		TargetOfTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
-		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true },
+		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true, FeedMenu = true },
 		Focus = { Enable = true, Width = 204, Height = 34, PowerHeight = 14, ShowPower = true, Debuffs = true },
 		FocusTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Party = { Enable = true, Width = 150, Height = 26, PowerHeight = 10, ShowPower = true, ShowSolo = false, ShowPlayer = true, Debuffs = true, DispelHighlight = true, Portrait = true, Castbar = true, RaidStyle = false, Spacing = 24, RoleIcon = true, HealthText = "Default", NameLength = 0 },
@@ -244,6 +244,7 @@ K.ConfigDefaults = {
 		ShowClassification = true,
 		FriendlyNameOnly = true,
 		ShowFriendlyNPCs = true, -- plates on friendly NPCs, drawn as a name only
+		EnemyCombatOnly = false, -- enemy plates hidden out of combat
 		FriendlyLevel = true, -- level in front of the name on name-only plates
 		ShowGuildName = true,
 		ShowCastbar = true,
@@ -465,6 +466,8 @@ K.ConfigDefaults = {
 		AutoSummon = false, -- accept a summon after a short delay, out of combat
 		AutoResurrect = false, -- accept a resurrection request, out of combat
 		AutoInvite = false, -- accept group invites from friends and guild members
+		WhisperInvite = false, -- invite whoever whispers the keyword below
+		WhisperInviteWord = "inv",
 		BattlegroundRelease = false, -- release your spirit on death in a battleground
 	},
 
@@ -482,10 +485,14 @@ K.ConfigDefaults = {
 		RareAlertChat = true, -- print a map link in chat with the rare alert
 		BlockInvites = false, -- turn away group invites from strangers
 		BlockRequests = false, -- also turn away requests to join your group
+		BlockSharedQuests = false, -- also turn away quests a stranger in your group shares
 		QuickDelete = false, -- fill in the typed word on the delete good item dialog
 		LootSparkle = false, -- keep the sparkle on lootable quest items through graphics presets
 		MaxCameraDistance = false, -- raise the camera distance setting to the top of the game's own slider
 		EasyFishing = false, -- double right-click on the world to cast Fishing
+		CancelBuffs = false, -- take off listed buffs such as costumes as soon as they land
+		CancelBuffList = "16593, 16595, 44212", -- spell IDs, Noggenfogger slow fall and shrink, Weighted Jack-o'-Lantern
+		FlightTimes = false, -- time flights, show them on the flight map and count down while flying
 		FastLoot = false, -- take all loot at once when the game would auto loot
 		Reminders = false, -- clickable icons for what your character is missing, out of combat
 		ReminderSize = 36, -- icon size of the reminder row
@@ -567,6 +574,7 @@ K.ConfigDefaults = {
 		SideButtons = true, -- vertical icon strip on the left of the chat
 		SpamFilter = false,
 		HideFleeEmotes = true, -- drop "attempts to run away in fear!" creature emotes
+		LeaveChannelMenu = true, -- a Leave entry when right-clicking a channel name
 		CopyButton = true,
 		Timestamps = true,
 		GradientBackdrop = true,
@@ -585,6 +593,7 @@ K.ConfigDefaults = {
 		ItemLevelOnShift = false, -- only look it up while shift is held
 		ShowIDs = true, -- spell / item / currency / mount ids
 		ShowItemCount = true, -- how many of an item you hold in the bags and the bank
+		QuestItemInfo = true, -- name and status of the quest a bag item starts
 		ShowIcons = true, -- icon beside the tooltip title
 		ShowMountSource = true, -- collection status/source on a player's mount buff (hold Shift)
 		BorderColor = true, -- tint the tooltip border by item quality

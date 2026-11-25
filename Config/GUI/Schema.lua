@@ -437,6 +437,7 @@ local function UnitControls(key, opts)
 	end
 	if opts.happiness then
 		Add({ kind = "check", label = L["Show Pet Happiness"], path = { "Unitframe", key, "Happiness" }, reload = true, dependsOn = dep, tooltip = L["Hunters only. The mood of your pet on its frame."] })
+		Add({ kind = "check", label = L["Pet Food Menu"], path = { "Unitframe", key, "FeedMenu" }, since = "1.1.2", reload = true, dependsOn = { "Unitframe", key, "Happiness" }, tooltip = L["Hover the happiness icon for your pet's mood, damage and diet. Click it for a row of the foods in your bags that your pet will eat, then click one to feed it. Out of combat only."] })
 	end
 	if opts.name then
 		Add({ kind = "check", label = L["Show Name"], path = { "Unitframe", key, "ShowName" }, reload = true, dependsOn = dep })
@@ -829,6 +830,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Side Button Strip"], path = { "Chat", "SideButtons" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A fading column of icon buttons on the left of the chat for channels, copy, scroll, and config."] },
 			{ kind = "check", label = L["Repeat Spam Filter"], path = { "Chat", "SpamFilter" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Drop identical messages repeated in public channels within 30 seconds."] },
 			{ kind = "check", label = L["Hide Flee Emotes"], path = { "Chat", "HideFleeEmotes" }, since = "1.1.1", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Hide the line a creature sends when it attempts to run away in fear."] },
+			{ kind = "check", label = L["Leave From Channel Menu"], path = { "Chat", "LeaveChannelMenu" }, since = "1.1.2", reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["Leave a channel such as Trade or LookingForGroup without typing. Right-click a channel name in a chat line for Leave, or right-click a chat tab for a Leave Channel list."] },
 			{ kind = "check", label = L["Gradient Backdrop"], path = { "Chat", "GradientBackdrop" }, reload = true, dependsOn = { "Chat", "Enable" }, tooltip = L["A soft class-colored fade behind the chat that fades out to the right."] },
 			{ kind = "check", label = L["Copy Button"], path = { "Chat", "CopyButton" }, reload = true, dependsOn = { "Chat", "Enable" }, disabledWhen = { "Chat", "SideButtons" }, tooltip = L["A copy button on each chat window. The side button strip has its own, so this one is only used while the strip is off."] },
 			{ kind = "check", label = L["Timestamps"], path = { "Chat", "Timestamps" }, reload = true, dependsOn = { "Chat", "Enable" } },
@@ -888,6 +890,7 @@ GUI.schema = {
 					m:SetupCVars()
 				end
 			end, tooltip = L["Show a plate over friendly NPCs such as quest givers, vendors and guards. With Friendly Name Only it is just their name. Neutral NPCs you cannot attack get the same look."] },
+			{ kind = "check", label = L["Enemy Plates In Combat Only"], path = { "Nameplate", "EnemyCombatOnly" }, since = "1.1.2", reload = true, dependsOn = { "Nameplate", "Enable" }, tooltip = L["Hide enemy nameplates out of combat and show them as soon as a fight starts."] },
 			{ kind = "check", label = L["Level (name-only)"], path = { "Nameplate", "FriendlyLevel" }, since = "1.0.0-beta7", reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show the level in front of the name on name-only plates. Enemy plates always show it."] },
 			{ kind = "check", label = L["Guild or Title (name-only)"], path = { "Nameplate", "ShowGuildName" }, reload = true, dependsOn = { "Nameplate", "FriendlyNameOnly" }, tooltip = L["Show a player's guild, or an NPC's title such as Butcher or Flight Master, under the name in name-only mode."] },
 			{ kind = "header", label = L["Threat and Colours"] },
@@ -953,6 +956,7 @@ GUI.schema = {
 			{ kind = "check", label = L["Item Level On Shift"], path = { "Tooltip", "ItemLevelOnShift" }, dependsOn = { "Tooltip", "ShowItemLevel" }, tooltip = L["Only inspect for item level while you hold shift. Hold it before you hover, since the lookup happens as the tooltip is built."] },
 			{ kind = "check", label = L["Show IDs"], path = { "Tooltip", "ShowIDs" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Append spell, item, currency, and mount ids to tooltips."] },
 			{ kind = "check", label = L["Show Item Count"], path = { "Tooltip", "ShowItemCount" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show how many of an item you hold in the bags and the bank."] },
+			{ kind = "check", label = L["Quest Starting Items"], path = { "Tooltip", "QuestItemInfo" }, since = "1.1.2", reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["On a bag item that starts a quest, name the quest and say whether you have not started it, have it in your log or already finished it."] },
 			{ kind = "check", label = L["Show Icons"], path = { "Tooltip", "ShowIcons" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the item, spell, or mount icon beside the tooltip title."] },
 			{ kind = "check", label = L["Show Mount Source"], path = { "Tooltip", "ShowMountSource" }, reload = true, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Hold Shift over a player's mount buff to see its collection status and source."] },
 			{ kind = "check", label = L["Show Title"], path = { "Tooltip", "ShowTitle" }, dependsOn = { "Tooltip", "Enable" }, tooltip = L["Show the player's title in place of the plain name."] },
@@ -1172,6 +1176,8 @@ GUI.schema = {
 			{ kind = "check", label = L["Auto Accept Summons"], path = { "Automation", "AutoSummon" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a summon after 10 seconds, out of combat, so you can still cancel it."] },
 			{ kind = "check", label = L["Auto Accept Resurrection"], path = { "Automation", "AutoResurrect" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept a resurrection request when you are out of combat."] },
 			{ kind = "check", label = L["Auto Accept Invites"], path = { "Automation", "AutoInvite" }, since = "1.0.0-beta5", dependsOn = { "Automation", "Enable" }, tooltip = L["Accept group invites from friends, Battle.net friends and guild members."] },
+			{ kind = "check", label = L["Invite By Whisper"], path = { "Automation", "WhisperInvite" }, since = "1.1.2", dependsOn = { "Automation", "Enable" }, tooltip = L["Invite anyone who whispers you the keyword below, as long as you can invite. The whole whisper has to be the keyword."] },
+			{ kind = "editbox", label = L["Invite Keyword"], path = { "Automation", "WhisperInviteWord" }, since = "1.1.2", dependsOn = { "Automation", "WhisperInvite" }, tooltip = L["The word someone whispers you to get an invite. Case does not matter."] },
 			{ kind = "check", label = L["Release In Battlegrounds"], path = { "Automation", "BattlegroundRelease" }, since = "1.0.0-beta6", reload = true, dependsOn = { "Automation", "Enable" }, tooltip = L["Release your spirit as soon as you die in a battleground. Never in arenas, and never when you have a soulstone or similar way back. Hold Shift as you die to stay where you fell."] },
 
 				{ kind = "header", label = L["Auto Quest"] },
@@ -1232,11 +1238,20 @@ GUI.schema = {
 				end
 			end, tooltip = L["Let the camera zoom out as far as the game's own Max Camera Distance slider allows. Turning this off puts your old setting back."] },
 			{ kind = "check", label = L["Easy Fishing"], path = { "QoL", "EasyFishing" }, since = "1.1.0", reload = true, tooltip = L["Double right-click on the world to cast Fishing. Only out of combat, and not while mounted, swimming, on a flight path or with a creature under the mouse."] },
+			{ kind = "check", label = L["Cancel Unwanted Buffs"], path = { "QoL", "CancelBuffs" }, since = "1.1.2", reload = true, tooltip = L["Take off the buffs in the list below as soon as they land, such as costumes or the shrink from Noggenfogger Elixir. In combat they come off when the fight ends."] },
+			{ kind = "editbox", label = L["Buffs To Cancel"], path = { "QoL", "CancelBuffList" }, since = "1.1.2", dependsOn = { "QoL", "CancelBuffs" }, tooltip = L["Spell IDs separated by commas. Type /kk buffs to list the buffs you have now with their IDs."], apply = function()
+				local m = K:GetModule("QoL", true)
+				if m and m.RefreshCancelBuffs then
+					m:RefreshCancelBuffs()
+				end
+			end },
+			{ kind = "check", label = L["Flight Times"], path = { "QoL", "FlightTimes" }, since = "1.1.2", reload = true, tooltip = L["Time every flight you take and remember it on this account. The flight map then shows how long each flight takes, and a bar counts down while you fly. A route you have not flown yet is timed the first time you take it. Move the bar from Move UI, and type /kk flighttest to preview it."] },
 			{ kind = "check", label = L["Quest Levels at NPCs"], path = { "QoL", "QuestLevels" }, since = "1.0.0-beta7", reload = true, tooltip = L["Show the quest level in an NPC's quest list and at the top of the quest text, in the same [12] style the quest log uses, with a + for elite. The number is coloured by how hard the quest is for you."] },
 			{ kind = "check", label = L["Train All Button"], path = { "QoL", "TrainAll" }, since = "1.0.0-beta7", reload = true, tooltip = L["Add a Train All button beside Train. It learns everything available that you can afford. New professions and pet training are left to you."] },
 			{ kind = "check", label = L["Faster Auto Loot"], path = { "QoL", "FastLoot" }, since = "1.0.0-beta7", reload = true, tooltip = L["Take everything at once when you auto loot, instead of one item at a time. Follows the game's Auto Loot setting and its modifier key. Locked items and group rolls are left alone."] },
 			{ kind = "check", label = L["Block Stranger Invites"], path = { "QoL", "BlockInvites" }, reload = true, tooltip = L["Turn away group invites from anyone who is not a friend, Battle.net friend or guild member. Not used while you have a group finder application or listing."] },
 			{ kind = "check", label = L["Block Join Requests"], path = { "QoL", "BlockRequests" }, dependsOn = { "QoL", "BlockInvites" }, tooltip = L["Also turn away requests from strangers to join your group."] },
+			{ kind = "check", label = L["Block Shared Quests"], path = { "QoL", "BlockSharedQuests" }, since = "1.1.2", dependsOn = { "QoL", "BlockInvites" }, tooltip = L["Also turn away quests that a stranger in your group shares with you. Auto quest leaves them alone too."] },
 			{ kind = "check", label = L["Quick Item Delete"], path = { "QoL", "QuickDelete" }, since = "1.0.0-beta6", reload = true, tooltip = L["Fill in DELETE for you when destroying a good or quest item, so it only takes a click on Yes. The dialog still asks first."] },
 			{ kind = "check", label = L["Trade Partner Info"], path = { "QoL", "TradeInfo" }, since = "1.0.0-beta6", reload = true, tooltip = L["Show under the trade partner's name whether they are a friend, a Battle.net friend, a guild member or a stranger."] },
 

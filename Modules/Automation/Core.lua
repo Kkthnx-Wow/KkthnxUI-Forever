@@ -7,6 +7,7 @@
 			DeclineDuel.lua  turn away duel and pet-battle duel requests
 			MovieSkip.lua    skip cinematics and movies
 			AutoAccept.lua   accept summons, resurrections and friend invites
+			WhisperInvite.lua  invite whoever whispers a chosen keyword
 			BattlegroundRelease.lua  release on death in a battleground
 			AutoRepair.lua   repair gear at a merchant, optionally on guild funds
 			SellJunk.lua     sell grey items when a merchant opens
@@ -39,6 +40,9 @@ function Module:OnEnable()
 		end
 		if self.SetupBattlegroundRelease then
 			self:SetupBattlegroundRelease()
+		end
+		if self.SetupWhisperInvite then
+			self:SetupWhisperInvite()
 		end
 	end
 

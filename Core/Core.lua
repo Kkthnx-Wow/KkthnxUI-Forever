@@ -87,6 +87,20 @@ SlashCmdList.KKTHNXUI = function(msg)
 			automation:ToggleBlockedNPC()
 		end
 		return
+	elseif msg == "flighttest" or msg == "flights" then
+		local qol = K:GetModule("QoL", true)
+		if qol and msg == "flighttest" and qol.ToggleFlightTest then
+			qol:ToggleFlightTest()
+		elseif qol and qol.ExportFlightTimes then
+			qol:ExportFlightTimes()
+		end
+		return
+	elseif msg == "buffs" then
+		local qol = K:GetModule("QoL", true)
+		if qol and qol.PrintBuffs then
+			qol:PrintBuffs()
+		end
+		return
 	elseif msg == "auras" then
 		local auras = K:GetModule("Auras", true)
 		if auras and auras.ToggleTest then

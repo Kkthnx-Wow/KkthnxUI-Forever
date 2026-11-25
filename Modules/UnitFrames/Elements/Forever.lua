@@ -107,5 +107,8 @@ function Build.PetHappiness(self)
 	icon:SetPoint("RIGHT", self.Health, "RIGHT", -2, 0)
 
 	self.Happiness = icon
+	if C.Unitframe.Pet.FeedMenu ~= false and Module.AttachPetFeed then
+		Module.AttachPetFeed(self, icon)
+	end
 	return icon
 end

@@ -1456,6 +1456,9 @@ function Module:OnEnable()
 	if self.SetupHistory then
 		self:SetupHistory()
 	end
+	if self.SetupLeaveChannel then
+		self:SetupLeaveChannel()
+	end
 
 	-- Idle fade. Dim the whole chat to a resting alpha when the mouse is away and
 	-- lift it back on hover or while the edit box is focused. Only our own frames

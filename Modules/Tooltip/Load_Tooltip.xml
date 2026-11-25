@@ -8,6 +8,7 @@
 	<Script file="Inspect.lua" />
 	<Script file="IDs.lua" />
 	<Script file="ItemCount.lua" />
+	<Script file="QuestItem.lua" />
 	<Script file="Icons.lua" />
 	<Script file="MountSource.lua" />
 </Ui>
