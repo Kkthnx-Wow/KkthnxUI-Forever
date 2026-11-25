@@ -51,6 +51,16 @@ local function ClearBinding()
 	end
 end
 
+-- Each bind gets a number, so a timeout left over from an earlier bind cannot
+-- clear a newer one in the middle of its click.
+local bindCount = 0
+
+local function ClearAfterTimeout(count)
+	if count == bindCount then
+		ClearBinding()
+	end
+end
+
 -- The Fishing cast from the spell book, highest rank. nil when not known.
 local function FishingSpellID()
 	local _, _, _, fishing = GetProfessions()
@@ -92,7 +102,11 @@ local function OnWorldMouseDown(_, mouseButton)
 	button:SetAttribute("spell", spellID)
 	SetOverrideBindingClick(button, true, "BUTTON2", BUTTON_NAME)
 	bound = true
-	C_Timer.After(BINDING_TIMEOUT, ClearBinding)
+	bindCount = bindCount + 1
+	local count = bindCount
+	C_Timer.After(BINDING_TIMEOUT, function()
+		ClearAfterTimeout(count)
+	end)
 end
 
 local function OnEvent()

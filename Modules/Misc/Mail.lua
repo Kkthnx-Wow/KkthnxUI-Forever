@@ -208,7 +208,7 @@ local function ShowAttachments(self)
 		return
 	end
 
-	local _, _, _, _, money, _, _, itemCount = GetInboxHeaderInfo(index)
+	local _, _, _, _, _, _, _, itemCount = GetInboxHeaderInfo(index)
 	if not itemCount or itemCount < 2 then
 		return
 	end
@@ -248,9 +248,7 @@ local function ShowAttachments(self)
 		end
 		tooltip:AddDoubleLine(label, count, r, g, b, r, g, b)
 	end
-	if money and money > 0 then
-		tooltip:AddDoubleLine(L["Gold"], GetCoinTextureString(money), 1, 1, 1, 1, 1, 1)
-	end
+	-- Enclosed gold is already on the tooltip, Blizzard adds it above.
 	tooltip:Show()
 end
 

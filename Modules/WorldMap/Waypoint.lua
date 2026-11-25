@@ -23,6 +23,7 @@ local Module = K:GetModule("WorldMap")
 
 local _G = _G
 local ipairs = ipairs
+local next = next
 local pairs = pairs
 local tostring = tostring
 local tonumber = tonumber
@@ -65,8 +66,10 @@ end
 
 -- Every zone and continent under the top of the map tree the player is in.
 -- Walking up from the player's own map avoids hard coding a world map ID.
+-- Built into a new table and kept only when it found something, so a lookup
+-- made somewhere the tree cannot be read tries again next time.
 local function BuildNameIndex()
-	nameIndex = {}
+	local index = {}
 	local root = CurrentMapID()
 	local info = root and C_Map.GetMapInfo(root)
 	while info and info.parentMapID and info.parentMapID > 0 do
@@ -84,13 +87,16 @@ local function BuildNameIndex()
 	for _, child in ipairs(children) do
 		if NAMED_TYPES[child.mapType] and child.name and child.name ~= "" then
 			local key = strlower(child.name)
-			local list = nameIndex[key]
+			local list = index[key]
 			if not list then
 				list = {}
-				nameIndex[key] = list
+				index[key] = list
 			end
 			tinsert(list, child.mapID)
 		end
+	end
+	if next(index) then
+		nameIndex = index
 	end
 end
 

@@ -203,9 +203,19 @@ end
 K.SyncSharedMedia()
 
 -- Addons that load after us register their media later, so pick those up as they
--- arrive rather than only taking a snapshot at login.
+-- arrive rather than only taking a snapshot at login. The callback names the one
+-- entry just added, so only that is copied. A full sync per entry made a media
+-- pack of a few hundred files rescan every table a few hundred times at load.
+local SHARED_BY_TYPE = {}
+for _, entry in pairs(SHARED_TYPES) do
+	SHARED_BY_TYPE[entry[1]] = entry[2]
+end
+
 if K.LibSharedMedia and K.LibSharedMedia.RegisterCallback then
-	K.LibSharedMedia.RegisterCallback(K, "LibSharedMedia_Registered", function()
-		K.SyncSharedMedia()
+	K.LibSharedMedia.RegisterCallback(K, "LibSharedMedia_Registered", function(_, mediatype, key)
+		local tbl = SHARED_BY_TYPE[mediatype]
+		if tbl and key and tbl[key] == nil then
+			tbl[key] = K.LibSharedMedia:Fetch(mediatype, key, true)
+		end
 	end)
 end

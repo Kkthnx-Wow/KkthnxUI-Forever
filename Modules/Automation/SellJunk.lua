@@ -94,6 +94,13 @@ function K.SellJunkItems(includeFlagged, done)
 		C_MerchantFrame.SellAllJunkItems()
 	end
 
+	-- Already selling, so join the running queue rather than drop these. A slot
+	-- queued twice is harmless, SellNext re-reads it and finds it empty.
+	if selling and #queue > 0 then
+		for _, entry in ipairs(queue) do
+			sellQueue[#sellQueue + 1] = entry
+		end
+	end
 	if selling or #queue == 0 or not (_G.MerchantFrame and _G.MerchantFrame:IsShown()) or InCombatLockdown() then
 		if done then
 			C_Timer.After(0.3, done)

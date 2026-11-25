@@ -108,7 +108,11 @@ function Build.ClassPower(self)
 		if hasMaxChanged and max and max > 0 then
 			LayoutSegments(holder, max)
 		end
-		if combo then
+	end
+	-- The ramp goes on after oUF paints the row its single colour, the only time
+	-- it does, rather than again on every point gained or spent.
+	if combo then
+		bars.PostUpdateColor = function()
 			for i = 1, #bars do
 				local col = COMBO_COLORS[i] or COMBO_COLORS[#COMBO_COLORS]
 				bars[i]:SetStatusBarColor(col[1], col[2], col[3])

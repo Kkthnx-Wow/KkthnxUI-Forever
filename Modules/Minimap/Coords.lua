@@ -92,6 +92,8 @@ function Module:CreateCoords()
 		else
 			coords:SetText("")
 		end
+		-- No position in instances, so the strip goes with the text.
+		coords.Shade:SetShown(x ~= nil)
 	end)
 	self.coordsDriver = driver
 end

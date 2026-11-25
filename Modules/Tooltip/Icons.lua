@@ -47,8 +47,10 @@ function Module:AddTooltipIcon(icon)
 		end
 		local text = line:GetText()
 		if text and not IsSecret(text) and text ~= " " and strfind(text, "|T", 1, true) then
-			local newText, count = gsub(text, "|T([^:]-):[%d+:]+|t", "|T%1:14:14:" .. CROP .. "|t")
-			if count > 0 then
+			local newText = gsub(text, "|T([^:]-):[%d+:]+|t", "|T%1:14:14:" .. CROP .. "|t")
+			-- An icon already cropped on an earlier refresh comes out the same,
+			-- so only write the line when the text changed.
+			if newText ~= text then
 				line:SetText(newText)
 			end
 		end

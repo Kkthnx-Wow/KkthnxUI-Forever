@@ -109,7 +109,13 @@ local function OnUpdate(driver)
 		if RuleActive(tick, now) then
 			local left = tick.ruleEnd - now
 			tick.ruleSpark:SetPoint("CENTER", tick.bar, "LEFT", (1 - left / FIVE_SECOND_RULE) * width, 0)
-			tick.ruleText:SetText(format("%.1f", left))
+			-- The text shows tenths, so it only needs writing when they change,
+			-- not on every frame.
+			local tenths = floor(left * 10)
+			if tenths ~= tick.ruleTenths then
+				tick.ruleTenths = tenths
+				tick.ruleText:SetText(format("%.1f", tenths / 10))
+			end
 			return
 		end
 		-- Over, so the tick spark takes the bar back.
@@ -249,6 +255,7 @@ local function OnEvent(driver, event, unit, token, spellID)
 		end
 		if tick.ruleSpark and CostsMana(spellID) then
 			tick.ruleEnd = GetTime() + FIVE_SECOND_RULE
+			tick.ruleTenths = nil
 			Log("mana spent, five second rule until %.1f", tick.ruleEnd)
 			UpdateShown(tick)
 		end

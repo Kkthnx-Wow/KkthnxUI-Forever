@@ -142,6 +142,5 @@ function Module:CreatePossessBar()
 		end)
 	end
 
-	self.bars.PossessBar = bar
 	return bar
 end

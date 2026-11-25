@@ -32,9 +32,9 @@ local UnitClassification = UnitClassification
 local C_TooltipInfo = C_TooltipInfo
 local UnitGUID = UnitGUID
 local strsplit = strsplit
+local next = next
 local tonumber = tonumber
 local wipe = wipe
-local select = select
 local floor = math.floor
 local strmatch = string.match
 local AbbreviateNumbers = AbbreviateNumbers
@@ -776,16 +776,6 @@ function K.BuildNameplateColors()
 	end
 end
 
--- The npcID sits in the 6th field of the GUID. It can be a secret value in
--- Midnight, in which case we simply skip the custom colour.
-local function GetNPCID(unit)
-	local guid = unit and UnitGUID(unit)
-	if not guid or IsSecret(guid) then
-		return
-	end
-	return tonumber((select(6, strsplit("-", guid))))
-end
-
 -- Health colour override, run after oUF's own colouring:
 --   1. an npcID on the custom list always wins,
 --   2. players keep the class / reaction colour oUF gave them,
@@ -800,9 +790,13 @@ local function PlateIsCaster(unit)
 	return power ~= nil and not IsSecret(power) and power == 0
 end
 
+local customColors = K.NameplateCustomColors
+
 local function CustomHealthColor(health, unit)
-	local npcID = GetNPCID(unit)
-	local custom = npcID and K.NameplateCustomColors[npcID]
+	-- This runs on every health tick of every plate. The custom list is usually
+	-- empty, and then the GUID is never split.
+	local npcID = next(customColors) ~= nil and NPCID(unit)
+	local custom = npcID and customColors[npcID]
 	if custom then
 		health:SetStatusBarColor(custom[1], custom[2], custom[3])
 		return
@@ -844,11 +838,12 @@ local function CustomHealthColor(health, unit)
 	-- colours which the player set on purpose. When threat colouring is on we let a
 	-- live threat situation win, but the threat read can be a secret for an enemy in
 	-- Midnight, so guard it the same way the threat fill below does.
-	local threatWins = false
-	if C.Nameplate.RoleColors and C.Nameplate.ThreatHealthColor then
-		local status = UnitThreatSituation("player", unit)
-		threatWins = status and not IsSecret(status) and true or false
+	-- Read once and shared with the threat fill below.
+	local threat = C.Nameplate.ThreatHealthColor and UnitThreatSituation("player", unit)
+	if threat and IsSecret(threat) then
+		threat = nil
 	end
+	local threatWins = C.Nameplate.RoleColors and threat ~= nil and threat ~= false
 	if C.Nameplate.RoleColors and not threatWins then
 		local reaction = UnitReaction(unit, "player")
 		if reaction and not IsSecret(reaction) and reaction <= 4 then
@@ -860,14 +855,11 @@ local function CustomHealthColor(health, unit)
 		end
 	end
 
-	if C.Nameplate.ThreatHealthColor then
-		local status = UnitThreatSituation("player", unit)
-		if status and not IsSecret(status) then
-			local color = K.ThreatFillColor(status, K.PlayerIsTank())
-			if color then
-				health:SetStatusBarColor(color[1], color[2], color[3])
-				return
-			end
+	if threat then
+		local color = K.ThreatFillColor(threat, K.PlayerIsTank())
+		if color then
+			health:SetStatusBarColor(color[1], color[2], color[3])
+			return
 		end
 	end
 

@@ -117,11 +117,24 @@ function Module:CreateStanceBar()
 
 	-- Forms change when a talent or spec does, and the buttons need telling what
 	-- each form looks like whenever one is used.
-	for _, event in ipairs({ "UPDATE_SHAPESHIFT_FORMS", "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED" }) do
+	for _, event in ipairs({ "UPDATE_SHAPESHIFT_FORMS", "PLAYER_ENTERING_WORLD" }) do
 		self:RegisterEvent(event, function()
 			Module:UpdateStanceVisibility(bar)
 		end)
 	end
+	-- SPELLS_CHANGED fires on zoning, mounting and every rank learned. The
+	-- buttons, layout and state driver only need redoing when the form count
+	-- moved, otherwise refreshing the icons is enough.
+	local lastCount = GetNumShapeshiftForms() or 0
+	self:RegisterEvent("SPELLS_CHANGED", function()
+		local count = GetNumShapeshiftForms() or 0
+		if count ~= lastCount then
+			lastCount = count
+			Module:UpdateStanceVisibility(bar)
+		else
+			Module:UpdateStanceState()
+		end
+	end)
 	for _, event in ipairs({ "UPDATE_SHAPESHIFT_FORM", "UPDATE_SHAPESHIFT_USABLE", "UPDATE_SHAPESHIFT_COOLDOWN" }) do
 		self:RegisterEvent(event, function()
 			Module:UpdateStanceState()

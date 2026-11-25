@@ -36,6 +36,13 @@ function Module:HideBlizzard()
 					self:Hide()
 				end
 			end)
+			-- Entering or leaving combat brings them back through SetShown, which
+			-- does not pass through the Show hook.
+			hooksecurefunc(frame, "SetShown", function(self, shown)
+				if shown and C.Auras.Enable then
+					self:Hide()
+				end
+			end)
 		end
 	end
 end

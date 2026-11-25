@@ -119,11 +119,19 @@ local function Update()
 	end
 end
 
-local function Reanchor()
+-- force is set for a target change. Plates come and go all the time in a crowd,
+-- and those only matter when they move the target onto a different plate.
+local currentPlate
+
+local function Reanchor(force)
 	if not holder then
 		return
 	end
 	local plate = UnitExists("target") and C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
+	if not force and plate == currentPlate then
+		return
+	end
+	currentPlate = plate
 	if plate then
 		-- Parent to the plate so the bar inherits the nameplate scale, otherwise a
 		-- UIParent-scaled bar is wider/narrower than the scaled health bar.
@@ -177,9 +185,9 @@ function Module:SetupTargetPower()
 				Update()
 			end
 		else
-			Reanchor()
+			Reanchor(event == "PLAYER_TARGET_CHANGED")
 		end
 	end)
 
-	Reanchor()
+	Reanchor(true)
 end

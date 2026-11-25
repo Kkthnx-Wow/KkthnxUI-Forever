@@ -925,21 +925,30 @@ function K.EnableFrameDrag(frame)
 		end
 		self:StartMoving()
 	end)
-	frame:SetScript("OnDragStop", function(self)
-		self:StopMovingOrSizing()
-		local left, top = self:GetLeft(), self:GetTop()
+	-- Match the mover to the frame's new corner, then persist by its own point
+	-- and re-anchor the frame to the mover as usual.
+	local function Settle()
+		local left, top = frame:GetLeft(), frame:GetTop()
 		if not left then
 			return
 		end
-		-- Match the mover to the frame's new corner, then persist by its own point
-		-- and re-anchor the frame to the mover as usual.
 		mover:ClearAllPoints()
 		mover:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
 		local point = CurrentPoint(mover)
 		local ox, oy = OffsetFor(mover, point)
 		ApplyOffset(mover, ox, oy, point)
-		self:ClearAllPoints()
-		self:SetPoint("TOPLEFT", mover, "TOPLEFT", 0, 0)
+		frame:ClearAllPoints()
+		frame:SetPoint("TOPLEFT", mover, "TOPLEFT", 0, 0)
+	end
+	frame:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		-- A drag started out of combat can end in it. Re-anchoring a frame that
+		-- holds item buttons waits for the fight to end.
+		if InCombatLockdown() then
+			K.DeferCombat(Settle, Settle)
+			return
+		end
+		Settle()
 	end)
 end
 

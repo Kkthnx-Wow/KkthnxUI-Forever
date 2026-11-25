@@ -67,11 +67,19 @@ function Module:SetSmallWorldMap()
 	end
 end
 
+-- The size last set here, so a second call on a frame that is already shrunk
+-- does not shrink it again.
+local shrunkWidth, shrunkHeight
+
 function Module:UpdateMaximizedSize()
 	local map = _G.WorldMapFrame
 	local width, height = map:GetSize()
+	if width == shrunkWidth and height == shrunkHeight then
+		return
+	end
 	local magic = (1 - scale) * 100
-	map:SetSize((width * scale) - (magic + 2), (height * scale) - 2)
+	shrunkWidth, shrunkHeight = (width * scale) - (magic + 2), (height * scale) - 2
+	map:SetSize(shrunkWidth, shrunkHeight)
 end
 
 function Module:SynchronizeDisplayState()

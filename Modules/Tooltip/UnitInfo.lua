@@ -38,6 +38,9 @@ local GetGuildInfo = GetGuildInfo
 local C_Item = C_Item
 local C_MountJournal = C_MountJournal
 local IsSecret = K.IsSecret
+local wipe = wipe
+
+local targetedBy = {}
 
 local ICON_LIST = _G.ICON_LIST
 
@@ -333,7 +336,10 @@ function Module:OnUnitTooltip(tt)
 	-- Who in your group is currently targeting this unit.
 	if db.ShowTargetedBy and GetNumGroupMembers and GetNumGroupMembers() > 0 then
 		local prefix = IsInRaid() and "raid" or "party"
-		local names = {}
+		-- One list reused, since a hovered unit frame rebuilds this tooltip
+		-- several times a second.
+		local names = targetedBy
+		wipe(names)
 		for i = 1, GetNumGroupMembers() do
 			local member = prefix .. i
 			-- UnitIsUnit can answer secret, so a secret answer skips the member.
@@ -420,15 +426,20 @@ function Module:SetupUnitInfo()
 	-- entirely, so no blank gap is left behind.
 	if TooltipDataProcessor.AddLinePreCall and Enum.TooltipDataLineType then
 		TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tt, lineData)
-			if tt ~= _G.GameTooltip or not C.Tooltip.ShowFactionIcon then
+			if tt ~= _G.GameTooltip then
 				return
 			end
 			local text = lineData and lineData.leftText
-			if text and not IsSecret(text) and (text == FACTION_HORDE or text == FACTION_ALLIANCE) then
+			if not text or IsSecret(text) then
+				return
+			end
+			-- The faction line goes only when the crest replaces it.
+			if C.Tooltip.ShowFactionIcon and (text == FACTION_HORDE or text == FACTION_ALLIANCE) then
 				return true
 			end
 			-- The class on a line of its own, already shown on the level line.
-			if text and not IsSecret(text) and CLASS_NAMES[text] then
+			-- Folded in whether or not the crest is on, so it always goes.
+			if CLASS_NAMES[text] then
 				return true
 			end
 		end)

@@ -212,6 +212,15 @@ function Module.RefreshHealthBorder(self)
 		color = self.__unitColor
 	end
 
+	-- This runs on every health tick, and the answer rarely changes. The colours
+	-- are shared objects, so the same one means nothing to repaint. false marks
+	-- the plain border. A theme change repaints plain borders on its own.
+	local applied = color or false
+	if border.__kkuiHealthColor == applied then
+		return
+	end
+	border.__kkuiHealthColor = applied
+
 	if color then
 		K.SetBorderColor(border, color:GetRGB())
 	else

@@ -8,9 +8,11 @@
 		player cannot use has a red line in its own tooltip (wrong armor or weapon
 		type, level too low, wrong class). Only weapons and armor are checked.
 
-		The verdict is cached per item and cleared on level up and when a skill
-		is learned, since a level or weapon skill requirement stops being red
-		once it is met. The cache is bounded.
+		The verdict is cached per item. A level up clears it all. A skill change
+		only clears the items marked unusable, since a skill can lift a red
+		requirement but never adds one, and skill ranks change all the time while
+		gathering or crafting. The durability line is ignored, because a broken
+		item shows it in red without being unusable. The cache is bounded.
 -----------------------------------------------------------------------------]]
 
 local K = KkthnxUI[1]
@@ -24,6 +26,17 @@ local Enum = Enum
 local IsSecret = K.IsSecret
 local wipe = wipe
 local ipairs = ipairs
+local next = next
+
+-- "Durability %d / %d" turned into a pattern that matches the filled-in line.
+local DURABILITY_PATTERN
+do
+	local template = _G.DURABILITY_TEMPLATE
+	if type(template) == "string" then
+		local escaped = template:gsub("%%d", "\001"):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("\001", "%%d+")
+		DURABILITY_PATTERN = "^" .. escaped .. "$"
+	end
+end
 
 local CACHE_LIMIT = 400
 
@@ -49,7 +62,9 @@ local function ScanTooltip(bag, slot)
 		return nil
 	end
 	for _, line in ipairs(data.lines) do
-		if IsRed(line.leftColor) or IsRed(line.rightColor) then
+		local text = line.leftText
+		local durability = DURABILITY_PATTERN and text and not IsSecret(text) and text:match(DURABILITY_PATTERN)
+		if not durability and (IsRed(line.leftColor) or IsRed(line.rightColor)) then
 			return true
 		end
 	end
@@ -66,17 +81,44 @@ end
 -- So the cache is cleared a moment later and the open bags are redrawn then.
 -- Repeated events in that moment share one pass.
 local pending = false
+local onlyUnusable = true
 
-local function RefreshLater()
+local function RefreshLater(clearAll)
+	if clearAll then
+		onlyUnusable = false
+	end
 	if pending then
 		return
 	end
 	pending = true
 	C_Timer.After(1, function()
 		pending = false
-		ClearCache()
-		Module:MarkDirty()
+		local changed = false
+		if onlyUnusable then
+			for itemID, unusable in next, cache do
+				if unusable then
+					cache[itemID] = nil
+					count = count - 1
+					changed = true
+				end
+			end
+		else
+			ClearCache()
+			changed = true
+		end
+		onlyUnusable = true
+		if changed then
+			Module:MarkDirty()
+		end
 	end)
+end
+
+local function OnLevelUp()
+	RefreshLater(true)
+end
+
+local function OnSkillsChanged()
+	RefreshLater(false)
 end
 
 -- Returns true when the item in this slot is gear the player cannot use.
@@ -99,9 +141,10 @@ function Module:IsUnusableGear(bag, slot, itemID)
 
 	if not watching then
 		watching = true
-		self:RegisterEvent("PLAYER_LEVEL_UP", RefreshLater)
-		-- Weapon skills are learned at a trainer here, which also lifts the red.
-		self:RegisterEvent("SKILL_LINES_CHANGED", RefreshLater)
+		self:RegisterEvent("PLAYER_LEVEL_UP", OnLevelUp)
+		-- A weapon skill learned at a trainer, or a profession rank reached,
+		-- can lift the red.
+		self:RegisterEvent("SKILL_LINES_CHANGED", OnSkillsChanged)
 	end
 	if count >= CACHE_LIMIT then
 		ClearCache()

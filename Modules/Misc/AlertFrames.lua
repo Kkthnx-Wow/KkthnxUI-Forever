@@ -67,6 +67,15 @@ local scratchAlerts = {}
 local scratchSeen = {}
 local scratchOrder = {}
 
+-- One comparator for every anchor pass, rather than a new closure each time.
+local function ByShowOrder(a, b)
+	local orderA, orderB = showOrder[a] or 0, showOrder[b] or 0
+	if orderA ~= orderB then
+		return orderA < orderB
+	end
+	return (scratchOrder[a] or 0) < (scratchOrder[b] or 0)
+end
+
 local function QueuedAlertsInStackOrder(pool)
 	wipe(scratchAlerts)
 	wipe(scratchSeen)
@@ -80,13 +89,7 @@ local function QueuedAlertsInStackOrder(pool)
 			scratchAlerts[#scratchAlerts + 1] = alert
 		end
 	end
-	table.sort(scratchAlerts, function(a, b)
-		local orderA, orderB = showOrder[a] or 0, showOrder[b] or 0
-		if orderA ~= orderB then
-			return orderA < orderB
-		end
-		return (scratchOrder[a] or 0) < (scratchOrder[b] or 0)
-	end)
+	table.sort(scratchAlerts, ByShowOrder)
 	return scratchAlerts
 end
 
@@ -170,20 +173,26 @@ local function RepositionAllAlerts(alertContainer)
 	end
 end
 
+local OnGroupLootUpdate
+
+-- The roll column is placed with our own function, not Blizzard's
+-- GroupLootContainer_Update. That one also lays out the bottom managed container,
+-- which holds the extra action button, and doing that from our hook in combat
+-- would run Blizzard's layout as addon code.
 local function OnUpdateAnchors(alertContainer)
 	if not IsActive() then
 		return
 	end
 	SyncAnchorDirection()
 	RepositionAllAlerts(alertContainer)
-	if GroupLootContainer and _G.GroupLootContainer_Update then
-		_G.GroupLootContainer_Update(GroupLootContainer)
+	if GroupLootContainer then
+		OnGroupLootUpdate(GroupLootContainer)
 	end
 end
 
 -- Stack the group-loot roll bars in the same column and collapse to nothing when
 -- there are no active rolls.
-local function OnGroupLootUpdate(self)
+function OnGroupLootUpdate(self)
 	if not IsActive() then
 		return
 	end
@@ -213,8 +222,8 @@ local function RefreshLayout()
 	if AlertFrame and AlertFrame.UpdateAnchors then
 		AlertFrame:UpdateAnchors()
 	end
-	if GroupLootContainer and _G.GroupLootContainer_Update then
-		_G.GroupLootContainer_Update(GroupLootContainer)
+	if GroupLootContainer then
+		OnGroupLootUpdate(GroupLootContainer)
 	end
 end
 

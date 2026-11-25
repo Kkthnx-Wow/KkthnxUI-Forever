@@ -20,6 +20,7 @@ local next = next
 local type = type
 local gsub = string.gsub
 local match = string.match
+local find = string.find
 
 local IsSecret = K.IsSecret
 
@@ -183,8 +184,15 @@ local function Replace(segment)
 	return (gsub(segment, "%S+", ReplaceWord))
 end
 
+-- Every emoticon above has one of these characters, or is xD. A line with none
+-- of them, most of Trade, skips the word by word pass. The filter runs once per
+-- chat window showing the line, so this check pays off several times over.
+local function MayHaveEmoji(message)
+	return find(message, "[:;=<>_]") or find(message, "[xX]D")
+end
+
 local function Filter(_, _, message, ...)
-	if not C.Chat.Emojis or type(message) ~= "string" or IsSecret(message) then
+	if not C.Chat.Emojis or type(message) ~= "string" or IsSecret(message) or not MayHaveEmoji(message) then
 		return false, message, ...
 	end
 	return false, Module.OutsideLinks(message, Replace), ...

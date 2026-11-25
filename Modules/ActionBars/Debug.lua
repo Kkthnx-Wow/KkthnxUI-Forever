@@ -80,6 +80,8 @@ local function Has(object, name)
 	return object and object[name] ~= nil and "yes" or "no"
 end
 
+local scratchCooldown
+
 local function Probe()
 	local kit = LibStub and LibStub("LibActionButtonKit-1.0", true)
 	if not kit then
@@ -89,7 +91,9 @@ local function Probe()
 
 	-- Each pass replaces the last, so a dump reads one moment.
 	wipe(stream.lines)
-	local scratch = CreateFrame("Cooldown")
+	-- One scratch cooldown, made on the first dump and reused after.
+	scratchCooldown = scratchCooldown or CreateFrame("Cooldown")
+	local scratch = scratchCooldown
 	stream:Push(format(
 		"apis: GetActionCooldownDuration=%s GetActionChargeDuration=%s GetActionLossOfControlCooldownDuration=%s SetCooldownFromDurationObject=%s issecretvalue=%s combat=%s",
 		Has(C_ActionBar, "GetActionCooldownDuration"),

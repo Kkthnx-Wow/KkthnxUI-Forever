@@ -43,6 +43,9 @@ local BUTTONS = {
 -- but never adds to it is not part of the interface, so taking it onto our bar
 -- shows a dead icon.
 local buttonNames = BUTTONS
+-- Reused by every layout pass, which runs each time Blizzard refreshes the
+-- micro buttons.
+local layoutList = {}
 
 local function CollectButtons()
 	local menu = _G.MicroMenu
@@ -162,7 +165,8 @@ local function Layout()
 	local space = cfg.Spacing
 	local vertical = cfg.Orientation == "VERTICAL"
 
-	local list, count = {}, 0
+	local list, count = layoutList, 0
+	wipe(list)
 	for _, name in ipairs(buttonNames) do
 		local btn = _G[name]
 		-- Skip buttons the client currently hides, so they leave no blank gap.

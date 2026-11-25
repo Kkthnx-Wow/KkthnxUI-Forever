@@ -19,7 +19,9 @@ local format = string.format
 local gsub = string.gsub
 local IsSecret = K.IsSecret
 
-local ITEM_LINK = "(|c%x+|Hitem:.-|h|r)"
+-- Either colour form, the hex one or the named |cnIQ4: quality token newer
+-- clients write into links.
+local ITEM_LINK = "(|c[^|]+|Hitem:.-|h|r)"
 local LEVEL_EVENTS = {
 	"CHAT_MSG_LOOT",
 	"CHAT_MSG_CHANNEL",
