@@ -381,6 +381,13 @@ end
 -- Close button (UIPanelCloseButton)
 -- ---------------------------------------------------------------------------
 
+-- The glyphs drawn from bars on the close and fold buttons, kept in one place so
+-- the two always match. Each glyph fills a GLYPH_BOX square: the X's bars run
+-- its diagonal, the plus and minus its width.
+local GLYPH_STROKE = 2.75
+local GLYPH_BOX = 11
+local GLYPH_DIAGONAL = GLYPH_BOX * math.sqrt(2)
+
 function K.SkinCloseButton(button)
 	if button.__skinned then
 		return button
@@ -410,7 +417,10 @@ function K.SkinCloseButton(button)
 	local function XBar(rotation)
 		local t = button:CreateTexture(nil, "OVERLAY")
 		t:SetColorTexture(gold[1], gold[2], gold[3])
-		t:SetSize(13, 2.5)
+		t:SetSize(GLYPH_DIAGONAL, GLYPH_STROKE)
+		-- Snapped to the pixel grid, a fractional stroke rounds to a whole pixel,
+		-- so 2.5 and 2.75 drew the same. Unsnapped it draws at its real weight.
+		K.DisablePixelSnap(t)
 		t:SetPoint("CENTER")
 		t:SetRotation(rotation)
 		return t
@@ -429,6 +439,71 @@ function K.SkinCloseButton(button)
 		b:SetColorTexture(gold[1], gold[2], gold[3])
 	end)
 	return button
+end
+
+-- ---------------------------------------------------------------------------
+-- Fold toggle (minimize buttons)
+-- ---------------------------------------------------------------------------
+
+-- A button that folds another frame away and brings it back. Same square as the
+-- close button, but with the plain button gradient, since folding a frame away
+-- loses nothing. The gold glyph is a minus while the frame is open and a plus
+-- while it is folded. Returns a function the caller uses to set that state.
+function K.SkinFoldButton(button)
+	if button.__skinned then
+		return button.KKUI_SetOpen
+	end
+	button.__skinned = true
+
+	button:SetSize(22, 22)
+	if button.SetNormalTexture then
+		button:SetNormalTexture(0)
+		button:SetPushedTexture(0)
+		button:SetHighlightTexture(0)
+		button:SetDisabledTexture(0)
+	end
+	if button.SetBackdrop then
+		button:SetBackdrop(nil)
+	end
+
+	GamepadFocus(button, gold)
+
+	local bg = button:CreateTexture(nil, "BACKGROUND")
+	bg:SetPoint("TOPLEFT", 1, -1)
+	bg:SetPoint("BOTTOMRIGHT", -1, 1)
+	bg:SetColorTexture(1, 1, 1)
+	K.ApplyGradient(bg, "buttonRest")
+	button.KKUI_Background = bg
+	K.CreateBorder(button)
+
+	-- Drawn from bars like the close button's X, so it stays crisp at any size.
+	local function Bar(width, height)
+		local t = button:CreateTexture(nil, "OVERLAY")
+		t:SetColorTexture(gold[1], gold[2], gold[3])
+		t:SetSize(width, height)
+		t:SetPoint("CENTER")
+		K.DisablePixelSnap(t)
+		return t
+	end
+	local across = Bar(GLYPH_BOX, GLYPH_STROKE)
+	local down = Bar(GLYPH_STROKE, GLYPH_BOX)
+
+	button:HookScript("OnEnter", function()
+		K.ApplyGradient(bg, "buttonHover")
+		across:SetColorTexture(1, 0.86, 0.4)
+		down:SetColorTexture(1, 0.86, 0.4)
+	end)
+	button:HookScript("OnLeave", function()
+		K.ApplyGradient(bg, "buttonRest")
+		across:SetColorTexture(gold[1], gold[2], gold[3])
+		down:SetColorTexture(gold[1], gold[2], gold[3])
+	end)
+
+	local function SetOpen(open)
+		down:SetShown(not open)
+	end
+	button.KKUI_SetOpen = SetOpen
+	return SetOpen
 end
 
 -- ---------------------------------------------------------------------------

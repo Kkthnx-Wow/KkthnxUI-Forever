@@ -63,8 +63,41 @@ function Module:OnEnable()
 		hooksecurefunc(toast, "SetPoint", reanchor)
 	end
 
-	-- The GM ticket and time-alert toasts share the same plate.
+	-- The GM ticket and time-alert toasts share the same plate, and so do the
+	-- shard transfer countdown and the small button beside it that hides and
+	-- shows it. Its close button was already parented away by the game.
 	SkinToast(_G.TimeAlertFrame)
+
+	-- The game pins the shard toast 30px right of the chat's alert anchor and
+	-- hangs the 24px minimize button 5px left of it. That anchor is worked out
+	-- from the chat's button strip, which sits left of the window, so with our
+	-- chat 6px from the edge the button landed off screen. Both are pinned to our
+	-- chat holder instead: the button lines up with the chat's left edge, one gap
+	-- before the toast, and the pair sits one gap above the open edit box (26px
+	-- up, 22 tall). The game only places them once, when they load.
+	local shard = _G.ShardTransferImminentFrame
+	local shardButton = _G.ShardTransferImminentMinimizeButton
+	local chat = _G.KKUI_ChatHolder
+	SkinToast(shard)
+	-- The minimize button folds the toast away and back, so it gets our fold
+	-- button, a minus while the toast shows and a plus once it is folded.
+	if shard and shardButton and K.SkinFoldButton then
+		local setOpen = K.SkinFoldButton(shardButton)
+		setOpen(shard:IsShown())
+		shard:HookScript("OnShow", function()
+			setOpen(true)
+		end)
+		shard:HookScript("OnHide", function()
+			setOpen(false)
+		end)
+	end
+	if shard and shardButton and chat then
+		local gap = 6
+		shard:ClearAllPoints()
+		shard:SetPoint("BOTTOMLEFT", chat, "TOPLEFT", shardButton:GetWidth() + gap, 26 + 22 + gap)
+		shardButton:ClearAllPoints()
+		shardButton:SetPoint("TOPRIGHT", shard, "TOPLEFT", -gap, 0)
+	end
 
 	-- Trim any leftover inner textures the toast leaves behind.
 	if toast then
