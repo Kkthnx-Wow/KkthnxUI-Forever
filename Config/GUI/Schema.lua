@@ -300,6 +300,7 @@ local function SwingControls()
 	local list = {
 		{ kind = "check", label = L["Enable Swing Bars"], path = { "Unitframe", "Swing", "Enable" }, reload = true, tooltip = L["Main hand, off hand and ranged swing bars. Each has its own mover in Move UI, and a bar only shows while its weapon is equipped."] },
 		{ kind = "check", label = L["Show Spark"], path = { "Unitframe", "Swing", "Spark" }, apply = ApplySwing, dependsOn = SWING_DEP },
+		{ kind = "check", label = L["Show Weapon Icon"], path = { "Unitframe", "Swing", "Icon" }, since = "1.1.2", apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Show the icon of the weapon in that slot to the left of each bar."] },
 		{ kind = "check", label = L["Drain The Bar"], path = { "Unitframe", "Swing", "Drain" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Empty the bar as the swing runs. Turn off to fill it instead."] },
 		{ kind = "check", label = L["Adjust For Haste"], path = { "Unitframe", "Swing", "HasteAdjust" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["When your attack speed changes partway through a swing, the rest of that swing is stretched or shrunk to match."] },
 		{ kind = "check", label = L["Out Of Range Dim"], path = { "Unitframe", "Swing", "RangeCheck" }, apply = ApplySwing, dependsOn = SWING_DEP, tooltip = L["Dim a bar and turn its text red while your target is out of reach. A swing already running finishes first."] },

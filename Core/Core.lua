@@ -95,6 +95,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 			qol:ExportFlightTimes()
 		end
 		return
+	elseif msg == "swingtest" then
+		local swing = K:GetModule("SwingTimer", true)
+		if swing and swing.ToggleTest then
+			swing:ToggleTest()
+		end
+		return
 	elseif msg == "buffs" then
 		local qol = K:GetModule("QoL", true)
 		if qol and qol.PrintBuffs then

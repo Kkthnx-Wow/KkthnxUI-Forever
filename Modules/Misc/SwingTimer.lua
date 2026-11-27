@@ -27,6 +27,7 @@ local Module = K:NewModule("SwingTimer")
 local _G = _G
 local ipairs = ipairs
 local CreateFrame = CreateFrame
+local GetInventoryItemTexture = GetInventoryItemTexture
 local GetTime = GetTime
 local UIParent = UIParent
 local UnitAffectingCombat = UnitAffectingCombat
@@ -38,18 +39,48 @@ local C_Timer = C_Timer
 local Enum = Enum
 local IsSecret = K.IsSecret
 
--- Mover keys and default spots. The three stack above the player castbar. The
--- ranged bar keeps the old Auto Shot mover key, so a hunter's saved spot carries
--- over.
+-- Mover keys and slots, top to bottom. The ranged bar keeps the old Auto Shot
+-- mover key, so a hunter's saved spot carries over. Default spots are worked out
+-- in DefaultSpots.
 local BARS = {
-	{ key = "MainHand", mover = "SwingMainHand", label = _G.SWING_TIMER_MAIN_HAND or L["Main Hand"], y = 262 },
-	{ key = "OffHand", mover = "SwingOffHand", label = _G.SWING_TIMER_OFF_HAND or L["Off Hand"], y = 244 },
-	{ key = "Ranged", mover = "AutoShot", label = _G.SWING_TIMER_RANGED or L["Ranged"], y = 226 },
+	{ key = "MainHand", mover = "SwingMainHand", label = _G.SWING_TIMER_MAIN_HAND or L["Main Hand"], slot = _G.INVSLOT_MAINHAND or 16 },
+	{ key = "OffHand", mover = "SwingOffHand", label = _G.SWING_TIMER_OFF_HAND or L["Off Hand"], slot = _G.INVSLOT_OFFHAND or 17 },
+	{ key = "Ranged", mover = "AutoShot", label = _G.SWING_TIMER_RANGED or L["Ranged"], slot = _G.INVSLOT_RANGED or 18 },
 }
+
+-- The UI's one spacing step, the same 6px the unit frames and the cast bar use
+-- between pieces. It separates the bars and each bar from its icon.
+local GAP = 6
+-- The player castbar's default bottom edge (Units/Player.lua). The bars stack
+-- from one gap above its top.
+local CASTBAR_Y = 190
+
+-- Default mover spots. The bars stack up from the player castbar, ranged lowest,
+-- one gap apart at whatever heights are set, centred on the screen.
+local function DefaultSpots()
+	local swing = C.Unitframe.Swing
+	local cast = C.Unitframe.Castbar
+	local y = CASTBAR_Y + (cast and cast.PlayerHeight or 28) + GAP
+	for i = #BARS, 1, -1 do
+		local info = BARS[i]
+		info.y = y
+		y = y + swing[info.key].Height + GAP
+	end
+end
 
 local bars = {} -- swing type -> bar
 local inCombat = false
 local formatter
+
+-- /kk swingtest state. While on, every bar shows and swings on a loop at its
+-- weapon's speed (or a stand-in speed with no weapon), and real swings are
+-- ignored so the two never fight over a bar. The generation number retires the
+-- restart callbacks of an earlier test run.
+local testing = false
+local testGeneration = 0
+local TEST_SPEED = { MainHand = 2.6, OffHand = 1.8, Ranged = 3.0 }
+local TEST_PAUSE = 0.6
+local TEST_ICON = 134400 -- the question mark, for a slot with nothing in it
 
 -- ---------------------------------------------------------------------------
 -- Weapon state
@@ -85,6 +116,9 @@ end
 -- ---------------------------------------------------------------------------
 
 local function ShouldShow(bar)
+	if testing then
+		return true
+	end
 	local mode = bar.db.Visibility
 	if mode == "hidden" or not HasWeapon(bar) then
 		return false
@@ -105,9 +139,21 @@ local function ApplyRange(bar)
 	local alpha = out and Module.rangeAlpha or 1
 	bar.status:SetAlpha(alpha)
 	bar.bg:SetAlpha(alpha)
+	bar.iconHolder:SetAlpha(alpha)
 	local color = out and K.Colors.negative or K.Colors.text
 	bar.title:SetTextColor(color[1], color[2], color[3])
 	bar.time:SetTextColor(color[1], color[2], color[3])
+end
+
+-- The icon of whatever sits in the bar's slot. An empty main hand (unarmed) has
+-- no item and so no icon, and the slot is hidden rather than left blank.
+local function UpdateIcon(bar)
+	local texture = Module.showIcon and GetInventoryItemTexture("player", bar.slot) or nil
+	if testing and Module.showIcon and not texture then
+		texture = TEST_ICON
+	end
+	bar.icon:SetTexture(texture)
+	bar.iconHolder:SetShown(texture ~= nil)
 end
 
 local function Refresh(bar)
@@ -213,7 +259,7 @@ end
 
 function Module:PLAYER_SWING(_, swingDuration, swingType)
 	local bar = bars[swingType]
-	if bar and bar.db.Visibility ~= "hidden" then
+	if bar and not testing and bar.db.Visibility ~= "hidden" then
 		StartSwing(bar, swingDuration)
 	end
 end
@@ -253,7 +299,8 @@ end
 function Module:WEAPON_SLOT_CHANGED()
 	for _, bar in ipairs(self.list) do
 		UpdateRangeCheck(bar)
-		if bar.swinging then
+		UpdateIcon(bar)
+		if bar.swinging and not testing then
 			local speed = EquippedSpeed(bar)
 			if speed then
 				StartSwing(bar, speed)
@@ -286,6 +333,7 @@ end
 function Module:UNIT_INVENTORY_CHANGED()
 	for _, bar in ipairs(self.list) do
 		UpdateRangeCheck(bar)
+		UpdateIcon(bar)
 		Refresh(bar)
 	end
 end
@@ -295,8 +343,57 @@ function Module:PLAYER_ENTERING_WORLD()
 	for _, bar in ipairs(self.list) do
 		UpdateRangeCheck(bar)
 		ReadRange(bar)
+		UpdateIcon(bar)
 		Refresh(bar)
 	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Test mode
+-- ---------------------------------------------------------------------------
+
+-- A test swing ended. Pause, then swing again. Every other pause shows the out
+-- of range dim, so the dim can be checked without a target.
+local function TestNext(bar)
+	local generation = testGeneration
+	bar.testCycle = (bar.testCycle or 0) + 1
+	bar.outOfRange = bar.testCycle % 2 == 0
+	ApplyRange(bar)
+	C_Timer.After(TEST_PAUSE, function()
+		if testing and generation == testGeneration then
+			bar.outOfRange = false
+			StartSwing(bar, EquippedSpeed(bar) or TEST_SPEED[bar.key])
+		end
+	end)
+end
+
+-- /kk swingtest. Shows all three bars swinging on a loop, with their icons,
+-- spark, colours, text and range dim, so a change can be watched without a
+-- fight. Run it again to stop. Works with any bar's visibility setting.
+function Module:ToggleTest()
+	if not self.list then
+		K.Print(L["Swing bars are turned off."])
+		return
+	end
+	testing = not testing
+	testGeneration = testGeneration + 1
+	for _, bar in ipairs(self.list) do
+		if bar.endTimer then
+			bar.endTimer:Cancel()
+			bar.endTimer = nil
+		end
+		bar.testCycle = 0
+		Idle(bar)
+		UpdateIcon(bar)
+		if testing then
+			bar.outOfRange = false
+			StartSwing(bar, EquippedSpeed(bar) or TEST_SPEED[bar.key])
+		else
+			ReadRange(bar)
+			Refresh(bar)
+		end
+	end
+	K.Print(testing and L["Swing bar test on. Type /kk swingtest again to stop."] or L["Swing bar test off."])
 end
 
 -- ---------------------------------------------------------------------------
@@ -307,8 +404,12 @@ local function Build(info, swingType)
 	local holder = CreateFrame("Frame", "KKUI_Swing" .. info.key, UIParent)
 	holder:SetFrameStrata("LOW")
 
+	-- The bar takes the holder's right side. With the icon on, the holder is wider
+	-- by one icon and one gap, so bar and icon stay centred as one piece the way
+	-- the castbar is. With it off the bar fills the holder. ApplySettings sizes it.
 	local status = CreateFrame("StatusBar", nil, holder)
-	status:SetAllPoints()
+	status:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0)
+	status:SetPoint("BOTTOMRIGHT", holder, "BOTTOMRIGHT", 0, 0)
 	K.CreateBorder(status)
 
 	local bg = status:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -327,14 +428,28 @@ local function Build(info, swingType)
 	time:SetPoint("RIGHT", status, "RIGHT", -4, 0)
 	time:SetJustifyH("RIGHT")
 
+	-- The weapon icon in its own square slot on the holder's left, styled like the
+	-- cast bar's spell icon. ApplySettings sizes it.
+	local iconHolder = CreateFrame("Frame", nil, holder)
+	iconHolder:SetPoint("LEFT", holder, "LEFT", 0, 0)
+	K.CreateBackground(iconHolder, K.Colors.bg[1], K.Colors.bg[2], K.Colors.bg[3], 0.9)
+	K.CreateBorder(iconHolder)
+	local icon = iconHolder:CreateTexture(nil, "ARTWORK")
+	icon:SetPoint("TOPLEFT", iconHolder, "TOPLEFT", 1, -1)
+	icon:SetPoint("BOTTOMRIGHT", iconHolder, "BOTTOMRIGHT", -1, 1)
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
 	local bar = {
 		key = info.key,
+		slot = info.slot,
 		swingType = swingType,
 		holder = holder,
 		status = status,
 		bg = bg,
 		title = title,
 		time = time,
+		iconHolder = iconHolder,
+		icon = icon,
 		duration = C_DurationUtil.CreateDuration(),
 		binding = C_DurationUtil.CreateDurationTextBinding(),
 		swinging = false,
@@ -348,13 +463,17 @@ local function Build(info, swingType)
 	bar.OnSwingEnd = function()
 		bar.endTimer = nil
 		Idle(bar)
+		if testing then
+			TestNext(bar)
+		end
 		ApplyRange(bar)
 		bar.holder:SetShown(ShouldShow(bar))
 	end
 
 	local db = C.Unitframe.Swing[info.key]
 	bar.db = db
-	K.CreateMover(holder, info.mover, info.label .. " " .. L["Swing"], { "BOTTOM", UIParent, "BOTTOM", 0, info.y }, db.Width, db.Height)
+	local width = db.Width + (C.Unitframe.Swing.Icon ~= false and db.Height + GAP or 0)
+	K.CreateMover(holder, info.mover, info.label .. " " .. L["Swing"], { "BOTTOM", UIParent, "BOTTOM", 0, info.y }, width, db.Height)
 	return bar
 end
 
@@ -369,16 +488,21 @@ function Module:ApplySettings()
 	self.rangeCheck = db.RangeCheck
 	self.rangeAlpha = db.RangeAlpha
 	self.hasteAdjust = db.HasteAdjust
+	self.showIcon = db.Icon ~= false
 
 	local texture = K.GetTexture(C.Unitframe.Texture)
 	for _, bar in ipairs(self.list) do
 		local bdb = bar.db
-		bar.holder:SetSize(bdb.Width, bdb.Height)
+		-- The icon slot is kept while the option is on, even when the slot is empty
+		-- (unarmed), so a weapon swap never shifts the bar sideways.
+		local width = bdb.Width + (self.showIcon and bdb.Height + GAP or 0)
+		bar.holder:SetSize(width, bdb.Height)
 		bar.holder:SetScale(bdb.Scale)
 		bar.holder:SetAlpha(bdb.Alpha)
+		bar.status:SetWidth(bdb.Width)
 		local mover = bar.holder.KKUI_Mover
 		if mover then
-			mover:SetSize(bdb.Width * bdb.Scale, bdb.Height * bdb.Scale)
+			mover:SetSize(width * bdb.Scale, bdb.Height * bdb.Scale)
 		end
 
 		bar.status:SetStatusBarTexture(texture)
@@ -391,15 +515,22 @@ function Module:ApplySettings()
 		bar.title:SetShown(bdb.ShowTitle)
 		bar.time:SetShown(bdb.ShowTime)
 
+		bar.iconHolder:SetSize(bdb.Height, bdb.Height)
+		UpdateIcon(bar)
+
+		-- Pinned to the fill's top and bottom edges, so the spark is exactly as tall
+		-- as the fill at any bar height and never pokes out over the border.
 		if db.Spark and not bar.spark then
 			local spark = bar.status:CreateTexture(nil, "OVERLAY")
 			spark:SetTexture(C.Media.Textures.Spark)
 			spark:SetBlendMode("ADD")
-			spark:SetPoint("CENTER", bar.status:GetStatusBarTexture(), "RIGHT", 0, 0)
+			local fill = bar.status:GetStatusBarTexture()
+			spark:SetPoint("TOP", fill, "TOPRIGHT", 0, 0)
+			spark:SetPoint("BOTTOM", fill, "BOTTOMRIGHT", 0, 0)
 			bar.spark = spark
 		end
 		if bar.spark then
-			bar.spark:SetSize(16, bdb.Height + 4)
+			bar.spark:SetWidth(16)
 			bar.spark:SetShown(db.Spark and bar.swinging)
 		end
 
@@ -429,6 +560,7 @@ function Module:OnEnable()
 	formatter:SetMillisecondsThreshold(60)
 
 	self.list = {}
+	DefaultSpots()
 	for _, info in ipairs(BARS) do
 		local swingType = Enum.PlayerSwingType[info.key]
 		local bar = Build(info, swingType)

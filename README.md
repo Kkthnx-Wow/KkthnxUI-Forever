@@ -27,6 +27,7 @@ Log in and type `/kk` to open the options.
 
 - `/kk` opens the options
 - `/kk test` shows every unit frame with your own data so you can position them
+- `/kk swingtest` runs the swing bars on a loop so you can watch and place them
 - `/kkdebug` lists the debug streams
 
 ## Reporting problems
