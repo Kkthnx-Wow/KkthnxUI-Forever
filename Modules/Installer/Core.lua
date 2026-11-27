@@ -40,8 +40,11 @@ local textColor = K.Colors.text
 -- addon's own Class Colored Health option and ignore the game's setting.
 local CVAR_TWEAKS = {
 	{ key = "autoloot", cvar = "autoLootDefault", value = 1, label = L["Auto Loot"] },
-	{ key = "camera", cvar = "cameraDistanceMaxZoomFactor", value = 2.6, label = L["Max Camera Distance"] },
-	{ key = "combatText", cvar = "floatingCombatTextCombatDamage", value = 1, label = L["Floating Combat Text"] },
+	-- 2.0 is the top of the game's own Max Camera Distance slider on this client,
+	-- the same value the QoL camera option uses.
+	{ key = "camera", cvar = "cameraDistanceMaxZoomFactor", value = 2.0, label = L["Max Camera Distance"] },
+	-- Forever only has the _v2 combat text settings, the old name does not exist.
+	{ key = "combatText", cvar = "floatingCombatTextCombatDamage_v2", value = 1, label = L["Floating Combat Text"] },
 	{ key = "questObjectives", cvar = "autoQuestProgress", value = 1, label = L["Auto Quest Tracking"] },
 }
 
@@ -305,6 +308,15 @@ function Module:BuildFrame()
 	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	K.CreateGradientBackground(f)
 	K.CreateBorder(f)
+	-- Closing the window in any way (the X, Escape) counts as done, so a player
+	-- who skips setup is not shown it again at every login. /kk install reopens it.
+	-- OnHide also fires when UIParent hides (Alt+Z, a cinematic), and the window
+	-- itself is still shown then, so that is not a close.
+	f:HookScript("OnHide", function(self)
+		if not self:IsShown() then
+			Module:MarkInstalled()
+		end
+	end)
 	self.frame = f
 	self.panels = {}
 
