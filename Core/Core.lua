@@ -107,6 +107,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 			bars:ToggleProcTest()
 		end
 		return
+	elseif msg == "questtest" then
+		local questButton = K:GetModule("QuestItemButton", true)
+		if questButton and questButton.ToggleTest then
+			questButton:ToggleTest()
+		end
+		return
 	elseif msg == "afktest" then
 		local afk = K:GetModule("AFKScreen", true)
 		if afk and afk.ToggleTest then

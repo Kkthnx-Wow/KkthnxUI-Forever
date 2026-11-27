@@ -11,6 +11,7 @@
 	<Script file="PossessBar.lua" />
 	<Script file="ProcGlow.lua" />
 	<Script file="Extras.lua" />
+	<Script file="QuestButton.lua" />
 	<Script file="RankUpgrade.lua" />
 	<Script file="DisableBlizzard.lua" />
 	<Script file="Debug.lua" />

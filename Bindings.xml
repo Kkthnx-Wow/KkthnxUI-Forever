@@ -1,0 +1,8 @@
+<Bindings>
+	<!-- Uses the nearest quest's item through the KkthnxUI quest item button. -->
+	<Binding name="CLICK KKUI_QuestItemButton:LeftButton" header="KKTHNXUI" category="ADDONS" />
+	<!-- Sells junk at an open merchant, the same as the bags' Sell Junk button. -->
+	<Binding name="KKUI_SELLJUNK" category="ADDONS">
+		KkthnxUI[1].SellJunkKey()
+	</Binding>
+</Bindings>

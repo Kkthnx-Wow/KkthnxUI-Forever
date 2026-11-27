@@ -29,6 +29,7 @@ Log in and type `/kk` to open the options.
 - `/kk test` shows every unit frame with your own data so you can position them
 - `/kk swingtest` runs the swing bars on a loop so you can watch and place them
 - `/kk afktest` opens the AFK screen so you can see it without going AFK
+- `/kk questtest` shows the quest item button so you can place it
 - `/kk proctest` lights a few bar 1 buttons with the proc glow so you can check its look
 - `/kkdebug` lists the debug streams
 
