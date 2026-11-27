@@ -9,4 +9,5 @@
 	<Script file="ObjectiveTracker.lua" />
 	<Script file="Details.lua" />
 	<Script file="MirrorTimers.lua" />
+	<Script file="DamageMeter.lua" />
 </Ui>
