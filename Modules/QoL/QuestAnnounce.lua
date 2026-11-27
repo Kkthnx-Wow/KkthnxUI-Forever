@@ -5,6 +5,8 @@
 		Tell the group when you accept or finish a quest, with a clickable quest
 		link, so a party working through the same story stays in step. Nothing is
 		said while solo, and world quests and profession quests are left out.
+		Objective progress can be told too, each finished objective or every
+		step, from the same look at the log.
 
 		Accepting is told from the accept event. Finishing is told when a quest in
 		the log turns complete, found by checking the log when it changes and
@@ -16,11 +18,14 @@
 		server packet, and a burst of them gets a client disconnected.
 -----------------------------------------------------------------------------]]
 
-local K, L = KkthnxUI[1], KkthnxUI[3]
+local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
 
 local Module = K:GetModule("QoL")
 
 local format = string.format
+local ipairs = ipairs
+local type = type
+local IsSecret = K.IsSecret
 local IsInGroup, IsInRaid = IsInGroup, IsInRaid
 local C_QuestLog = C_QuestLog
 local SendChatMessage = C_ChatInfo.SendChatMessage
@@ -58,8 +63,10 @@ local function Drain()
 	end
 end
 
-local function Say(text)
-	if not Channel() or #outbox >= MAX_QUEUED then
+-- Progress lines are capped so a big pull cannot flood chat. Accepted and
+-- Completed lines are the ones that matter, so they always get a place.
+local function Say(text, progressLine)
+	if not Channel() or (progressLine and #outbox >= MAX_QUEUED) then
 		return
 	end
 	outbox[#outbox + 1] = text
@@ -82,15 +89,55 @@ end
 
 local queued
 
+-- quest id -> { [objective index] = count fulfilled }, what was last seen.
+local progress = {}
+
+-- Objective steps since the last look. With "DONE" only an objective that has
+-- just been finished is told, with "EVERY" each step is. Nothing is told for a
+-- quest that finished in this same look, its Completed line says it all, and
+-- the first look at a quest only records where it stands.
+local function CheckObjectives(questID, settled)
+	local mode = C.QoL.QuestProgress
+	local objectives = C_QuestLog.GetQuestObjectives(questID)
+	if not objectives then
+		return
+	end
+	local seen = progress[questID]
+	local first = seen == nil
+	if first then
+		seen = {}
+		progress[questID] = seen
+	end
+	for i, objective in ipairs(objectives) do
+		local count = objective.numFulfilled
+		if type(count) == "number" and not IsSecret(count) then
+			local before = seen[i]
+			seen[i] = count
+			local text = objective.text
+			if settled and not first and before and count > before and type(text) == "string" and not IsSecret(text) and text ~= "" then
+				if mode == "EVERY" or (mode == "DONE" and objective.finished) then
+					Say(format("%s: %s", Title(questID), text), true)
+				end
+			end
+		end
+	end
+end
+
 local function Scan()
 	queued = nil
+	local settled = GetTime() - startTime > SETTLE_TIME
+	local wantProgress = C.QoL.QuestProgress and C.QoL.QuestProgress ~= "OFF"
 	for index = 1, C_QuestLog.GetNumQuestLogEntries() do
 		local info = C_QuestLog.GetInfo(index)
 		local questID = info and not info.isHeader and info.questID
-		if questID and not done[questID] and C_QuestLog.IsComplete(questID) and not C_QuestLog.IsWorldQuest(questID) then
-			done[questID] = true
-			if GetTime() - startTime > SETTLE_TIME then
-				Say(format(L["Completed: %s"], Title(questID)))
+		if questID and not C_QuestLog.IsWorldQuest(questID) then
+			if not done[questID] and C_QuestLog.IsComplete(questID) then
+				done[questID] = true
+				if settled then
+					Say(format(L["Completed: %s"], Title(questID)))
+				end
+			elseif wantProgress and not done[questID] then
+				CheckObjectives(questID, settled)
 			end
 		end
 	end
@@ -109,5 +156,6 @@ function Module:SetupQuestAnnounce()
 	self:RegisterEvent("QUEST_LOG_UPDATE", OnLogChanged)
 	self:RegisterEvent("QUEST_REMOVED", function(_, _, questID)
 		done[questID] = nil
+		progress[questID] = nil
 	end)
 end

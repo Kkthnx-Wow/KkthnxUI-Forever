@@ -25,8 +25,14 @@ local GetQuestItemInfo = GetQuestItemInfo
 local GetQuestReward = GetQuestReward
 local GetQuestMoneyToGet = GetQuestMoneyToGet
 local GetNumQuestRewards = GetNumQuestRewards
+local GetQuestItemLink = GetQuestItemLink
+local ItemLocation = ItemLocation
+local Enum = Enum
+local ipairs = ipairs
 
 local COIN_ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+-- Filling an empty slot beats any item level gain.
+local EMPTY_SLOT_GAIN = 1000
 
 -- True when handing this quest in would take gold and that is switched off.
 local function CostsGold()
@@ -67,9 +73,10 @@ local function GetChoiceButton(index)
 	return nil
 end
 
--- One coin badge, moved to whichever reward is worth the most.
+-- One badge, moved to the picked reward. A coin for the best seller, the bags'
+-- green arrow for an upgrade.
 local marker
-local function ShowMarker(index)
+local function ShowMarker(index, isUpgrade)
 	local button = GetChoiceButton(index)
 	if not button then
 		return
@@ -77,15 +84,23 @@ local function ShowMarker(index)
 	if not marker then
 		marker = CreateFrame("Frame")
 		marker:SetSize(18, 18)
-		local icon = marker:CreateTexture(nil, "OVERLAY")
-		icon:SetAllPoints()
-		icon:SetTexture(COIN_ICON)
-		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 		local ring = marker:CreateTexture(nil, "ARTWORK")
 		ring:SetPoint("TOPLEFT", -1, 1)
 		ring:SetPoint("BOTTOMRIGHT", 1, -1)
 		local c = K.Colors.highlight
 		ring:SetColorTexture(c[1], c[2], c[3], 1)
+		marker.ring = ring
+		local icon = marker:CreateTexture(nil, "OVERLAY")
+		icon:SetAllPoints()
+		marker.icon = icon
+	end
+	if isUpgrade then
+		marker.icon:SetAtlas("bags-greenarrow")
+		marker.ring:Hide()
+	else
+		marker.icon:SetTexture(COIN_ICON)
+		marker.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		marker.ring:Show()
 	end
 	marker:SetParent(button)
 	marker:SetFrameLevel(button:GetFrameLevel() + 5)
@@ -116,6 +131,97 @@ local function FindBestChoice(numChoices)
 				bestValue = value
 				bestIndex = index
 			end
+		end
+	end
+	return bestIndex
+end
+
+-- How much a reward would raise the slot it goes in, or nil when it would not.
+-- With Pawn loaded its own verdict decides and the gain is just "yes". Without
+-- it the item level is compared, and only against a worn piece of the same
+-- armor or weapon kind, so a warrior is never steered to cloth because the
+-- robe happens to be higher. A slot with nothing in it counts as a clear gain.
+local MAIN_HAND_SLOT = 16
+local MAIN_HAND_ONLY = { MAIN_HAND_SLOT }
+
+local function MainHandIsTwoHanded()
+	local worn = ItemLocation:CreateFromEquipmentSlot(MAIN_HAND_SLOT)
+	if not C_Item.DoesItemExist(worn) then
+		return false
+	end
+	local link = C_Item.GetItemLink(worn)
+	if not link or IsSecret(link) then
+		return false
+	end
+	local _, _, _, equipLoc = C_Item.GetItemInfoInstant(link)
+	return equipLoc == "INVTYPE_2HWEAPON"
+end
+
+local function UpgradeGain(index)
+	local link = GetQuestItemLink("choice", index)
+	if not link or IsSecret(link) then
+		return nil
+	end
+	local isUsable = select(5, GetQuestItemInfo("choice", index))
+	if not isUsable then
+		return nil
+	end
+
+	local pawn = _G.PawnShouldItemLinkHaveUpgradeArrowUnbudgeted
+	if pawn then
+		return pawn(link, true) and 1 or nil
+	end
+
+	local _, _, _, equipLoc, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
+	local slots = K.GearSlotsFor[equipLoc]
+	if not slots or (classID ~= Enum.ItemClass.Weapon and classID ~= Enum.ItemClass.Armor) then
+		return nil
+	end
+	local level = C_Item.GetDetailedItemLevelInfo(link)
+	if not level or IsSecret(level) then
+		return nil
+	end
+
+	-- With a two-hander worn the off hand is empty but not free. An off-hand
+	-- piece is no upgrade then, and a one-hand weapon only competes with the
+	-- main hand.
+	if slots[#slots] == 17 and MainHandIsTwoHanded() then
+		if equipLoc ~= "INVTYPE_WEAPON" then
+			return nil
+		end
+		slots = MAIN_HAND_ONLY
+	end
+
+	-- For a ring or a one-hand weapon the weaker of the two slots is the one to beat.
+	local best
+	for _, slot in ipairs(slots) do
+		local worn = ItemLocation:CreateFromEquipmentSlot(slot)
+		if not C_Item.DoesItemExist(worn) then
+			return EMPTY_SLOT_GAIN
+		end
+		local wornLink = C_Item.GetItemLink(worn)
+		local wornClass, wornSubclass
+		if wornLink and not IsSecret(wornLink) then
+			wornClass, wornSubclass = select(6, C_Item.GetItemInfoInstant(wornLink))
+		end
+		local wornLevel = C_Item.GetCurrentItemLevel(worn)
+		if wornClass and wornClass == classID and wornSubclass == subclassID and wornLevel and not IsSecret(wornLevel) and level > wornLevel then
+			local gain = level - wornLevel
+			if not best or gain > best then
+				best = gain
+			end
+		end
+	end
+	return best
+end
+
+-- The choice that raises a slot the most, or nil when none is an upgrade.
+local function FindUpgradeChoice(numChoices)
+	local bestIndex, bestGain = nil, 0
+	for index = 1, numChoices do
+		local gain = UpgradeGain(index)
+		if gain and gain > bestGain then
+			bestIndex, bestGain = index, gain
 		end
 	end
 	return bestIndex
@@ -184,6 +290,15 @@ function Module:OnQuestComplete()
 	end
 	pendingQuestID = nil
 
+	-- An upgrade for what you wear beats the best seller when that is wanted.
+	local isUpgrade = false
+	if C.AutoQuest.PreferUpgrades then
+		local upgrade = FindUpgradeChoice(numChoices)
+		if upgrade then
+			bestIndex, isUpgrade = upgrade, true
+		end
+	end
+
 	-- Nothing sells for anything, so there is no best to pick. Leave it to you.
 	if not bestIndex then
 		return
@@ -192,7 +307,7 @@ function Module:OnQuestComplete()
 	if mode == "TAKE" and turnIn then
 		self:TakeReward(questID, bestIndex, numChoices)
 	else
-		ShowMarker(bestIndex)
+		ShowMarker(bestIndex, isUpgrade)
 	end
 end
 
