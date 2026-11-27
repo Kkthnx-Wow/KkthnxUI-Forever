@@ -1064,6 +1064,7 @@ function Module:InstallChat()
 		"YELL",
 		"GUILD",
 		"OFFICER",
+		"GUILD_DISCORD", -- guild chat relayed from the guild's Discord server
 		"GUILD_ACHIEVEMENT",
 		"MONSTER_SAY",
 		"MONSTER_EMOTE",
@@ -1102,7 +1103,7 @@ function Module:InstallChat()
 	FCF_SetLocked(whispers, true)
 	FCF_DockFrame(whispers)
 	whispers:RemoveAllMessageGroups()
-	for _, group in ipairs({ "WHISPER", "BN_WHISPER", "BN_CONVERSATION" }) do
+	for _, group in ipairs({ "WHISPER", "BN_WHISPER" }) do
 		whispers:AddMessageGroup(group)
 	end
 
@@ -1132,7 +1133,6 @@ function Module:InstallChat()
 	SetCVar("chatMouseScroll", 1)
 	SetCVar("chatStyle", "im")
 	SetCVar("whisperMode", "inline")
-	SetCVar("removeChatDelay", 1)
 	SetCVar("colorChatNamesByClass", 1)
 
 	_G.ChatFrame1:SetUserPlaced(true)
