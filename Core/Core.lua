@@ -101,6 +101,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 			swing:ToggleTest()
 		end
 		return
+	elseif msg == "proctest" then
+		local bars = K:GetModule("ActionBars", true)
+		if bars and bars.ToggleProcTest then
+			bars:ToggleProcTest()
+		end
+		return
 	elseif msg == "afktest" then
 		local afk = K:GetModule("AFKScreen", true)
 		if afk and afk.ToggleTest then
