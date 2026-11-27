@@ -61,16 +61,31 @@ end
 -- Only sweep when an added buff is on the list, or when the game sends the
 -- whole set again. Most aura updates are other buffs ticking.
 local function OnAura(_, _, _, info)
-	if not info or info.isFullUpdate then
+	if not info then
 		Sweep()
 		return
 	end
-	local added = info.addedAuras
+	local fullUpdate, added = info.isFullUpdate, info.addedAuras
+	-- The client can send the payload as secret values, and testing one errors.
+	-- What changed is unknown then, so sweep. In combat that waits for it to end.
+	if IsSecret(fullUpdate) or IsSecret(added) then
+		Sweep()
+		return
+	end
+	if fullUpdate then
+		Sweep()
+		return
+	end
 	if not added then
 		return
 	end
 	for i = 1, #added do
-		local spellID = added[i].spellId
+		local aura = added[i]
+		if IsSecret(aura) then
+			Sweep()
+			return
+		end
+		local spellID = aura and aura.spellId
 		if spellID and not IsSecret(spellID) and unwanted[spellID] then
 			Sweep()
 			return
