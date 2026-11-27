@@ -341,6 +341,50 @@ function K.UnitDifficultyColor(unit)
 	return _G.GetCreatureDifficultyColor(level > 0 and level or 999)
 end
 
+-- One of the game's format strings, such as LOOT_ITEM_SELF, turned into an
+-- anchored pattern with a capture for each %s and %d, so a chat line built from
+-- it can be read back in any client language. A string with numbered arguments
+-- (%1$s) can put them in another order in some languages, so it gives nil and
+-- the caller leaves that line alone.
+function K.FormatToPattern(text)
+	if type(text) ~= "string" or text:find("%$") then
+		return nil
+	end
+	text = text:gsub("%%s", "\001"):gsub("%%d", "\002")
+	text = text:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+	text = text:gsub("\001", "(.-)"):gsub("\002", "(%%d+)")
+	return "^" .. text .. "$"
+end
+
+-- Equipment slots a piece of gear goes in, by its equip location. Trinkets are
+-- left out on purpose, their worth is in the effect and not the item level, and
+-- so are shirts and tabards, which are cosmetic. Used by the junk seller and
+-- the quest reward picker to compare gear against what is worn.
+K.GearSlotsFor = {
+	INVTYPE_HEAD = { 1 },
+	INVTYPE_NECK = { 2 },
+	INVTYPE_SHOULDER = { 3 },
+	INVTYPE_CHEST = { 5 },
+	INVTYPE_ROBE = { 5 },
+	INVTYPE_WAIST = { 6 },
+	INVTYPE_LEGS = { 7 },
+	INVTYPE_FEET = { 8 },
+	INVTYPE_WRIST = { 9 },
+	INVTYPE_HAND = { 10 },
+	INVTYPE_FINGER = { 11, 12 },
+	INVTYPE_CLOAK = { 15 },
+	INVTYPE_WEAPON = { 16, 17 },
+	INVTYPE_2HWEAPON = { 16 },
+	INVTYPE_WEAPONMAINHAND = { 16 },
+	INVTYPE_WEAPONOFFHAND = { 17 },
+	INVTYPE_SHIELD = { 17 },
+	INVTYPE_HOLDABLE = { 17 },
+	INVTYPE_RANGED = { 18 },
+	INVTYPE_RANGEDRIGHT = { 18 },
+	INVTYPE_THROWN = { 18 },
+	INVTYPE_RELIC = { 18 },
+}
+
 -- Gear whose look is not in the transmog collection yet. A grey piece like that is
 -- still worth keeping, so the junk logic leaves it alone. Asks the game for the
 -- appearance of this exact item, and anything it cannot answer for (not gear, no
@@ -588,6 +632,17 @@ function K.SetFont(fontString, size, style)
 	fontString:SetShadowColor(0, 0, 0, 1)
 	fontString:SetShadowOffset(ShadowOffset(style))
 	return fontString
+end
+
+-- A font size that fits inside a bar of the given height. Text on a thin bar
+-- otherwise spills over its top and bottom edges. The chosen size still wins
+-- whenever it is the smaller one, so a tall bar keeps the size the user picked.
+function K.FitFontSize(size, height, ratio)
+	local fit = floor((height or 0) * (ratio or 0.7))
+	if fit < 7 then
+		fit = 7
+	end
+	return (size and size < fit) and size or fit
 end
 
 -- ---------------------------------------------------------------------------
