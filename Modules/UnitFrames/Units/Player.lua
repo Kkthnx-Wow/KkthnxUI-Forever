@@ -22,6 +22,9 @@ Module.Styles.Player = function(self)
 
 	Build.Health(self, cfg.Height)
 	Build.Power(self, Module.PowerHeight(cfg))
+	if cfg.CostPrediction ~= false then
+		Build.CostPrediction(self)
+	end
 	Build.PowerTick(self)
 	Build.HealthText(self, 13)
 	Build.PowerText(self, 11)

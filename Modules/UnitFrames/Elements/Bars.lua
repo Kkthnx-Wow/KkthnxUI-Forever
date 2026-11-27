@@ -110,53 +110,92 @@ end
 -- Health
 -- ---------------------------------------------------------------------------
 
--- Incoming heals and absorbs ride on top of the health fill. oUF sizes them
--- for us on every update, so we only anchor and colour them here.
-local function CreatePredictionBar(health, r, g, b, a, reverse)
-	local bar = CreateFrame("StatusBar", nil, health)
+-- Incoming heals and absorbs ride on top of the health fill, the way the game's
+-- own frames show them: your heals, then everyone else's, then shields, all
+-- running right from the health edge, and heal absorbs eating back left into
+-- the health that is there. oUF sizes each bar to the full health width and
+-- sets its value, so only the anchoring, colour and limits live here.
+--
+-- Colours come from the palette by meaning. Heals are positive, your own
+-- stronger than other people's. Shields are info. Heal absorbs are negative.
+local PREDICTION_ALPHA = {
+	healingPlayer = 0.55,
+	healingOther = 0.3,
+	damageAbsorb = 0.4,
+	healAbsorb = 0.5,
+}
+-- Width of the edge slivers that mark a shield or heal absorb too big to show.
+local OVER_INDICATOR_WIDTH = 3
+
+local function CreatePredictionBar(parent, color, alpha, reverse)
+	local bar = CreateFrame("StatusBar", nil, parent)
 	bar:SetStatusBarTexture(Module.Texture())
-	bar:SetStatusBarColor(r, g, b, a)
-	bar:SetFrameLevel(health:GetFrameLevel() + 1)
+	bar:SetStatusBarColor(color[1], color[2], color[3], alpha)
 	bar:SetPoint("TOP")
 	bar:SetPoint("BOTTOM")
 	bar:SetReverseFill(reverse or false)
 	return bar
 end
 
-local function AddPrediction(health)
-	local healing = CreatePredictionBar(health, 0.0, 0.72, 0.35, 0.35)
-	healing:SetPoint("LEFT", health:GetStatusBarTexture(), "RIGHT", 0, 0)
-	health.HealingAll = healing
+local function CreateOverIndicator(parent, color, side)
+	local sliver = parent:CreateTexture(nil, "OVERLAY")
+	sliver:SetColorTexture(color[1], color[2], color[3], 1)
+	sliver:SetBlendMode("ADD")
+	sliver:SetPoint("TOP" .. side)
+	sliver:SetPoint("BOTTOM" .. side)
+	sliver:SetWidth(OVER_INDICATOR_WIDTH)
+	return sliver
+end
 
-	local damageAbsorb = CreatePredictionBar(health, 0.62, 0.62, 1.0, 0.35)
-	damageAbsorb:SetPoint("LEFT", healing:GetStatusBarTexture(), "RIGHT", 0, 0)
+local function AddPrediction(health)
+	local colors = K.Colors
+
+	-- Every value is held inside the bar. Incoming heals stop at full health,
+	-- shields only fill what health and heals leave missing, and a heal absorb
+	-- never runs past the left edge. Anything past those limits lights the edge
+	-- sliver instead. These are the calculator's own limits, so the numbers are
+	-- right before anything is drawn.
+	local clamp = Enum and Enum.UnitDamageAbsorbClampMode
+	if clamp then
+		health.damageAbsorbClampMode = clamp.MissingHealth
+		health.healAbsorbClampMode = Enum.UnitHealAbsorbClampMode.CurrentHealth
+		health.incomingHealClampMode = Enum.UnitIncomingHealClampMode.MissingHealth
+		health.healAbsorbMode = Enum.UnitHealAbsorbMode.ReducedByIncomingHeals
+	end
+	health.incomingHealOverflow = 1
+
+	-- The bars hang off the health edge, and with smooth bars that edge glides to
+	-- a new value while the prediction is already sized for it, so for a moment
+	-- the pieces could reach past the end. A clipping layer over the bar keeps
+	-- every piece inside the health box at all times.
+	local clip = CreateFrame("Frame", nil, health)
+	clip:SetAllPoints(health)
+	clip:SetClipsChildren(true)
+	clip:SetFrameLevel(health:GetFrameLevel() + 1)
+	health.KKUI_PredictionClip = clip
+
+	local fill = health:GetStatusBarTexture()
+
+	local healingPlayer = CreatePredictionBar(clip, colors.positive, PREDICTION_ALPHA.healingPlayer)
+	healingPlayer:SetPoint("LEFT", fill, "RIGHT", 0, 0)
+	health.HealingPlayer = healingPlayer
+
+	local healingOther = CreatePredictionBar(clip, colors.positive, PREDICTION_ALPHA.healingOther)
+	healingOther:SetPoint("LEFT", healingPlayer:GetStatusBarTexture(), "RIGHT", 0, 0)
+	health.HealingOther = healingOther
+
+	local damageAbsorb = CreatePredictionBar(clip, colors.info, PREDICTION_ALPHA.damageAbsorb)
+	damageAbsorb:SetPoint("LEFT", healingOther:GetStatusBarTexture(), "RIGHT", 0, 0)
 	health.DamageAbsorb = damageAbsorb
 
-	-- Heal absorbs eat into existing health, so this one fills backwards from
-	-- the current health edge.
-	local healAbsorb = CreatePredictionBar(health, 0.9, 0.2, 0.2, 0.4, true)
-	healAbsorb:SetPoint("RIGHT", health:GetStatusBarTexture(), "RIGHT", 0, 0)
+	local healAbsorb = CreatePredictionBar(clip, colors.negative, PREDICTION_ALPHA.healAbsorb, true)
+	healAbsorb:SetPoint("RIGHT", fill, "RIGHT", 0, 0)
 	health.HealAbsorb = healAbsorb
 
-	-- Shield went past full health. A bright sliver straddling the right edge.
-	local overAbsorb = health:CreateTexture(nil, "OVERLAY")
-	overAbsorb:SetColorTexture(0.62, 0.62, 1)
-	overAbsorb:SetBlendMode("ADD")
-	overAbsorb:SetPoint("TOP")
-	overAbsorb:SetPoint("BOTTOM")
-	overAbsorb:SetPoint("LEFT", health, "RIGHT", -4, 0)
-	overAbsorb:SetWidth(8)
-	health.OverDamageAbsorbIndicator = overAbsorb
-
-	-- Same idea on the left for a heal absorb bigger than current health.
-	local overHealAbsorb = health:CreateTexture(nil, "OVERLAY")
-	overHealAbsorb:SetColorTexture(0.9, 0.2, 0.2)
-	overHealAbsorb:SetBlendMode("ADD")
-	overHealAbsorb:SetPoint("TOP")
-	overHealAbsorb:SetPoint("BOTTOM")
-	overHealAbsorb:SetPoint("RIGHT", health, "LEFT", 4, 0)
-	overHealAbsorb:SetWidth(8)
-	health.OverHealAbsorbIndicator = overHealAbsorb
+	-- A shield bigger than the missing health lights the right edge, a heal
+	-- absorb bigger than current health lights the left. Both sit inside the bar.
+	health.OverDamageAbsorbIndicator = CreateOverIndicator(clip, colors.info, "RIGHT")
+	health.OverHealAbsorbIndicator = CreateOverIndicator(clip, colors.negative, "LEFT")
 end
 
 -- ---------------------------------------------------------------------------
@@ -386,6 +425,40 @@ function Build.Power(self, height, gap, pinBottom)
 
 	self.Power = power
 	return power
+end
+
+-- ---------------------------------------------------------------------------
+-- Cast cost preview
+-- ---------------------------------------------------------------------------
+-- While the player casts, the part of the power bar the spell will spend is
+-- marked back from the current power edge, the way the game's own player frame
+-- shows it. oUF reads the cost and sizes the bar. It is drawn in the body text
+-- colour over the power fill, so it reads as "this much goes" on any power
+-- colour, and it is clipped to the power box like the heal prediction.
+local COST_ALPHA = 0.35
+
+function Build.CostPrediction(self)
+	local power = self.Power
+	if not power then
+		return
+	end
+
+	local clip = CreateFrame("Frame", nil, power)
+	clip:SetAllPoints(power)
+	clip:SetClipsChildren(true)
+	clip:SetFrameLevel(power:GetFrameLevel() + 1)
+
+	local text = K.Colors.text
+	local cost = CreateFrame("StatusBar", nil, clip)
+	cost:SetStatusBarTexture(Module.Texture())
+	cost:SetStatusBarColor(text[1], text[2], text[3], COST_ALPHA)
+	cost:SetReverseFill(true)
+	cost:SetPoint("TOP")
+	cost:SetPoint("BOTTOM")
+	cost:SetPoint("RIGHT", power:GetStatusBarTexture(), "RIGHT", 0, 0)
+
+	power.CostPrediction = cost
+	return cost
 end
 
 -- ---------------------------------------------------------------------------
