@@ -40,6 +40,7 @@ local CATEGORY_ICON = {
 	ActionBar = "INV_Misc_EngGizmos_30",
 	Unitframe = "Achievement_Character_Human_Male",
 	Minimap = "INV_Misc_Map_01",
+	WorldMap = "INV_Misc_Map02",
 	Auras = "Spell_Holy_PowerWordShield",
 	Cooldown = "Spell_Nature_TimeStop",
 	Chat = "INV_Letter_15",
@@ -63,9 +64,9 @@ local CATEGORY_ICON = {
 -- so a page added to the schema is never lost from the list.
 local TOP_PAGES = { "WhatsNew", "General" }
 local GROUPS = {
-	{ title = L["Combat"], pages = { "Unitframe", "Nameplate", "ActionBar", "Auras", "Cooldown", "GroupTools" } },
-	{ title = L["Interface"], pages = { "Minimap", "Chat", "Tooltip", "Bags", "MicroMenu", "ExperienceBar", "AlertFrames", "Loot", "Skins" } },
-	{ title = L["Gameplay"], pages = { "Automation", "QoL", "Misc" } },
+	{ title = L["Combat"], pages = { "Unitframe", "Nameplate", "ActionBar", "Auras", "Cooldown" } },
+	{ title = L["Interface"], pages = { "Minimap", "WorldMap", "Chat", "Tooltip", "Bags", "MicroMenu", "ExperienceBar", "AlertFrames", "Loot", "Skins" } },
+	{ title = L["Gameplay"], pages = { "Automation", "QoL", "GroupTools", "Misc" } },
 	{ title = L["Setup"], pages = { "Movers", "Profiles" } },
 }
 
@@ -162,6 +163,7 @@ local function BuildCard(host, section, category)
 		fs:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
 		fs:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -10)
 		fs:SetText(section.title)
+		card.titleText = fs
 
 		local rule = card:CreateTexture(nil, "ARTWORK")
 		rule:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.25)
@@ -171,15 +173,16 @@ local function BuildCard(host, section, category)
 	end
 
 	card.items = {}
-	local flyoutButtons = {}
 	local sectionHasNew = false
 	for _, control in ipairs(section.controls) do
 		local builder = GUI.Builders[control.kind]
 		if builder then
 			local widget = builder(card, control)
 			card.items[#card.items + 1] = { widget = widget, control = control }
-			if control.kind == "extra" then
-				flyoutButtons[#flyoutButtons + 1] = widget
+			-- The width the label needs, kept before FitCard resizes the button so
+			-- every later fit can still tell whether two of them share a row.
+			if control.kind == "button" or control.kind == "extra" then
+				card.items[#card.items].natural = widget:GetWidth()
 			end
 
 			if control.path or control.label then
@@ -215,7 +218,9 @@ local function BuildCard(host, section, category)
 				if control.kind == "check" and widget.Text then
 					badge:SetPoint("LEFT", widget.Text, "RIGHT", 14, 0)
 				elseif control.kind == "button" or control.kind == "extra" then
-					badge:SetPoint("LEFT", widget, "RIGHT", 18, 0)
+					-- On the button's top corner, since buttons now share rows and a
+					-- tag beside one would land on its neighbour.
+					badge:SetPoint("CENTER", widget, "TOPRIGHT", -16, 2)
 				else
 					badge:SetPoint("TOPRIGHT", widget, "TOPRIGHT", -24, 2)
 				end
@@ -224,23 +229,43 @@ local function BuildCard(host, section, category)
 		end
 	end
 
-	-- A quiet NEW on the card title so a new setting is findable while scrolling.
-	if sectionHasNew and section.title then
+	-- A quiet NEW beside the card title so a new setting is findable while
+	-- scrolling. Next to the words, not the card edge, where it floated loose.
+	if sectionHasNew and card.titleText then
 		local badge = CreateNewBadge(card, false)
-		badge:SetPoint("TOPRIGHT", card, "TOPRIGHT", -30, -8)
+		badge:SetPoint("LEFT", card.titleText, "RIGHT", 16, 0)
 		AddBadge(category, badge)
 	end
-
-	-- Flyout buttons in one card share the widest width so the list reads as a
-	-- column instead of a ragged edge.
-	local widest = 0
-	for _, button in ipairs(flyoutButtons) do
-		widest = max(widest, button:GetWidth())
-	end
-	for _, button in ipairs(flyoutButtons) do
-		button:SetWidth(widest)
-	end
 	return card
+end
+
+local BUTTON_GAP = 8
+
+-- Every button in a run sized and placed at once. Two to a row at half width
+-- when every label fits, otherwise one per row at full width, so a run of
+-- buttons reads as a grid with the same edges as the sliders around it.
+local function PlaceButtonRun(card, run, contentWidth, y)
+	local half = math.floor((contentWidth - BUTTON_GAP) / 2)
+	local paired = #run > 1
+	for _, item in ipairs(run) do
+		if item.natural > half then
+			paired = false
+			break
+		end
+	end
+	local perRow = paired and 2 or 1
+	local width = paired and half or contentWidth
+	for i, item in ipairs(run) do
+		local col = (i - 1) % perRow
+		local widget = item.widget
+		widget:SetWidth(width)
+		widget:ClearAllPoints()
+		widget:SetPoint("TOPLEFT", card, "TOPLEFT", 16 + col * (half + BUTTON_GAP), y)
+		if col == perRow - 1 or i == #run then
+			y = y - (widget.height or 30)
+		end
+	end
+	return y
 end
 
 -- Size a card to a width and stack its widgets. Returns the card's height.
@@ -248,26 +273,37 @@ local function FitCard(card, width)
 	card:SetWidth(width)
 	local contentWidth = width - 30
 	local y = card.hasTitle and -36 or -10
-	for _, item in ipairs(card.items) do
+	local run = {}
+	local items = card.items
+	for index, item in ipairs(items) do
 		local widget, control = item.widget, item.control
-		-- Stretch width-aware widgets (sliders, dropdowns) to fill the card so
-		-- their left and right edges share one grid line.
-		if widget.KKUI_SetWidth then
-			widget.KKUI_SetWidth(contentWidth)
+		if item.natural then
+			run[#run + 1] = item
+			local nextItem = items[index + 1]
+			if not (nextItem and nextItem.natural) then
+				y = PlaceButtonRun(card, run, contentWidth, y)
+				run = {}
+			end
+		else
+			-- Stretch width-aware widgets (sliders, dropdowns) to fill the card so
+			-- their left and right edges share one grid line.
+			if widget.KKUI_SetWidth then
+				widget.KKUI_SetWidth(contentWidth)
+			end
+			-- Descriptions wrap, refit them to the card so text never spills past the
+			-- edge and the stored height matches the wrapped text.
+			if control.kind == "description" and widget.SetWidth then
+				widget:SetWidth(contentWidth)
+				widget.height = (widget:GetStringHeight() or 12) + 8
+			end
+			widget:ClearAllPoints()
+			widget:SetPoint("TOPLEFT", card, "TOPLEFT", control.kind == "description" and 12 or 16, y)
+			if item.mark then
+				item.mark:ClearAllPoints()
+				item.mark:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, y - 3)
+			end
+			y = y - (widget.height or 28)
 		end
-		-- Descriptions wrap, refit them to the card so text never spills past the
-		-- edge and the stored height matches the wrapped text.
-		if control.kind == "description" and widget.SetWidth then
-			widget:SetWidth(contentWidth)
-			widget.height = (widget:GetStringHeight() or 12) + 8
-		end
-		widget:ClearAllPoints()
-		widget:SetPoint("TOPLEFT", card, "TOPLEFT", control.kind == "description" and 12 or 16, y)
-		if item.mark then
-			item.mark:ClearAllPoints()
-			item.mark:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, y - 3)
-		end
-		y = y - (widget.height or 28)
 	end
 	local height = -y + 10
 	card:SetHeight(height)

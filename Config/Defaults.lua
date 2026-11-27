@@ -52,6 +52,8 @@ K.ConfigDefaults = {
 		StanceBar = { Enable = true, PerRow = 10, Size = 30, Space = 6, Alpha = 1, Mouseover = false, FadeCombat = false, HotKey = true },
 		PossessBar = { Enable = true, PerRow = 2, Size = 30, Space = 6, Alpha = 1, Mouseover = false, FadeCombat = false, HotKey = true },
 		ExtraBar = { Enable = true, Size = 46 },
+		-- One bindable button for the usable item of the nearest quest in your zone.
+		QuestButton = { Enable = true },
 	},
 
 	-- Unit frame geometry follows the original KkthnxUI. Health and power are two
@@ -106,7 +108,7 @@ K.ConfigDefaults = {
 			[8] = { 0.25, 0.72, 0.30 },
 		},
 
-		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, PowerTick = true, FiveSecondRule = true, Totems = true, PvPIcon = true },
+		Player = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = false, Debuffs = true, ClassPower = true, AdditionalPower = true, ShowName = false, PowerTick = true, FiveSecondRule = true, CostPrediction = true, Totems = true, PvPIcon = true },
 		Target = { Enable = true, Width = 218, Height = 40, PowerHeight = 16, ShowPower = true, Buffs = true, Debuffs = true, PvPIcon = true, Threat = false },
 		TargetOfTarget = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true },
 		Pet = { Enable = true, Width = 100, Height = 18, PowerHeight = 10, ShowPower = true, Debuffs = false, Happiness = true, FeedMenu = true },
@@ -211,6 +213,7 @@ K.ConfigDefaults = {
 		PerformanceLabelColor = "White", -- White, Class, or Custom, for the fps and ms labels
 		PerformanceCustomColor = { 1, 1, 1 }, -- used when the label colour is Custom
 		ZoomResetDelay = 0, -- seconds of no wheel input before zoom snaps back out, 0 = off
+		VolumeWheel = true, -- Ctrl + mouse wheel over the map changes the master volume
 		MouseoverFade = false, -- fade the map out until you hover it
 		FadeAlpha = 0.25, -- alpha while faded
 		CollectButtons = true,
@@ -227,6 +230,11 @@ K.ConfigDefaults = {
 		Reveal = false, -- draw unexplored map areas (toggle on the map itself)
 		RevealDim = true, -- dim the revealed areas so explored ground still stands out
 		Waypoints = true, -- /way and Alt+click on the map set the game's own super-tracked waypoint
+		ArrivalTime = true, -- time to arrive under the game's on-screen navigation distance
+		FadeWhileMoving = false, -- fade the world map and zone map while moving, in place of the game's fixed fade
+		FadeAlpha = 0.4, -- opacity the maps fade to while moving
+		ZoneMapSkin = true, -- our border and close button on the Shift+M zone map
+		ZoneMapScale = 1, -- size of the Shift+M zone map
 	},
 
 	Nameplate = {
@@ -248,6 +256,7 @@ K.ConfigDefaults = {
 		EnemyCombatOnly = false, -- enemy plates hidden out of combat
 		FriendlyLevel = true, -- level in front of the name on name-only plates
 		ShowGuildName = true,
+		FriendlyClassIcon = true, -- class icon beside friendly player names, tank or healer icon for group roles
 		ShowCastbar = true,
 		CastbarHeight = 14, -- matches the health bar so a cast does not outweigh it
 		ShowDebuffs = true,
@@ -302,6 +311,7 @@ K.ConfigDefaults = {
 		GameMenu = true, -- skin the pause menu and add a KkthnxUI options button
 		ObjectiveTracker = false, -- tidy the quest tracker header/minimise and recolour its bars, off while the scenario tracker taint reports are open
 		ObjectiveTrackerClassColor = true, -- class colour the tracker bars instead of the accent
+		DamageMeter = true, -- the game's own damage meter in our bar, border, font and panel style
 		Details = true, -- offer a KkthnxUI skin in the damage meter's skin list, nothing changes until it is picked
 	},
 
@@ -324,6 +334,7 @@ K.ConfigDefaults = {
 		Order = "DEFAULT", -- DEFAULT puts the backpack first, REVERSE puts it last
 		ShowKeyring = true, -- the keyring button, when the client has one
 		ShowFreeSlots = true, -- free bag slots on the backpack button
+		AmmoTotal = true, -- all the equipped ammo in your bags on a quiver or ammo pouch
 		HideStock = true, -- hide the game's own bag bar while ours is off
 	},
 
@@ -370,6 +381,9 @@ K.ConfigDefaults = {
 		Height = 14,
 		FontSize = 11,
 		ShowText = true,
+		TextOnHover = false, -- bar text only while the pointer is over the bar
+		LevelingStats = true, -- XP per hour, time and kills to level in the tooltip
+		QuestXP = true, -- show the XP of quests ready to hand in on the bar
 		ShowRested = true,
 		Fade = false,
 		FadeOpacity = 0,
@@ -467,6 +481,10 @@ K.ConfigDefaults = {
 		AutoRepair = true, -- repair all gear at a repair-capable merchant
 		RepairGuildFunds = false, -- spend guild bank money first when allowed
 		SellJunk = false, -- sell grey items when a merchant opens, independent of the bags
+		SellFlagged = true, -- the auto sell also sells items the player flagged as junk
+		SellSafe = false, -- sell at most what the buyback list holds per merchant visit
+		SellOldGear = false, -- also sell soulbound gear far below what is equipped
+		SellOldGearPercent = 50, -- outgrown below this percent of the equipped item level
 		AutoSummon = false, -- accept a summon after a short delay, out of combat
 		AutoResurrect = false, -- accept a resurrection request, out of combat
 		AutoInvite = false, -- accept group invites from friends and guild members
@@ -492,12 +510,14 @@ K.ConfigDefaults = {
 		BlockSharedQuests = false, -- also turn away quests a stranger in your group shares
 		QuickDelete = false, -- fill in the typed word on the delete good item dialog
 		LootSparkle = false, -- keep the sparkle on lootable quest items through graphics presets
+		InteractIcons = false, -- the game's interact icons on herbs, ore and objects (Show All)
 		MaxCameraDistance = false, -- raise the camera distance setting to the top of the game's own slider
 		EasyFishing = false, -- double right-click on the world to cast Fishing
 		CancelBuffs = false, -- take off listed buffs such as costumes as soon as they land
 		CancelBuffList = "16593, 16595, 44212", -- spell IDs, Noggenfogger slow fall and shrink, Weighted Jack-o'-Lantern
 		FlightTimes = false, -- time flights, show them on the flight map and count down while flying
 		FastLoot = false, -- take all loot at once when the game would auto loot
+		ConfirmBoPSolo = false, -- confirm bind on pickup loot for you, only while not in a group
 		Reminders = false, -- clickable icons for what your character is missing, out of combat
 		ReminderSize = 36, -- icon size of the reminder row
 		ReminderBuffs = true, -- class self-buffs such as armors and Intellect
@@ -516,6 +536,7 @@ K.ConfigDefaults = {
 		CrosshairCombatOnly = false,
 		CrosshairOffset = 0, -- vertical offset from the centre
 		QuestAnnounce = false, -- tell the group about accepted and finished quests
+		QuestProgress = "DONE", -- objective progress too: DONE, EVERY step, or OFF
 		AchievementShot = false, -- screenshot when an achievement is earned
 		LevelAnnouncer = false, -- say how long each level took when you ding
 		LevelChannel = "LOCAL", -- LOCAL, SAY, PARTY or GUILD
@@ -533,6 +554,7 @@ K.ConfigDefaults = {
 		Accept = true, -- accept offered quests
 		TurnIn = true, -- hand in completed quests
 		RewardMode = "TAKE", -- on a choice of rewards: OFF, HIGHLIGHT the best seller, or TAKE it
+		PreferUpgrades = false, -- pick a reward that upgrades worn gear before the best seller
 		SkipGossip = true, -- click through a single-option gossip
 		IgnoreTrivial = false, -- leave low-level (grey) quests alone
 		Repeatable = false, -- daily and repeatable quests, which usually eat materials
@@ -558,6 +580,10 @@ K.ConfigDefaults = {
 		StickyWhisper = false, -- writes a flag the chat edit box reads in its Enter handler, off by default
 		WhisperSound = true, -- play a sound on an incoming whisper
 		HistoryPersist = true, -- keep recent player chat across a reload or relog
+		RememberSent = true, -- the edit box arrows reach lines sent in earlier sessions
+		MaxLines = 500, -- lines each chat window keeps, the game's own is 128
+		ShortLines = false, -- "Loot: [item]" and "XP: +120" in place of the full sentences
+		ChannelColorMemory = true, -- keep a channel's colour when its number changes
 		KeywordHighlight = true, -- highlight your name and custom keywords in chat
 		KeywordList = "", -- extra keywords, comma separated (your name is always watched)
 		KeywordColor = { 1, 0.82, 0 }, -- colour applied to a matched keyword
@@ -568,6 +594,7 @@ K.ConfigDefaults = {
 		BubbleName = true, -- start the bubble with who is speaking, class coloured
 		BubbleChatColor = true, -- tint the bubble shadow by chat type (party, raid, yell)
 		ShortenChannels = true,
+		NameLevels = false, -- [Name:42] for players whose level is known (group, guild, friends, targets)
 		ClassColorNames = true,
 		URLLinks = true,
 		CharacterCount = true, -- characters left to type, on the right of the chat edit box
@@ -587,6 +614,7 @@ K.ConfigDefaults = {
 	Tooltip = {
 		Enable = true,
 		CursorAnchor = false, -- follow the cursor instead of the default corner
+		CursorOutsideInstances = false, -- in dungeons, raids and PvP the tooltip goes back to its corner
 		HideInCombat = false,
 		ClassColorName = true,
 		HealthValue = true,
