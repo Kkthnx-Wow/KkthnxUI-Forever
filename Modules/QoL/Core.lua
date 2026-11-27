@@ -182,6 +182,7 @@ local FEATURES = {
 	{ "QuickDelete", "SetupQuickDelete" },
 	{ "TradeInfo", "SetupTradeInfo" },
 	{ "FastLoot", "SetupFastLoot" },
+	{ "ConfirmBoPSolo", "SetupBoPConfirm" },
 	{ "Reminders", "SetupReminders" },
 	{ "TrainAll", "SetupTrainAll" },
 	{ "QuestLevels", "SetupQuestLevels" },
@@ -201,6 +202,9 @@ function Module:OnEnable()
 	-- Runs either way. When off it puts back a game setting it changed before.
 	if self.UpdateLootSparkle then
 		self:UpdateLootSparkle()
+	end
+	if self.UpdateInteractIcons then
+		self:UpdateInteractIcons()
 	end
 	if self.UpdateCameraDistance then
 		self:UpdateCameraDistance()

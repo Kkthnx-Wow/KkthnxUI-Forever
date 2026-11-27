@@ -13,6 +13,11 @@
 
 		Stands aside when another addon that keeps this same setting is loaded,
 		so the two never fight over it.
+
+		Herbs, ore and other objects get the game's own interact icons instead of
+		a sparkle. A sparkle there would need a nameplate forced onto whatever the
+		interact key picks, which in other addons made spells cast without a target
+		land on nearby players, so only the game's own option is switched.
 -----------------------------------------------------------------------------]]
 
 local K, C, L = KkthnxUI[1], KkthnxUI[2], KkthnxUI[3]
@@ -25,6 +30,9 @@ local SetCVar = SetCVar
 local InCombatLockdown = InCombatLockdown
 local C_Timer = C_Timer
 local pcall = pcall
+local pairs = pairs
+local tonumber = tonumber
+local band = bit.band
 local strlower = string.lower
 local type = type
 
@@ -136,4 +144,67 @@ function Module:UpdateLootSparkle()
 			K.Print(L["Quest loot sparkles stay until you restart the game. A reload is not enough."])
 		end
 	end
+end
+
+-- ---------------------------------------------------------------------------
+-- Interact icons on herbs, ore and objects
+-- ---------------------------------------------------------------------------
+
+-- The game marks the herb, ore node, chest or NPC the interact key would use
+-- with its own icon (a leaf, a pickaxe, a gear). By default it skips game
+-- objects. This switches the game's own Interact Key Icons option to Show All,
+-- the same four settings its Accessibility page writes, and puts back what you
+-- had when turned off. The interact key itself and how targeting works are left
+-- alone: those are yours to set in the game's Controls page.
+local ICON_CVARS = {
+	SoftTargetIconEnemy = "1",
+	SoftTargetIconInteract = "1",
+	SoftTargetIconGameObject = "1",
+	SoftTargetLowPriorityIcons = "1",
+}
+local INTERACT_CVAR = "softTargetInteract"
+local KBM_FLAG = Enum.SoftTargetEnableFlags and Enum.SoftTargetEnableFlags.Kbm or 2
+local hintShown = false
+
+local function ApplyInteractIcons()
+	if InCombatLockdown() then
+		K.DeferCombat("InteractIcons", ApplyInteractIcons)
+		return
+	end
+	local db = K.DB
+	if not db then
+		return
+	end
+	if C.QoL.InteractIcons then
+		if not db.interactIconsRestore then
+			local saved = {}
+			for cvar in pairs(ICON_CVARS) do
+				saved[cvar] = GetCVar(cvar)
+			end
+			db.interactIconsRestore = saved
+		end
+		for cvar, value in pairs(ICON_CVARS) do
+			if GetCVar(cvar) ~= value then
+				pcall(SetCVar, cvar, value)
+			end
+		end
+		-- Mouse and keyboard only get the icons once the interact key is on for them.
+		local mode = tonumber(GetCVar(INTERACT_CVAR)) or 0
+		if not hintShown and band(mode, KBM_FLAG) == 0 then
+			hintShown = true
+			K.Print(L["Interact icons show once Enable Interact Key is on in the game's Controls settings."])
+		end
+	elseif db.interactIconsRestore then
+		for cvar, value in pairs(db.interactIconsRestore) do
+			if value ~= nil and GetCVar(cvar) ~= value then
+				pcall(SetCVar, cvar, value)
+			end
+		end
+		db.interactIconsRestore = nil
+	end
+end
+
+-- Runs at enable and whenever the option is toggled in the config.
+function Module:UpdateInteractIcons()
+	ApplyInteractIcons()
 end
