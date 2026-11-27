@@ -273,7 +273,16 @@ function K:SetupUIScale(init)
 	if general.AutoScale then
 		general.UIScale = Pixel.BestScale()
 	end
-	local scale = general.UIScale or Pixel.BestScale()
+	-- An imported or damaged value can be anything, and SetScale with 0 or a
+	-- huge number breaks the whole interface. Keep it in the slider's range. The
+	-- clamped value is written back to the live table only, so the pixel math
+	-- below reads the same scale UIParent gets.
+	local scale = general.UIScale
+	if type(scale) ~= "number" or scale ~= scale then
+		scale = Pixel.BestScale()
+	end
+	scale = K.Clamp(scale, 0.4, 1.15)
+	general.UIScale = scale
 
 	if init then
 		Pixel.UpdateMult()

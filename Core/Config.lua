@@ -369,12 +369,16 @@ function K:SetupConfig()
 	-- Build the live config. Defaults first, then the stored overrides win.
 	local defaults = K.ConfigDefaults
 	local live = DeepCopy(defaults)
-	-- Overlay stored overrides onto the defaults copy.
+	-- Overlay stored overrides onto the defaults copy. A stored value whose type
+	-- differs from its default (an old, edited or damaged save) is skipped so the
+	-- default stays, the same rule import uses. Keys with no default, such as
+	-- entries in a free form list, are taken as they are.
 	local function Overlay(dest, src)
 		for k, v in pairs(src) do
-			if type(v) == "table" and type(dest[k]) == "table" then
-				Overlay(dest[k], v)
-			else
+			local current = dest[k]
+			if type(v) == "table" and type(current) == "table" then
+				Overlay(current, v)
+			elseif current == nil or type(current) == type(v) then
 				dest[k] = v
 			end
 		end
