@@ -68,6 +68,14 @@ local function Decorate(plate, variant)
 				guild:SetText("<Guild Name>")
 			end
 		end
+		-- Your own class stands in for the friendly player's.
+		local icon = plate.ClassIcon
+		local atlas = K.Class and ("classicon-" .. K.Class:lower())
+		if icon and atlas and C_Texture.GetAtlasInfo(atlas) then
+			icon:SetAtlas(atlas)
+			icon.__key = nil
+			icon:Show()
+		end
 		return
 	end
 

@@ -31,6 +31,11 @@ local UnitClass = UnitClass
 local UnitClassification = UnitClassification
 local C_TooltipInfo = C_TooltipInfo
 local UnitGUID = UnitGUID
+local UnitClassBase = UnitClassBase
+local UnitGroupRolesAssigned = UnitGroupRolesAssigned
+local GetMicroIconForRole = GetMicroIconForRole
+local C_Texture = C_Texture
+local strlower = string.lower
 local strsplit = strsplit
 local next = next
 local tonumber = tonumber
@@ -636,6 +641,17 @@ local function UpdateNameOnly(self)
 		else
 			AnchorBarName(self)
 		end
+		-- The hidden bar keeps its full width, so a marker left on its end floated
+		-- far from a short name. Without the bar it follows the name text instead.
+		local quest = self.QuestIcon
+		if quest then
+			quest:ClearAllPoints()
+			if friendly then
+				quest:SetPoint("LEFT", self.Name, "RIGHT", 2, 0)
+			else
+				quest:SetPoint("LEFT", self.Health, "RIGHT", 1, 0)
+			end
+		end
 	end
 end
 
@@ -677,6 +693,64 @@ local function UpdateExecute(self, unit)
 	end
 end
 
+-- Class icon beside a friendly player's name on a name-only plate. A group
+-- member with the tank or healer role gets the role icon in its place, since
+-- that is what you look for in a crowd. Forever cannot read another player's
+-- spec, so class and group role are all there is. Only redrawn when the unit
+-- or its role changes, this runs on every health event.
+local function UpdateClassIcon(self)
+	local icon = self.ClassIcon
+	if not icon then
+		return
+	end
+	local unit = self.unit
+	local isPlayer = self.__nameOnly and unit and UnitIsPlayer(unit)
+	if IsSecret(isPlayer) or not isPlayer then
+		if icon.__key then
+			icon.__key = nil
+			icon:Hide()
+		end
+		return
+	end
+	local guid = UnitGUID(unit)
+	local role = UnitGroupRolesAssigned(unit)
+	-- A reused plate must not keep the last unit's icon when this one is hidden.
+	if IsSecret(guid) or IsSecret(role) or not guid then
+		if icon.__key then
+			icon.__key = nil
+			icon:Hide()
+		end
+		return
+	end
+	local key = guid .. role
+	if icon.__key == key then
+		return
+	end
+	icon.__key = key
+
+	local atlas
+	if role == "TANK" or role == "HEALER" then
+		atlas = GetMicroIconForRole(role)
+	else
+		local class = UnitClassBase(unit)
+		atlas = class and not IsSecret(class) and ("classicon-" .. strlower(class))
+	end
+	if atlas and C_Texture.GetAtlasInfo(atlas) then
+		icon:SetAtlas(atlas)
+		icon:Show()
+	else
+		icon:Hide()
+	end
+end
+
+-- A role change keeps the same unit, so the cached look has to be dropped.
+local function OnRosterChanged(self)
+	if self.ClassIcon then
+		self.ClassIcon.__key = nil
+		UpdateClassIcon(self)
+	end
+end
+
 local function PostUpdateHealth(health, unit)
 	local self = health.__owner
 	if not self then
@@ -685,6 +759,7 @@ local function PostUpdateHealth(health, unit)
 	UpdateExecute(self, unit)
 	-- Name-only first. The target highlight reads self.__nameOnly.
 	UpdateNameOnly(self)
+	UpdateClassIcon(self)
 	UpdateTargetHighlight(self)
 	UpdateClassification(self)
 	UpdateQuest(self)
@@ -1243,6 +1318,16 @@ local function BuildIndicators(self)
 		self.QuestCount = count
 	end
 
+	-- Class or role icon just left of the name, on name-only player plates.
+	-- The same height as the name text, so it adds no height to the plate.
+	if db.FriendlyNameOnly and db.FriendlyClassIcon then
+		local icon = self:CreateTexture(nil, "OVERLAY")
+		icon:SetSize(db.NameSize + 2, db.NameSize + 2)
+		icon:SetPoint("RIGHT", self.Name, "LEFT", -3, 0)
+		icon:Hide()
+		self.ClassIcon = icon
+	end
+
 	-- Soft shade behind the name in name-only mode, so the bare name still reads
 	-- over the world. Our own dark wash rather than the Rewards-Shadow atlas, which
 	-- carried its own tint and a fixed size that did not track the name length.
@@ -1288,5 +1373,9 @@ function Module.Style(self, unit)
 	end
 	if self.QuestIcon then
 		EnsureQuestWatcher()
+	end
+	if self.ClassIcon then
+		self:RegisterEvent("GROUP_ROSTER_UPDATE", OnRosterChanged, true)
+		self:RegisterEvent("PLAYER_ROLES_ASSIGNED", OnRosterChanged, true)
 	end
 end
