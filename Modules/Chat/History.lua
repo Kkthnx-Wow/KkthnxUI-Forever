@@ -111,6 +111,10 @@ local function Restore(saved)
 	local dividers = {}
 	local printed = {}
 	restoring = true
+	-- Read by the line rewrite in Core.lua. A replayed line carries last
+	-- session's line IDs, which can point at someone else now, so it gets no
+	-- levels beside names.
+	Module.historyRestoring = true
 	for _, line in ipairs(saved) do
 		if type(line) == "table" and type(line.text) == "string" and not IsSecret(line.text) then
 			if not line.t or (now - line.t) < MAX_AGE then
@@ -142,6 +146,7 @@ local function Restore(saved)
 		end
 	end
 	restoring = false
+	Module.historyRestoring = false
 
 	while #buffer > MAX_LINES do
 		tremove(buffer, 1)

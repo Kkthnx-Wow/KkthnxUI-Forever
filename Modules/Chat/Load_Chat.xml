@@ -9,6 +9,7 @@
 	<Script file="Keywords.lua" />
 	<Script file="Emojis.lua" />
 	<Script file="History.lua" />
+	<Script file="Extras.lua" />
 	<Script file="LeaveChannel.lua" />
 	<Script file="Bubbles.lua" />
 	<Script file="Debug.lua" />

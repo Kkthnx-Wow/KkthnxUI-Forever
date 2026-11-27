@@ -17,6 +17,8 @@ local pairs = pairs
 local type = type
 local hooksecurefunc = hooksecurefunc
 local gsub = string.gsub
+local strfind = string.find
+local strlower = string.lower
 local concat = table.concat
 local IsSecret = K.IsSecret
 local GetCVar = GetCVar
@@ -464,9 +466,25 @@ local function ShortenLine(text)
 	return (gsub(text, "|Hchannel:(%u[%u_]+)|h%[([^%]]+)%]|h", ShortTag))
 end
 
+-- One rewrite per stored line, for both the short channel tags and the levels
+-- beside names (Extras.lua). Two hooks would each compare against the line the
+-- other had already changed, so they share this one.
+local function RewriteLine(text)
+	if C.Chat.ShortenChannels and text:find("|Hchannel:", 1, true) then
+		text = ShortenLine(text)
+	end
+	if C.Chat.NameLevels and Module.AddNameLevels and not Module.historyRestoring then
+		text = Module.AddNameLevels(text)
+	end
+	return text
+end
+
 local function ShortenNewest(frame, text)
 	-- A secret line can be neither read nor compared, so it is left as it is.
-	if type(text) ~= "string" or IsSecret(text) or not text:find("|Hchannel:", 1, true) then
+	if type(text) ~= "string" or IsSecret(text) then
+		return
+	end
+	if not (text:find("|Hchannel:", 1, true) or text:find("|Hplayer:", 1, true)) then
 		return
 	end
 	local buffer = frame.historyBuffer
@@ -477,7 +495,7 @@ local function ShortenNewest(frame, text)
 	if not message or IsSecret(message) or message ~= text then
 		return
 	end
-	local short = ShortenLine(text)
+	local short = RewriteLine(text)
 	if short ~= text then
 		entry.message = short
 		frame:MarkDisplayDirty()
@@ -761,23 +779,57 @@ local function CleanMessage(msg, r, g, b)
 	return K.RGBToHex(r or 1, g or 1, b or 1) .. msg .. "|r"
 end
 
-function Module:CopyChat(chatFrame)
+-- The words a reader sees, without colour codes, link data or icons, lower case,
+-- so a search matches what is on screen and not the markup around it.
+local function PlainText(msg)
+	msg = gsub(msg, "|c%x%x%x%x%x%x%x%x", "")
+	-- Named colours, such as the |cnIQ4: quality token newer clients write.
+	msg = gsub(msg, "|cn[^:]+:", "")
+	msg = gsub(msg, "|r", "")
+	msg = gsub(msg, "|H.-|h", "")
+	msg = gsub(msg, "|h", "")
+	msg = gsub(msg, "|T.-|t", "")
+	msg = gsub(msg, "|A.-|a", "")
+	return strlower(msg)
+end
+Module.PlainChatText = PlainText
+
+-- With a search word, only the lines that contain it are shown, and the window
+-- title says what was searched and how many lines matched.
+function Module:CopyChat(chatFrame, search)
 	if not self.copyFrame then
 		self:CreateCopyWindow()
 	end
 	chatFrame = chatFrame or _G.SELECTED_DOCK_FRAME or _G.SELECTED_CHAT_FRAME or _G.ChatFrame1
+	local needle = search and search ~= "" and strlower(search) or nil
 
 	local lines = {}
 	for i = 1, chatFrame:GetNumMessages() do
 		local msg, r, g, b = chatFrame:GetMessageInfo(i)
-		if msg and not IsSecret(msg) then
+		if msg and not IsSecret(msg) and (not needle or strfind(PlainText(msg), needle, 1, true)) then
 			lines[#lines + 1] = CleanMessage(msg, r, g, b)
 		end
 	end
 
+	local title = self.copyTitle
+	if not title then
+		title = self.copyFrame:CreateFontString(nil, "OVERLAY")
+		K.SetFont(title, 12, K.FontOutlineStyle())
+		title:SetPoint("TOPLEFT", 12, -10)
+		title:SetTextColor(K.Colors.highlight[1], K.Colors.highlight[2], K.Colors.highlight[3])
+		self.copyTitle = title
+	end
+	if needle then
+		title:SetFormattedText(L["Search: %s (%d found)"], search, #lines)
+	else
+		title:SetText("")
+	end
+
 	self.copyFrame:Show()
 	self.copyEdit:SetText(concat(lines, "\n"))
-	self.copyEdit:HighlightText()
+	if not needle then
+		self.copyEdit:HighlightText()
+	end
 end
 
 local function AddCopyButton(chatFrame)
@@ -1024,7 +1076,7 @@ function Module:StyleFrame(index, target)
 	-- The Combat Log (window 2) prints a line per event and its text is not player
 	-- chat, so the rewrite and the history capture stay off it.
 	if name ~= "ChatFrame2" then
-		if db.ShortenChannels then
+		if db.ShortenChannels or db.NameLevels then
 			HookShortening(frame)
 		end
 
@@ -1452,6 +1504,10 @@ function Module:OnEnable()
 	end
 	if self.SetupEmojis then
 		self:SetupEmojis()
+	end
+	-- Before the history replay, so the longer scrollback is in place for it.
+	if self.SetupExtras then
+		self:SetupExtras()
 	end
 	if self.SetupHistory then
 		self:SetupHistory()
