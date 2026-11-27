@@ -19,6 +19,9 @@ local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
 local C_Timer_After = C_Timer.After
 local GetItemButtonIconTexture = GetItemButtonIconTexture
+local GetInventoryItemCount = GetInventoryItemCount
+local band = bit.band
+local IsSecret = K.IsSecret
 
 local BUTTONS = {
 	"MainMenuBarBackpackButton",
@@ -140,8 +143,48 @@ local function UpdateFree()
 	end
 end
 
+-- A quiver or ammo pouch counts only what it holds, and the game writes "*" past
+-- 999. The ammo you have equipped is the type you shoot, so its count across
+-- every bag goes on the quiver instead. Bag families 1 and 2 are arrows and
+-- bullets.
+local AMMO_FAMILIES = 3
+local AMMO_SLOT = _G.INVSLOT_AMMO or 0
+
+local function UpdateAmmo()
+	if not C.BagBar.AmmoTotal then
+		return
+	end
+	local total = GetInventoryItemCount("player", AMMO_SLOT) or 0
+	if IsSecret(total) then
+		return
+	end
+	for index = 1, 4 do
+		local btn = _G["CharacterBag" .. (index - 1) .. "Slot"]
+		if btn and btn.__kkuiBag then
+			local _, family = C_Container.GetContainerNumFreeSlots(index)
+			local isAmmoBag = family and band(family, AMMO_FAMILIES) > 0
+			local text = btn.__kkuiAmmo
+			if isAmmoBag and not text then
+				text = btn:CreateFontString(nil, "OVERLAY")
+				K.SetFont(text, 12, K.FontOutlineStyle())
+				text:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+				btn.__kkuiAmmo = text
+			end
+			if text then
+				text:SetText(isAmmoBag and total > 0 and K.ShortValue(total) or "")
+				text:SetShown(isAmmoBag and true or false)
+			end
+			-- The game's own held count would sit under ours.
+			if btn.Count then
+				btn.Count:SetAlpha(isAmmoBag and 0 or 1)
+			end
+		end
+	end
+end
+
 local function ReapplyIcons()
 	UpdateFree()
+	UpdateAmmo()
 	for _, name in ipairs(BUTTONS) do
 		local btn = _G[name]
 		if btn and btn.__kkuiBag then
@@ -340,6 +383,11 @@ function Module:Setup()
 	K.CreateMover(bar, "BagBar", L["Bag Bar"], point, bar:GetWidth(), bar:GetHeight())
 
 	self:RegisterEvent("BAG_UPDATE_DELAYED", ReapplyIcons)
+	if C.BagBar.AmmoTotal then
+		-- Switching to another ammo type changes the count without a bag update.
+		self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", UpdateAmmo)
+		UpdateAmmo()
+	end
 end
 
 function Module:OnEnable()
