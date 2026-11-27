@@ -143,7 +143,9 @@ local ONESHOT_LIMIT = 6
 local MODEL_FACING = 0.4
 
 local WEEKDAYS = { "WEEKDAY_SUNDAY", "WEEKDAY_MONDAY", "WEEKDAY_TUESDAY", "WEEKDAY_WEDNESDAY", "WEEKDAY_THURSDAY", "WEEKDAY_FRIDAY", "WEEKDAY_SATURDAY" }
-local MONTHS = { "MONTH_JANUARY", "MONTH_FEBRUARY", "MONTH_MARCH", "MONTH_APRIL", "MONTH_MAY", "MONTH_JUNE", "MONTH_JULY", "MONTH_AUGUST", "MONTH_SEPTEMBER", "MONTH_OCTOBER", "MONTH_NOVEMBER", "MONTH_DECEMBER" }
+-- The full date month forms, as the calendar uses, since some languages decline
+-- the month inside a date.
+local MONTHS = { "FULLDATE_MONTH_JANUARY", "FULLDATE_MONTH_FEBRUARY", "FULLDATE_MONTH_MARCH", "FULLDATE_MONTH_APRIL", "FULLDATE_MONTH_MAY", "FULLDATE_MONTH_JUNE", "FULLDATE_MONTH_JULY", "FULLDATE_MONTH_AUGUST", "FULLDATE_MONTH_SEPTEMBER", "FULLDATE_MONTH_OCTOBER", "FULLDATE_MONTH_NOVEMBER", "FULLDATE_MONTH_DECEMBER" }
 
 local FACTION_ATLAS = {
 	Horde = "UI-Character-Info-Honor-Icon-Horde",
@@ -308,7 +310,8 @@ local function FormatDate()
 	local now = date("*t")
 	local weekday = _G[WEEKDAYS[now.wday]] or ""
 	local month = _G[MONTHS[now.month]] or ""
-	return format(_G.FULLDATE, weekday, month, now.day, now.year)
+	-- The month number goes in fifth, as the calendar passes it.
+	return format(_G.FULLDATE, weekday, month, now.day, now.year, now.month)
 end
 
 -- A secret value counts as busy, since it can not be looked at.
@@ -1134,6 +1137,16 @@ function Module:PLAYER_ENTERING_WORLD()
 	wasAFK = afk and true or false
 end
 
+-- A reload or logout while away would drop the stretch so far, since it is
+-- only added when the flag clears. The session table is saved, so add it now.
+-- Fires on reload too, never on a zone change.
+function Module:OnLogout()
+	if wasAFK then
+		session.away = session.away + (GetTime() - afkSince)
+		wasAFK = false
+	end
+end
+
 -- ---------------------------------------------------------------------------
 -- Test mode
 -- ---------------------------------------------------------------------------
@@ -1173,5 +1186,6 @@ function Module:OnEnable()
 	self:RegisterEvent("QUEST_TURNED_IN", "OnQuestTurnedIn")
 	self:RegisterEvent("PLAYER_DEAD", "OnPlayerDead")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	self:RegisterEvent("PLAYER_LOGOUT", "OnLogout")
 	self:PLAYER_ENTERING_WORLD()
 end

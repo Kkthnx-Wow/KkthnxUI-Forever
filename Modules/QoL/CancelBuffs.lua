@@ -24,6 +24,7 @@ local CreateFrame = CreateFrame
 local InCombatLockdown = InCombatLockdown
 local CancelUnitBuff = _G.CancelUnitBuff
 local IsSecret = K.IsSecret
+local canaccesstable = _G.canaccesstable
 
 -- Buffs a player has at once stay well under this.
 local MAX_BUFFS = 40
@@ -60,15 +61,21 @@ end
 
 -- Only sweep when an added buff is on the list, or when the game sends the
 -- whole set again. Most aura updates are other buffs ticking.
+-- UNIT_AURA is SecretWhenAurasRestricted, so the payload table itself can be
+-- out of reach, and indexing one errors.
+local function Readable(value)
+	return not IsSecret(value) and (type(value) ~= "table" or not canaccesstable or canaccesstable(value))
+end
+
 local function OnAura(_, _, _, info)
-	if not info then
+	if not info or not Readable(info) then
 		Sweep()
 		return
 	end
 	local fullUpdate, added = info.isFullUpdate, info.addedAuras
 	-- The client can send the payload as secret values, and testing one errors.
 	-- What changed is unknown then, so sweep. In combat that waits for it to end.
-	if IsSecret(fullUpdate) or IsSecret(added) then
+	if IsSecret(fullUpdate) or not Readable(added) then
 		Sweep()
 		return
 	end
@@ -81,7 +88,7 @@ local function OnAura(_, _, _, info)
 	end
 	for i = 1, #added do
 		local aura = added[i]
-		if IsSecret(aura) then
+		if not Readable(aura) then
 			Sweep()
 			return
 		end
