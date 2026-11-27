@@ -226,7 +226,12 @@ function Module:StyleButton(button)
 		hotkey:SetPoint("TOPRIGHT", button, "TOPRIGHT", -2, -2)
 	end
 	if macro then
+		-- Both edges pinned inside the icon, so a long macro name is cut short with
+		-- an ellipsis instead of running past the button.
 		macro:ClearAllPoints()
-		macro:SetPoint("BOTTOM", button, "BOTTOM", 0, 2)
+		macro:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
+		macro:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+		macro:SetJustifyH("CENTER")
+		macro:SetWordWrap(false)
 	end
 end
