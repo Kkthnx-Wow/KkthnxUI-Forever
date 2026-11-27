@@ -418,6 +418,9 @@ K.ConfigDefaults = {
 		EnhancedMail = false, -- collect gold only, take all, and an attachment tooltip
 		MoveFrames = false, -- drag Blizzard windows for the session, nothing saved
 
+		AFKScreen = true, -- a full-screen view with your character while you are away
+		AFKSpin = true, -- turn the camera slowly behind the AFK screen
+
 		FocusModifier = "None", -- None, Shift, Ctrl or Alt, sets focus on a modified click
 		FocusButton = "Left", -- Left, Right or Middle
 

@@ -1124,6 +1124,10 @@ GUI.schema = {
 			{ kind = "check", label = L["Enhanced Mail"], path = { "Misc", "EnhancedMail" }, reload = true, tooltip = L["Adds a collect gold button that leaves the items, a take all button on an open mail, and lists what is attached when you hover a mail."] },
 			{ kind = "check", label = L["Move Blizzard Windows"], path = { "Misc", "MoveFrames" }, reload = true, tooltip = L["Drag Blizzard windows by their title or edges to move them out of the way. Nothing is saved, so every window is back in its usual place after a reload. Windows Blizzard lines up side by side go back sooner, as soon as one of them opens or closes."] },
 
+			{ kind = "header", label = L["AFK Screen"] },
+			{ kind = "check", label = L["Enable AFK Screen"], path = { "Misc", "AFKScreen" }, since = "1.1.2", tooltip = L["When you go AFK the interface is hidden for a full-screen view with your character, the time and date, this session's numbers, the time away, gold, gear, bags, experience and the whispers and guild chat you missed. Any key brings the interface back, and it steps aside for combat, invites, summons and the logout countdown. Type /kk afktest to see it."] },
+			{ kind = "check", label = L["Spin The Camera"], path = { "Misc", "AFKSpin" }, since = "1.1.2", dependsOn = { "Misc", "AFKScreen" }, tooltip = L["Turn the camera slowly around your character while the AFK screen is up. The camera stays where the turn left it."] },
+
 			{ kind = "header", label = L["GCD Bar"] },
 			{ kind = "check", label = L["Enable GCD Bar"], path = { "Misc", "GCDBar" }, reload = true, tooltip = L["A bar tracking the global cooldown, with the icon of the spell that started it."] },
 			{ kind = "slider", label = L["GCD Bar Width"], path = { "Misc", "GCDBarWidth" }, min = 80, max = 500, step = 10, reload = true, dependsOn = { "Misc", "GCDBar" } },

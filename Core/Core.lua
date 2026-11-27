@@ -101,6 +101,12 @@ SlashCmdList.KKTHNXUI = function(msg)
 			swing:ToggleTest()
 		end
 		return
+	elseif msg == "afktest" then
+		local afk = K:GetModule("AFKScreen", true)
+		if afk and afk.ToggleTest then
+			afk:ToggleTest()
+		end
+		return
 	elseif msg == "buffs" then
 		local qol = K:GetModule("QoL", true)
 		if qol and qol.PrintBuffs then

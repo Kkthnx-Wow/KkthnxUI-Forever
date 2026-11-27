@@ -16,4 +16,5 @@
 	<Script file="Focus.lua" />
 	<Script file="Mail.lua" />
 	<Script file="MoveFrames.lua" />
+	<Script file="AFKScreen.lua" />
 </Ui>
