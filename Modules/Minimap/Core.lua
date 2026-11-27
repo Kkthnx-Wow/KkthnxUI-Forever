@@ -15,6 +15,12 @@ local Module = K:NewModule("Minimap")
 
 local _G = _G
 local C_AddOns = C_AddOns
+local CreateFrame = CreateFrame
+local GetCVar = GetCVar
+local SetCVar = SetCVar
+local IsControlKeyDown = IsControlKeyDown
+local IsShiftKeyDown = IsShiftKeyDown
+local tonumber = tonumber
 
 local Minimap = _G.Minimap
 
@@ -206,7 +212,65 @@ end
 -- the map does not sit zoomed in forever. Disabled when the delay is 0.
 local zoomResetTimer
 
+-- ---------------------------------------------------------------------------
+-- Volume on Ctrl + wheel
+-- ---------------------------------------------------------------------------
+
+-- Ctrl with the wheel over the map turns the game's master volume up or down in
+-- steps of 5, or 1 with Shift held as well. The new level shows large in the
+-- middle of the map and fades away a moment later.
+local VOLUME_CVAR = "Sound_MasterVolume"
+local volumeText, volumeFade
+
+local function BuildVolumeText()
+	local holder = CreateFrame("Frame", nil, Minimap)
+	holder:SetAllPoints()
+	holder:SetFrameLevel(Minimap:GetFrameLevel() + 20)
+	holder:SetAlpha(0)
+
+	volumeText = holder:CreateFontString(nil, "OVERLAY")
+	K.SetFont(volumeText, 26, "OUTLINE")
+	volumeText:SetPoint("CENTER")
+
+	volumeFade = holder:CreateAnimationGroup()
+	volumeFade:SetScript("OnPlay", function()
+		holder:SetAlpha(1)
+	end)
+	volumeFade:SetScript("OnFinished", function()
+		holder:SetAlpha(0)
+	end)
+	local alpha = volumeFade:CreateAnimation("Alpha")
+	alpha:SetFromAlpha(1)
+	alpha:SetToAlpha(0)
+	alpha:SetStartDelay(1)
+	alpha:SetDuration(1.5)
+	alpha:SetSmoothing("OUT")
+end
+
+local function ChangeVolume(delta)
+	local current = tonumber(GetCVar(VOLUME_CVAR)) or 0
+	local step = IsShiftKeyDown() and 1 or 5
+	local percent = math.floor(current * 100 + 0.5) + (delta > 0 and step or -step)
+	percent = math.max(0, math.min(100, percent))
+	SetCVar(VOLUME_CVAR, percent / 100)
+
+	if not volumeText then
+		BuildVolumeText()
+	end
+	-- Muted reads red, quiet (under 30) reads orange, the rest plain.
+	local color = percent == 0 and K.Colors.negative or (percent < 30 and K.Colors.warning or K.Colors.text)
+	volumeText:SetTextColor(color[1], color[2], color[3])
+	volumeText:SetFormattedText("%s %d%%", _G.VOLUME or "Volume", percent)
+	volumeFade:Stop()
+	volumeFade:Play()
+end
+
 local function OnMouseWheel(_, delta)
+	if C.Minimap.VolumeWheel and IsControlKeyDown() then
+		ChangeVolume(delta)
+		return
+	end
+
 	local zoom = Minimap:GetZoom()
 	if delta > 0 then
 		if zoom < Minimap:GetZoomLevels() - 1 then
