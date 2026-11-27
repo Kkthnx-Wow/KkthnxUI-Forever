@@ -85,11 +85,23 @@ for _, list in ipairs({ _G.LOCALIZED_CLASS_NAMES_MALE or {}, _G.LOCALIZED_CLASS_
 	end
 end
 
--- Role icon markup from the LFG role atlas, sized for the name line.
+-- Role icon markup from the group finder's role header atlases, sized for the
+-- name line.
 local ROLE_ICON = {
-	TANK = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:0:19:22:41|t",
-	HEALER = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:1:20|t",
-	DAMAGER = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:22:41|t",
+	TANK = "|A:GO-icon-role-Header-Tank:16:16|a",
+	HEALER = "|A:GO-icon-role-Header-Healer:16:16|a",
+	DAMAGER = "|A:GO-icon-role-Header-DPS:16:16|a",
+}
+local RANGED_DPS_ICON = "|A:GO-icon-role-Header-DPS-Ranged:16:16|a"
+
+-- Classes whose damage dealing is always ranged. Druids and shamans can fight in
+-- melee or at range and the tooltip cannot tell which, so they keep the plain
+-- damage icon.
+local RANGED_CLASS = {
+	HUNTER = true,
+	MAGE = true,
+	PRIEST = true,
+	WARLOCK = true,
 }
 
 local function RGBText(r, g, b, text)
@@ -206,7 +218,14 @@ function Module:OnUnitTooltip(tt)
 				-- the icon is simply skipped when it cannot be read.
 				local role = UnitGroupRolesAssigned(unit)
 				if role and not IsSecret(role) and ROLE_ICON[role] then
-					prefix = prefix .. ROLE_ICON[role] .. " "
+					local icon = ROLE_ICON[role]
+					if role == "DAMAGER" then
+						local _, class = UnitClass(unit)
+						if class and not IsSecret(class) and RANGED_CLASS[class] then
+							icon = RANGED_DPS_ICON
+						end
+					end
+					prefix = prefix .. icon .. " "
 				end
 			end
 			-- AFK / DND flag suffix.

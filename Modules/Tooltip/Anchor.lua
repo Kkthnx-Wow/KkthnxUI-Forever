@@ -16,6 +16,16 @@ local CreateFrame = CreateFrame
 local UIParent = UIParent
 local hooksecurefunc = hooksecurefunc
 local InCombatLockdown = InCombatLockdown
+local IsInInstance = IsInInstance
+
+-- Dungeons, raids, battlegrounds and arenas, where a tooltip on the cursor sits
+-- over the fight. The world and its cities keep it on the cursor.
+local GROUP_CONTENT = { party = true, raid = true, pvp = true, arena = true, scenario = true }
+
+local function InGroupContent()
+	local inInstance, instanceType = IsInInstance()
+	return inInstance and GROUP_CONTENT[instanceType] or false
+end
 
 function Module:SetupAnchor()
 	-- Blizzard re-anchors GameTooltip on each show, so we re-point it to the
@@ -57,7 +67,7 @@ function Module:SetupAnchor()
 	end
 
 	hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tt, parent)
-		if C.Tooltip.CursorAnchor then
+		if C.Tooltip.CursorAnchor and not (C.Tooltip.CursorOutsideInstances and InGroupContent()) then
 			tt:SetOwner(parent, "ANCHOR_CURSOR")
 		else
 			tt:SetOwner(parent, "ANCHOR_NONE")
