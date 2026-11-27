@@ -161,37 +161,54 @@ end
 -- errors inside it.
 local function MakeInitializer(opts)
 	local size = opts.size or 26
+	local corner = opts.anchorPoint or "TOPLEFT"
 	return function(button)
-		local icon = button:CreateTexture(nil, "ARTWORK")
-		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		icon:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-		icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+		-- The flow layout pins each button by its anchor corner and reserves a full
+		-- cell for it, but never sizes it. A button made in combat stays sizeless
+		-- until combat ends (ApplyLocked), so art drawn on the button itself was
+		-- invisible and left an empty gap in the row. All art lives on this child,
+		-- which is sized here and pinned to the same corner, so it fills the cell
+		-- whether or not the button has its size yet.
+		local skin = CreateFrame("Frame", nil, button)
+		skin:SetSize(size, size)
+		skin:SetPoint(corner, button, corner, 0, 0)
 
-		local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+		local icon = skin:CreateTexture(nil, "ARTWORK")
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		icon:SetPoint("TOPLEFT", skin, "TOPLEFT", 1, -1)
+		icon:SetPoint("BOTTOMRIGHT", skin, "BOTTOMRIGHT", -1, 1)
+
+		local cooldown = CreateFrame("Cooldown", nil, skin, "CooldownFrameTemplate")
 		cooldown:SetAllPoints(icon)
 		cooldown:SetHideCountdownNumbers(true)
-		K.StyleCooldownSwipe(cooldown)
+		-- Aura timing the way Blizzard's own target and nameplate auras show it. A
+		-- fresh aura is clear and the shade grows as it runs out, with the edge
+		-- line marking the time left. The action bar style (dark while time
+		-- remains) hid the icon for nearly the whole duration.
+		K.StyleCooldownSwipe(cooldown, 0, 0, 0, 0.5)
+		cooldown:SetReverse(true)
+		cooldown:SetDrawEdge(true)
 
 		-- Text rides a frame above the cooldown, or the swipe draws over it.
-		local textParent = CreateFrame("Frame", nil, button)
-		textParent:SetAllPoints(button)
+		local textParent = CreateFrame("Frame", nil, skin)
+		textParent:SetAllPoints(skin)
 		textParent:SetFrameLevel(cooldown:GetFrameLevel() + 1)
 
 		local count = textParent:CreateFontString(nil, "OVERLAY")
 		K.SetFont(count, 12, "OUTLINE")
-		count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+		count:SetPoint("BOTTOMRIGHT", skin, "BOTTOMRIGHT", -1, 1)
 
 		local duration = textParent:CreateFontString(nil, "OVERLAY")
 		K.SetFont(duration, 12, "OUTLINE")
 		-- Centred on the icon, not below it.
-		duration:SetPoint("CENTER", button, "CENTER", 0, 0)
+		duration:SetPoint("CENTER", skin, "CENTER", 0, 0)
 
 		-- Nameplate auras wear our soft shadow to match the plate. Everything else
 		-- gets the hard border.
 		if opts.shadow and K.CreateShadow then
-			K.CreateShadow(button, 3)
+			K.CreateShadow(skin, 3)
 		else
-			K.CreateBorder(button)
+			K.CreateBorder(skin)
 		end
 
 		-- Dispel-type border. The engine shows and tints this only on debuffs the
@@ -202,7 +219,7 @@ local function MakeInitializer(opts)
 		-- tint textures we register (PreserveAsset keeps the art, tints the vertex
 		-- colour by dispel school).
 		if opts.dispelBorder and button.AddDispelTypeTexture and Enum and Enum.CustomAuraButtonDispelTypeTextureStyle then
-			local border = button.KKUI_Border
+			local border = skin.KKUI_Border
 			if border then
 				-- Bordered buttons. Tint our own eight border segments. Untyped
 				-- debuffs fall back to the normal border colour, not red.
@@ -219,12 +236,12 @@ local function MakeInitializer(opts)
 						pcall(button.AddDispelTypeTexture, button, segments[i], dispelOpts)
 					end
 				end
-			elseif button.KKUI_Shadow and button.KKUI_Shadow.TopEdge then
+			elseif skin.KKUI_Shadow and skin.KKUI_Shadow.TopEdge then
 				-- Shadow buttons (nameplates). Tint the shadow's own backdrop pieces, so
 				-- a poison or magic debuff glows in its school colour and an untyped one
 				-- keeps the plain black shadow. The backdrop tiles its edges itself, so
 				-- this avoids the ragged bars a single stretched glow texture gave.
-				local shadow = button.KKUI_Shadow
+				local shadow = skin.KKUI_Shadow
 				local dispelOpts = {
 					style = Enum.CustomAuraButtonDispelTypeTextureStyle.PreserveAsset,
 					showWhenHarmful = true,
@@ -247,25 +264,25 @@ local function MakeInitializer(opts)
 					customDispelColorMap = { None = CreateColor(0, 0, 0, 0) },
 				}
 				local function Edge()
-					local edge = button:CreateTexture(nil, "OVERLAY")
+					local edge = skin:CreateTexture(nil, "OVERLAY")
 					edge:SetTexture("Interface\\BUTTONS\\WHITE8X8")
 					return edge
 				end
 				local top = Edge()
-				top:SetPoint("TOPLEFT", button, "TOPLEFT", -1, 1)
-				top:SetPoint("TOPRIGHT", button, "TOPRIGHT", 1, 1)
+				top:SetPoint("TOPLEFT", skin, "TOPLEFT", -1, 1)
+				top:SetPoint("TOPRIGHT", skin, "TOPRIGHT", 1, 1)
 				top:SetHeight(2)
 				local bottom = Edge()
-				bottom:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", -1, -1)
-				bottom:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
+				bottom:SetPoint("BOTTOMLEFT", skin, "BOTTOMLEFT", -1, -1)
+				bottom:SetPoint("BOTTOMRIGHT", skin, "BOTTOMRIGHT", 1, -1)
 				bottom:SetHeight(2)
 				local left = Edge()
-				left:SetPoint("TOPLEFT", button, "TOPLEFT", -1, 1)
-				left:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", -1, -1)
+				left:SetPoint("TOPLEFT", skin, "TOPLEFT", -1, 1)
+				left:SetPoint("BOTTOMLEFT", skin, "BOTTOMLEFT", -1, -1)
 				left:SetWidth(2)
 				local right = Edge()
-				right:SetPoint("TOPRIGHT", button, "TOPRIGHT", 1, 1)
-				right:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
+				right:SetPoint("TOPRIGHT", skin, "TOPRIGHT", 1, 1)
+				right:SetPoint("BOTTOMRIGHT", skin, "BOTTOMRIGHT", 1, -1)
 				right:SetWidth(2)
 				for _, edge in ipairs({ top, bottom, left, right }) do
 					pcall(button.AddDispelTypeTexture, button, edge, dispelOpts)
@@ -278,11 +295,11 @@ local function MakeInitializer(opts)
 		-- right atlas per school through the Icon style and leaves it blank for a
 		-- debuff with no school, so this needs no tainted dispel-type read.
 		if opts.dispelIcon and button.AddDispelTypeTexture and Enum and Enum.CustomAuraButtonDispelTypeTextureStyle then
-			local corner = button:CreateTexture(nil, "OVERLAY", nil, 3)
+			local badgeTex = skin:CreateTexture(nil, "OVERLAY", nil, 3)
 			local badge = (size or 30) * 0.45
-			corner:SetSize(badge, badge)
-			corner:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
-			pcall(button.AddDispelTypeTexture, button, corner, {
+			badgeTex:SetSize(badge, badge)
+			badgeTex:SetPoint("BOTTOMRIGHT", skin, "BOTTOMRIGHT", 1, -1)
+			pcall(button.AddDispelTypeTexture, button, badgeTex, {
 				style = Enum.CustomAuraButtonDispelTypeTextureStyle.Icon,
 				showWhenHarmful = true,
 				showWithoutDispelType = false,
