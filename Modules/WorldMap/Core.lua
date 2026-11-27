@@ -197,6 +197,18 @@ function Module:OnEnable()
 		self:SetupWaypoints()
 	end
 
+	-- Arrival time (Navigation.lua) is for any tracked target, tracked quests
+	-- included, so it does not wait on the map tweaks either.
+	if self.SetupNavigation then
+		self:SetupNavigation()
+	end
+
+	-- Map fade and the zone map (Extras.lua). Called either way, so turning the
+	-- tweaks off still gives the game's own map fade back.
+	if self.SetupMapExtras then
+		self:SetupMapExtras(C.WorldMap.Enable)
+	end
+
 	if not C.WorldMap.Enable then
 		return
 	end
