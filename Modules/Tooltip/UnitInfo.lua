@@ -30,6 +30,8 @@ local UnitIsAFK = UnitIsAFK
 local UnitIsDND = UnitIsDND
 local UnitGroupRolesAssigned = UnitGroupRolesAssigned
 local UnitIsUnit = UnitIsUnit
+local UnitIsWildBattlePet = _G.UnitIsWildBattlePet
+local UnitIsBattlePetCompanion = _G.UnitIsBattlePetCompanion
 local UnitFactionGroup = _G.UnitFactionGroup
 local GetRaidTargetIndex = _G.GetRaidTargetIndex
 local IsInRaid = IsInRaid
@@ -103,6 +105,19 @@ local function FindLine(tt, predicate)
 			return fs, i
 		end
 	end
+end
+
+-- A wild battle pet or someone's companion. The client gives these their own
+-- "Pet Level 1 Critter" line, and UnitLevel is not the pet's level, so the
+-- creature rewrite below would stack a wrong level and the type on top of it.
+-- A secret answer counts as no.
+local function IsPetUnit(unit)
+	local wild = UnitIsWildBattlePet and UnitIsWildBattlePet(unit)
+	if wild and not IsSecret(wild) then
+		return true
+	end
+	local companion = UnitIsBattlePetCompanion and UnitIsBattlePetCompanion(unit)
+	return companion and not IsSecret(companion) and true or false
 end
 
 -- Colour for a unit. Class colour for players, reaction colour otherwise.
@@ -245,8 +260,9 @@ function Module:OnUnitTooltip(tt)
 	-- Level line. Recolour by difficulty, tidy the identity block. For creatures
 	-- we add an Elite/Rare/Boss suffix, for players we drop the "(Player)" tag and
 	-- class-colour the spec line just below so the identity reads as one block.
+	-- Battle pets and companions keep the client's own pet level line.
 	local level = UnitLevel(unit)
-	if level and not IsSecret(level) and LEVEL then
+	if level and not IsSecret(level) and LEVEL and not IsPetUnit(unit) then
 		local levelLine = FindLine(tt, function(t)
 			return t:find(LEVEL, 1, true) ~= nil
 		end)
