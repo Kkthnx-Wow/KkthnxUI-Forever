@@ -22,6 +22,13 @@ local _G = _G
 local format = string.format
 local math_huge = math.huge
 local math_min = math.min
+local math_ceil = math.ceil
+local ipairs = ipairs
+local pcall = pcall
+local select = select
+local C_QuestLog = C_QuestLog
+local tonumber = tonumber
+local type = type
 
 local CreateFrame = CreateFrame
 local GetTime = GetTime
@@ -224,6 +231,7 @@ local function HideVisibleBar()
 	reportLabel = ""
 	bar.text:SetText("")
 	bar.rest:Hide()
+	bar.quest:Hide()
 	bar:Hide()
 end
 
@@ -312,6 +320,27 @@ end
 -- ---------------------------------------------------------------------------
 -- Data builders
 -- ---------------------------------------------------------------------------
+-- XP waiting in the quest log: the reward of every quest that is ready to hand
+-- in. A quest the game gives no XP figure for counts as nothing.
+local function CompletedQuestXP()
+	if not C.ExpRep.QuestXP or not _G.GetQuestLogRewardXP then
+		return 0, 0
+	end
+	local total, count = 0, 0
+	for index = 1, C_QuestLog.GetNumQuestLogEntries() do
+		local info = C_QuestLog.GetInfo(index)
+		local questID = info and not info.isHeader and info.questID
+		if questID and C_QuestLog.IsComplete(questID) then
+			local ok, xp = pcall(_G.GetQuestLogRewardXP, questID)
+			if ok and type(xp) == "number" and not IsSecret(xp) and xp > 0 then
+				total = total + xp
+				count = count + 1
+			end
+		end
+	end
+	return total, count
+end
+
 local function BuildExperienceState()
 	if IsMaxLevel() then
 		xpState.available = nil
@@ -329,6 +358,7 @@ local function BuildExperienceState()
 	xpState.available = true
 	xpState.cur, xpState.max, xpState.percent = cur, maxXP, percent
 	xpState.rested, xpState.remaining = rested, maxXP - cur
+	xpState.questXP, xpState.questCount = CompletedQuestXP()
 	xpState.display = format("%s - %s (%.1f%%)", K.ShortValue(cur), K.ShortValue(maxXP), percent)
 	return true
 end
@@ -488,6 +518,14 @@ local function ShowExperience()
 	end
 
 	bar.rest:SetShown(showRested)
+
+	local showQuest = C.ExpRep.QuestXP and xpState.questXP and xpState.questXP > 0
+	if showQuest then
+		local c = K.Colors.highlight
+		bar.quest:SetStatusBarColor(c[1], c[2], c[3], 0.55)
+		SetBarValues(bar.quest, 0, xpState.max, math_min(xpState.cur + xpState.questXP, xpState.max))
+	end
+	bar.quest:SetShown(showQuest)
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -501,6 +539,7 @@ local function ShowReputation()
 	SetBarValues(bar.fill, repState.minValue, repState.maxValue, repState.value)
 
 	bar.rest:Hide()
+	bar.quest:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -513,6 +552,7 @@ local function ShowHonor()
 	SetBarValues(bar.fill, 0, honorState.max, honorState.cur)
 
 	bar.rest:Hide()
+	bar.quest:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -525,6 +565,7 @@ local function ShowHousing()
 	SetBarValues(bar.fill, 0, housingState.max, housingState.cur)
 
 	bar.rest:Hide()
+	bar.quest:Hide()
 	bar.text:SetText(displayText)
 	bar:Show()
 end
@@ -532,6 +573,100 @@ end
 -- ---------------------------------------------------------------------------
 -- Tooltip
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- Leveling stats for this session
+-- ---------------------------------------------------------------------------
+
+-- Gains are added up from the XP the player has, so nothing is missed between
+-- events. A level up counts what was left of the old level plus the new XP.
+-- Quest XP comes from the turn-in event, kill XP is read from the combat XP
+-- line the game prints, using its own text, so it works in every language.
+local MIN_RATE_TIME = 300
+local session = { start = GetTime(), xp = 0, quest = 0 }
+local lastXP, lastMax, lastLevel
+local killPatterns
+
+local function TrackXP()
+	local cur, maxV, level = UnitXP("player"), UnitXPMax("player"), UnitLevel("player")
+	if IsSecret(cur) or IsSecret(maxV) then
+		return
+	end
+	-- XP only ever drops when a level goes by, so that is the level-up signal.
+	-- The new level and the reset XP can arrive in separate updates in either
+	-- order, so the old level's cap is kept until the drop has been counted.
+	if not lastXP then
+		lastMax = maxV
+	elseif cur < lastXP then
+		session.xp = session.xp + (lastMax - lastXP) + cur
+		lastMax = maxV
+	else
+		if cur > lastXP then
+			session.xp = session.xp + (cur - lastXP)
+		end
+		if level == lastLevel then
+			lastMax = maxV
+		end
+	end
+	lastXP, lastLevel = cur, level
+end
+
+local function OnTrackerEvent(_, event, ...)
+	if event == "QUEST_TURNED_IN" then
+		local xp = select(2, ...)
+		if type(xp) == "number" and not IsSecret(xp) then
+			session.quest = session.quest + xp
+		end
+	elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
+		local text = ...
+		if type(text) == "string" and not IsSecret(text) then
+			for i = 1, #killPatterns do
+				local _, xp = text:match(killPatterns[i])
+				if xp then
+					session.lastKill = tonumber(xp)
+					break
+				end
+			end
+		end
+	else
+		TrackXP()
+	end
+end
+
+local function SetupLevelingStats()
+	killPatterns = {}
+	-- Group and rested forms first, the plain form would match their start.
+	for _, name in ipairs({ "COMBATLOG_XPGAIN_EXHAUSTION1_GROUP", "COMBATLOG_XPGAIN_EXHAUSTION1", "COMBATLOG_XPGAIN_FIRSTPERSON_GROUP", "COMBATLOG_XPGAIN_FIRSTPERSON" }) do
+		local pattern = K.FormatToPattern(_G[name])
+		if pattern then
+			killPatterns[#killPatterns + 1] = pattern
+		end
+	end
+	TrackXP()
+	local tracker = CreateFrame("Frame")
+	tracker:RegisterEvent("PLAYER_XP_UPDATE")
+	tracker:RegisterEvent("QUEST_TURNED_IN")
+	tracker:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
+	tracker:SetScript("OnEvent", OnTrackerEvent)
+end
+
+local function AddLevelingLines(remaining)
+	local elapsed = GetTime() - session.start
+	if elapsed < MIN_RATE_TIME or session.xp <= 0 then
+		return
+	end
+	_G.GameTooltip:AddLine(" ")
+	local perHour = session.xp / elapsed * 3600
+	_G.GameTooltip:AddDoubleLine(L["XP Per Hour"], K.ShortValue(perHour), 1, 1, 1)
+	if remaining and remaining > 0 then
+		_G.GameTooltip:AddDoubleLine(L["Time To Level"], _G.SecondsToTime(remaining / perHour * 3600, true, false, 2), 1, 1, 1)
+		if session.lastKill and session.lastKill > 0 then
+			_G.GameTooltip:AddDoubleLine(L["Kills To Level"], format("%d", math_ceil(remaining / session.lastKill)), 1, 1, 1)
+		end
+	end
+	local fromQuests = math_min(session.quest, session.xp) / session.xp * 100
+	_G.GameTooltip:AddDoubleLine(L["From Quests"], format("%.0f%%", fromQuests), 1, 1, 1)
+end
+
 local function AddExperienceTooltip()
 	if not xpState.available then
 		return false
@@ -543,6 +678,12 @@ local function AddExperienceTooltip()
 	if xpState.rested and xpState.rested > 0 then
 		local pct = xpState.max and xpState.max > 0 and (xpState.rested / xpState.max * 100) or 0
 		_G.GameTooltip:AddDoubleLine(L["Rested"], format("+%s (%.1f%%)", K.ShortValue(xpState.rested), pct), 1, 1, 1)
+	end
+	if xpState.questXP and xpState.questXP > 0 then
+		_G.GameTooltip:AddDoubleLine(L["Quests Ready"], format("+%s (%d)", K.ShortValue(xpState.questXP), xpState.questCount or 0), 1, 1, 1)
+	end
+	if C.ExpRep.LevelingStats then
+		AddLevelingLines(xpState.remaining or ((xpState.max or 0) - (xpState.cur or 0)))
 	end
 	return true
 end
@@ -603,8 +744,18 @@ local function AddHousingTooltip(addSpacing)
 	return true
 end
 
+-- Text is either always on, off, or only while the pointer is over the bar.
+local function UpdateTextVisibility()
+	if not bar then
+		return
+	end
+	local cfg = C.ExpRep
+	bar.text:SetShown(cfg.ShowText and (not cfg.TextOnHover or isMouseOver))
+end
+
 local function OnEnter()
 	isMouseOver = true
+	UpdateTextVisibility()
 	if C.ExpRep.Fade then
 		FadeBarIn()
 	end
@@ -632,6 +783,7 @@ end
 
 local function OnLeave()
 	isMouseOver = false
+	UpdateTextVisibility()
 	if C.ExpRep.Fade and not FadeForced() then
 		if hideTimer then
 			hideTimer:Cancel()
@@ -717,8 +869,12 @@ local function ApplyAppearance()
 	local cfg = C.ExpRep
 	bar:SetSize(cfg.Width, cfg.Height)
 	bar.spark:SetHeight(cfg.Height + 6)
-	K.SetFont(bar.text, cfg.FontSize, K.FontOutlineStyle())
-	bar.text:SetShown(cfg.ShowText)
+	K.SetFont(bar.text, K.FitFontSize(cfg.FontSize, cfg.Height), K.FontOutlineStyle())
+	-- Keep both edges inside the bar so a long line is cut, not spread past it.
+	bar.text:ClearAllPoints()
+	bar.text:SetPoint("LEFT", bar, "LEFT", 4, 0)
+	bar.text:SetPoint("RIGHT", bar, "RIGHT", -4, 0)
+	UpdateTextVisibility()
 	RefreshFade()
 end
 
@@ -766,6 +922,15 @@ local function BuildBar()
 	rest:SetStatusBarColor(RESTED_COLOR[1], RESTED_COLOR[2], RESTED_COLOR[3], 0.6)
 	rest:Hide()
 	f.rest = rest
+
+	-- How far handing in the finished quests would take you, between the rested
+	-- layer and the XP fill.
+	local quest = CreateFrame("StatusBar", nil, f)
+	quest:SetAllPoints()
+	quest:SetFrameLevel(base + 2)
+	quest:SetStatusBarTexture(BarTexture())
+	quest:Hide()
+	f.quest = quest
 
 	local fill = CreateFrame("StatusBar", nil, f)
 	fill:SetAllPoints()
@@ -828,6 +993,11 @@ local function RegisterBarEvents()
 	for i = 1, #EVENTS do
 		pcall(bar.RegisterEvent, bar, EVENTS[i])
 	end
+	-- A quest turning complete changes the quest XP layer. The burst of log
+	-- events is folded into one rebuild like every other bar event.
+	if C.ExpRep.QuestXP then
+		bar:RegisterEvent("QUEST_LOG_UPDATE")
+	end
 	bar.kkuiEventsRegistered = true
 end
 
@@ -852,4 +1022,7 @@ function Module:OnEnable()
 
 	RegisterBarEvents()
 	UpdateBar()
+	if C.ExpRep.LevelingStats then
+		SetupLevelingStats()
+	end
 end
